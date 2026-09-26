@@ -61,9 +61,10 @@ interface CalendarDay { date: string; picture: string }   // «2026-10-05» → 
 ```
 
 Карточка YAML в `content/` ([`09-content.md`](09-content.md), §3) — это `Picture` плюс
-то, что нужно только сборке: исходник, параметры узора (`pattern`), рисунок (`drawn`),
-источники рассказа (`about_sources`), «да» владельца (`approved`). В набор попадают
-только поля `Picture` и палитра.
+то, что нужно только сборке: исходник, где хранится оригинал и на каком праве (`museum`,
+`license`), параметры узора (`pattern`), рисунок (`drawn`), источники рассказа
+(`about_sources`), «да» владельца (`approved`). В набор попадают только поля `Picture`
+и палитра.
 
 ### Работа
 
@@ -96,6 +97,7 @@ type Access = 'free' | 'daily' | 'started' | 'plus' | 'locked';
 
 function access(p: Picture, ctx: {
   today: string;                    // дата телефона, «2026-10-05»
+  seen: string;                     // самая поздняя дата, какую видел телефон: часы назад ничего не запирают
   installed: string;                // дата первого запуска — начало календаря игрока
   dailyFrom: (id: string) => string | undefined;   // когда картинка была картинкой дня
   plus: boolean;                    // действует ли подписка
@@ -104,8 +106,8 @@ function access(p: Picture, ctx: {
 ```
 
 По порядку: `free` (`p.free` или `p.order < 5`), `daily` (была картинкой дня между днём
-первого запуска и сегодня), `started` (есть работа — дошить можно всегда), `plus` (есть
-подписка), иначе `locked`. Правила — [`08-game-design.md`](08-game-design.md), «„Узоры+“ глазами игрока».
+первого запуска и `seen`), `started` (есть работа — дошить можно всегда), `plus` (есть
+подписка), иначе `locked`. `seen` хранится на телефоне и только растёт. Правила — [`08-game-design.md`](08-game-design.md), «„Узоры+“ глазами игрока».
 
 ## Телефон
 

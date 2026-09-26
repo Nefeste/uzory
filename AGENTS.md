@@ -36,7 +36,7 @@ Infrastructure is reused from the studio's other games **by copying** (ADR 0001)
 named in the first line of the copied file (`// из votchina: src/ui/dialog.tsx @ <commit>`):
 `Nefeste/votchina` (dialog, i18n mechanics, crash log and report, storage, settings, release
 signing plugin, Android CI, RuStore upload), `Nefeste/anamnez` (Skia setup incl. web CanvasKit
-loading, arm64-only build), `Nefeste/nardy` (RuStore Pay and Review integration). The studio site
+loading), `Nefeste/nardy` (RuStore Pay and Review integration). The studio site
 `Nefeste/gornitsagames` holds the brand (fonts Kurale and Onest, color tokens, the ornament band)
 and the nginx config of the server that hosts picture packs.
 
