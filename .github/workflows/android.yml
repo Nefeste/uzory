@@ -4,8 +4,9 @@
 #
 # Без секретов ключа релиза нет никогда: на main APK собирается только на проверку
 # (манифест, разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью
-# не должен попасть ни на чей телефон. На рабочих ветках без ключа сборки нет вовсе:
-# минуты Actions дороже проверки, которую и так сделает main.
+# не должен попасть ни на чей телефон. На рабочих ветках без ключа сборки нет вовсе
+# (минуты Actions дороже проверки, которую и так сделает main) — кроме коммита с «[apk]»
+# в сообщении: так проверяется, что нативная сборка вообще собирается.
 name: Android
 
 on:
@@ -102,6 +103,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CERT: ${{ vars.ANDROID_CERT_SHA256 }}
           MAIN: ${{ github.ref == 'refs/heads/main' }}
+          MSG: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
           APK='{"target":"apk","task":"assembleRelease","file":"android/app/build/outputs/apk/release/app-release.apk"}'
@@ -109,7 +111,8 @@ jobs:
           if [ -z "$KEYSTORE_B64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]; then
             echo "ready=no" >> "$GITHUB_OUTPUT"
             echo "matrix={\"include\":[$APK]}" >> "$GITHUB_OUTPUT"
-            if [ "$MAIN" = "true" ]; then echo "build=yes" >> "$GITHUB_OUTPUT"; else echo "build=no" >> "$GITHUB_OUTPUT"; fi
+            # проверочная сборка с рабочей ветки — по «[apk]» в сообщении коммита
+            if [ "$MAIN" = "true" ] || printf '%s' "$MSG" | grep -qF '[apk]'; then echo "build=yes" >> "$GITHUB_OUTPUT"; else echo "build=no" >> "$GITHUB_OUTPUT"; fi
             echo "::warning::Секретов ключа подписи нет: APK для телефона не будет. Как завести ключ — docs/05-process.md, «Секреты»."
             exit 0
           fi

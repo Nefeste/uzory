@@ -80,9 +80,15 @@ try {
   const b = await cellPoint(page, first, row * first.w + first.w - 1);
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
-  for (let k = 1; k <= 20; k++) await page.mouse.move(a.x + ((b.x - a.x) * k) / 20, a.y);
+  // палец идёт около 300 клеток в секунду, как в замере
+  for (let k = 1; k <= 20; k++) {
+    await page.mouse.move(a.x + ((b.x - a.x) * k) / 20, a.y);
+    await page.waitForTimeout(8);
+  }
   await page.mouse.up();
-  await page.waitForTimeout(400);
+  // штрих уходит в работу по кадрам: ждём процент, а не угадываем время
+  await page.waitForFunction(() => document.querySelector('[data-testid="percent"]')?.textContent?.trim() !== '0 %', null, { timeout: 5000 }).catch(() => {});
+  await page.screenshot({ path: join(OUT, '02b-brush.png') });
   const pct1 = await page.getByTestId('percent').innerText();
   check(pct1 !== '0 %', `кисть вышила строку: ${pct1}`);
 

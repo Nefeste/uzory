@@ -1,0 +1,17 @@
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+id: bilibin-zhar-ptitsa
+title: Жар-птица
+collection: tales
+order: 11
+author: { name: Иван Билибин, life: 1876–1942 }
+made: "1899"
+place: "книжная иллюстрация к сказке об Иване-царевиче, Жар-птице и Сером волке; где хранится оригинал — уточнить"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: bilibin-zhar-ptitsa.jpg
+  url: https://commons.wikimedia.org/wiki/File:Firebird.jpg
+  basis: "Викисклад: Public domain (PD-old-70); автор ум. 1942"
+pattern:
+  size: 90
+  threads: 20

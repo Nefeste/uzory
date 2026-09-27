@@ -1,0 +1,15 @@
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+id: pg-torgovets-dynyami
+title: Торговец дынями. Самарканд
+collection: russia
+order: 13
+author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
+made: "1905–1915"
+source:
+  file: pg-torgovets-dynyami.jpg
+  url: https://www.loc.gov/item/2018680241/
+  download: https://tile.loc.gov/storage-services/service/pnp/ppmsc/03900/03949v.jpg
+  basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
+pattern:
+  size: 100
+  threads: 24

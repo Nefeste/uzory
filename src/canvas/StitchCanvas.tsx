@@ -109,7 +109,8 @@ interface Brush {
   startT: number;
   sentT: number;
   moved: boolean;
-  lifted: boolean;
+  /** штрих кончился в первые 100 мс: ждёт, не окажется ли это масштабом двумя пальцами */
+  hold: boolean;
   firstCell: number;
   /** далеко: палец двигает канву */
   far: boolean;
@@ -323,7 +324,7 @@ export function StitchCanvas(props: Props) {
   const clock = useSharedValue(0);
   const brush = useSharedValue<Brush>({
     active: false, thread: -1, cells: [], pending: [], startX: 0, startY: 0, lastX: 0, lastY: 0,
-    startT: 0, sentT: 0, moved: false, lifted: false, firstCell: -1, far: false, lastTapT: -1e9, lastTapCell: -1,
+    startT: 0, sentT: 0, moved: false, hold: false, firstCell: -1, far: false, lastTapT: -1e9, lastTapCell: -1,
   });
   const probe = useSharedValue<BenchResult>({ pan: [], zoom: [], brush: [], handler: [], texture: [], build: [], stitches: 0 });
   const phase = useSharedValue(-1);
@@ -442,14 +443,20 @@ export function StitchCanvas(props: Props) {
     }
   };
 
-  /** Второй палец: в первые 100 мс штриха — это был масштаб, стежки снимаются. */
+  /**
+   * Второй палец: в первые 100 мс штриха — это был масштаб, стежки снимаются; позже —
+   * кисть заканчивается, стежки остаются. Штрих короче 100 мс ждёт в `hold`: палец мог
+   * отпуститься раньше, чем жест масштаба узнал о втором пальце.
+   */
   const twoFingers = () => {
     'worklet';
     const b = brush.get();
-    if (!b.active) return;
+    if (!b.active && !b.hold) return;
+    const young = nowMs() - b.startT < TWO_FINGER_MS;
     b.active = false;
+    b.hold = false;
     if (b.far) return;
-    if (nowMs() - b.startT < TWO_FINGER_MS) {
+    if (young) {
       const data = bytes.get();
       for (let i = 0; i < b.cells.length; i++) data[b.cells[i] * 4 + 1] = 0;
       b.cells = [];
@@ -465,15 +472,15 @@ export function StitchCanvas(props: Props) {
       'worklet';
       if (e.numberOfTouches > 1) twoFingers();
     })
-    .onTouchesUp((e) => {
-      'worklet';
-      if (e.numberOfTouches === 0) brush.get().lifted = true;
-    })
     .onBegin((e) => {
       'worklet';
       cancelAnimation(tx);
       cancelAnimation(ty);
       const b = brush.get();
+      if (b.hold) {
+        b.hold = false;
+        flush(true);
+      }
       const t = nowMs();
       const k = s.get();
       b.active = true;
@@ -485,7 +492,6 @@ export function StitchCanvas(props: Props) {
       b.startY = b.lastY = e.y;
       b.startT = b.sentT = t;
       b.moved = false;
-      b.lifted = false;
       b.firstCell = hitCell(e.x, e.y, k, tx.get(), ty.get(), w, h);
       if (b.far) return;
       const cell = b.firstCell;
@@ -511,17 +517,11 @@ export function StitchCanvas(props: Props) {
       b.lastX = e.x;
       b.lastY = e.y;
     })
-    .onFinalize((e, success) => {
+    .onFinalize((e) => {
       'worklet';
       const b = brush.get();
       if (!b.active) return;
       b.active = false;
-      if (!success && !b.lifted && nowMs() - b.startT < TWO_FINGER_MS && !b.far) {
-        // прервал не палец, а второй палец или система — так же, как второй палец
-        b.active = true;
-        twoFingers();
-        return;
-      }
       if (b.far) {
         const k = s.get();
         if (!b.moved) {
@@ -548,7 +548,8 @@ export function StitchCanvas(props: Props) {
         b.lastTapT = nowMs();
         b.lastTapCell = b.firstCell;
       }
-      flush(true);
+      if (nowMs() - b.startT < TWO_FINGER_MS) b.hold = true;
+      else flush(true);
     });
 
   const hold = Gesture.LongPress()
@@ -677,6 +678,11 @@ export function StitchCanvas(props: Props) {
       if (info.timestamp - ps > 1600) pulseStart.set(-1);
     } else if (clock.get() === 0) clock.set(info.timestamp);
     const dt = info.timeSincePreviousFrame ?? 16;
+    const b = brush.get();
+    if (b.hold && nowMs() - b.startT >= TWO_FINGER_MS) {
+      b.hold = false;
+      flush(true);
+    }
     if (onLive) {
       const l = live.get();
       l.frames++;
