@@ -74,7 +74,10 @@ Picture sources (Wikimedia Commons, Library of Congress) are not reachable from 
 environment: `.github/workflows/content-fetch.yml` searches candidates into
 `content/candidates.json` and downloads the files named in cards (`tools/content/fetch.ts`).
 It runs only on manual dispatch — trigger it on your branch after adding cards (input `search`
-to refresh candidates), then pull the bot's commit.
+to refresh candidates), then pull the bot's commit. With input `vk` (the owner's public VK
+album) it downloads the album into a **draft release** instead of the branch
+(`tools/content/vk.ts`): the repository is public, drafts are visible to maintainers only.
+Only selected photos enter git (card + 800 px source); delete the draft after selection.
 
 **CI runs only after merge** (owner's decision, 27.09.2026): `android.yml` runs on push to `main`
 and on manual dispatch, never on working branches or PRs. Run typecheck, lint, tests and the

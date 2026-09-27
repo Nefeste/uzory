@@ -6,6 +6,10 @@
 # Только руками: до merge Actions сами не запускаются (docs/05-process.md, «Автоматика»).
 # Ассистент запускает его на своей ветке, когда добавил карточки (Run workflow → ветка);
 # он ничего не собирает — только скачивает исходники.
+#
+# С вводом `vk` (адрес открытого альбома владельца) — другое: снимки альбома на отбор
+# (tools/content/vk.ts) уходят архивом в черновик релиза, а не в ветку: репозиторий
+# открытый, черновик видят только его владельцы. После отбора черновик удаляется.
 name: Content fetch
 
 on:
@@ -15,6 +19,10 @@ on:
         description: 'Искать кандидатов заново по content/wanted.yaml'
         type: boolean
         default: false
+      vk:
+        description: 'Альбом VK владельца на отбор (https://vk.com/album…_…) — в черновик релиза'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -39,9 +47,28 @@ jobs:
           echo '{"name":"fetch-deps","private":true}' > package.json
           bun add sharp@0.35.4 yaml@2
           echo "NODE_PATH=$RUNNER_TEMP/deps/node_modules" >> "$GITHUB_ENV"
+      - name: Альбом VK — в черновик релиза
+        if: inputs.vk != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VK: ${{ inputs.vk }}
+          TAG: vk-review-${{ github.run_number }}
+        # архив с debug/ уходит в черновик и когда снимков не нашлось: по нему чинится разбор
+        run: |
+          ln -s "$RUNNER_TEMP/deps/node_modules" node_modules
+          CODE=0
+          bun tools/content/vk.ts "$VK" "$RUNNER_TEMP/vk" || CODE=$?
+          (cd "$RUNNER_TEMP/vk" && zip -qr "$RUNNER_TEMP/vk.zip" .) || exit 1
+          ls -la "$RUNNER_TEMP/vk.zip"
+          gh release create "$TAG" --draft --title "Снимки владельца на отбор (VK)" \
+            --notes "Черновик для ассистента: снимки альбома на отбор для «Природы» и «Городов». Не публиковать; удаляется после отбора." \
+            "$RUNNER_TEMP/vk.zip" || exit 1
+          echo "Черновик релиза: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          exit "$CODE"
       # поиск — только по заказу: иначе каждый запуск переписывал бы candidates.json
       # новым порядком выдачи
       - name: Кандидаты
+        if: inputs.vk == ''
         env:
           SEARCH: ${{ inputs.search }}
         run: |
@@ -52,9 +79,10 @@ jobs:
             echo "поиск не заказан — только исходники по карточкам"
           fi
       - name: Исходники по карточкам
+        if: inputs.vk == ''
         run: bun tools/content/fetch.ts fetch
       - name: В ветку
-        if: always()
+        if: always() && inputs.vk == ''
         run: |
           rm -f node_modules
           git config user.name "github-actions[bot]"
