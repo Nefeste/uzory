@@ -91,7 +91,7 @@ describe('файл стежков', () => {
     expect(() => decodeWork(Uint8Array.from([1, 2, 3, 4, 5]))).toThrow(WorkFileError);
     const good = encodeWork(p.key, 5, [{ thread: 0, cells: [1, 2] }]);
     expect(() => decodeWork(good.subarray(0, 7))).toThrow(WorkFileError);
-    const far = encodeWork(p.key, 5, [{ thread: 0, cells: [1, 99999] }]);
+    const far = encodeWork(p.key, 5, [{ thread: 0, cells: [1, 2_000_000] }]); // больше 1024 × 1024
     expect(() => decodeWork(far)).toThrow(WorkFileError);
     const other = decodeWork(encodeWork('other@1', 5, [{ thread: 0, cells: [1] }]));
     expect(workFileFits(p, other)).toBe(false);

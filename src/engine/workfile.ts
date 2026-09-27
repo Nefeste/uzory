@@ -1,7 +1,7 @@
 // Файл стежков работы (docs/04-data-model.md, «Файл стежков»): «UZW1», длина и ключ узора,
 // время начала, затем штрихи подряд — нить, число клеток, первая клетка и разности
 // соседних в «зигзаге». Все числа — varint.
-import type { Pattern } from './pattern';
+import { MAX_SIDE, type Pattern } from './pattern';
 import { utf8Decode, utf8Encode } from './utf8';
 import { Reader, Truncated, Writer } from './varint';
 import type { Stroke } from './work';
@@ -9,8 +9,8 @@ import type { Stroke } from './work';
 const MAGIC = [0x55, 0x5a, 0x57, 0x31]; // UZW1
 /** Ключ узора длиннее не бывает: id картинки ≤ 80 знаков латиницей и версия. */
 const MAX_KEY = 120;
-/** Номер клетки больше не бывает: узор не больше 255 × 255. */
-const MAX_CELL = 255 * 255;
+/** Номер клетки больше не бывает: узор не больше предельной стороны в квадрате (MAX_SIDE). */
+const MAX_CELL = MAX_SIDE * MAX_SIDE;
 
 export class WorkFileError extends Error {}
 
