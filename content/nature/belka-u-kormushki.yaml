@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: belka-u-kormushki
+title: Белка у кормушки
+collection: nature
+order: 4
+made: "2026"
+place: "Филейский парк, Киров"
+source:
+  file: belka-u-kormushki.jpg
+  url: ""
+  basis: "снимок автора игры, 17.07.2026, Филейский парк, Киров"
+pattern:
+  crop: [0.30, 0.05, 1, 1]   # белка и кормушка: на всём кадре белка сливается со стволом
+  size: 180
+  threads: 40

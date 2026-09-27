@@ -5,7 +5,10 @@
 //   bun tools/content/fetch.ts search   content/wanted.yaml → content/candidates.json:
 //                                       найденные файлы с лицензией, автором, датой, размером
 //   bun tools/content/fetch.ts fetch    карточки с source.url, у которых нет файла рядом:
-//                                       скачать, уменьшить до 800 точек, положить рядом
+//                                       скачать, уменьшить до 2000 точек, положить рядом
+//   … fetch --again                     то же и для тех, у кого файл есть (исходники крупнее)
+//   bun tools/content/fetch.ts dims     размеры холстов картин из Викиданных → content/dimensions.json
+//                                       (четыре клетки на сантиметр, docs/08-game-design.md)
 //
 // Качается только с Викисклада и Библиотеки Конгресса; всё остальное — ошибка.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,9 +20,10 @@ import { CONTENT, listCards, readCard } from './cards';
 const UA = 'UzoryContentBot/0.1 (https://gornitsa.games; game studio Gornitsa)';
 const ALLOWED = [
   /^https:\/\/commons\.wikimedia\.org\//, /^https:\/\/(upload|thumb)\.wikimedia\.org\//,
-  /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//,
+  /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//, /^https:\/\/www\.wikidata\.org\//,
 ];
-const MAX_SIDE = 800;
+/** Длинная сторона исходника: запас на узор в четыре клетки на сантиметр холста. */
+const MAX_SIDE = 2000;
 
 async function get(url: string): Promise<Response> {
   if (!ALLOWED.some((r) => r.test(url))) throw new Error(`адрес не из разрешённых: ${url}`);
@@ -85,7 +89,7 @@ async function loc(q: string): Promise<Candidate[]> {
       return { u: u.split('#')[0], w };
     });
     // самая крупная копия не больше 1600 точек: её уменьшит sharp
-    const pick = images.filter((i) => i.w && i.w <= 1600).sort((a, b) => b.w - a.w)[0] ?? images[images.length - 1];
+    const pick = images.filter((i) => i.w && i.w <= 3000).sort((a, b) => b.w - a.w)[0] ?? images[images.length - 1];
     let rights: string | undefined;
     try {
       const item = (await (await get(`${r.id.replace(/\/$/, '')}/?fo=json`)).json()) as { item?: { rights_advisory?: string[] | string } };
@@ -131,13 +135,14 @@ async function resolve(url: string, download?: string): Promise<string> {
   throw new Error(`не знаю, как скачать ${url}`);
 }
 
-async function fetchSources() {
+async function fetchSources(again: boolean) {
   let failed = 0;
   for (const file of listCards()) {
     const { card } = readCard(file);
-    if (!card?.pattern || !card.source.file) continue;
+    // свои снимки владельца (адреса нет) лежат в репозитории сразу, качать нечего
+    if (!card?.pattern || !card.source.file || !card.source.url) continue;
     const target = join(card.dir, card.source.file);
-    if (existsSync(target)) continue;
+    if (existsSync(target) && !again) continue;
     try {
       const from = await resolve(card.source.url, (card.source as { download?: string }).download);
       const buf = Buffer.from(await (await get(from)).arrayBuffer());
@@ -151,12 +156,58 @@ async function fetchSources() {
   if (failed) process.exitCode = 1;
 }
 
+/**
+ * Размер холста картины из Викиданных (высота P2048, ширина P2049): элемент — из шаблона
+ * Artwork страницы файла (wikidata=Q…) или из структурных данных файла (P6243 «цифровое
+ * представление»). Пишется в content/dimensions.json с тем, откуда взято.
+ */
+async function dims() {
+  const out: Record<string, { cm?: [number, number]; item?: string; note: string }> = {};
+  for (const file of listCards()) {
+    const { card } = readCard(file);
+    if (!card || (card.collection !== 'painting' && card.collection !== 'tales')) continue;
+    const m = /commons\.wikimedia\.org\/wiki\/(File:[^?#]+)/.exec(card.source.url);
+    if (!m) { out[card.id] = { note: 'не Викисклад' }; continue; }
+    try {
+      const title = decodeURIComponent(m[1]);
+      const q = new URLSearchParams({ action: 'query', format: 'json', formatversion: '2', titles: title, prop: 'revisions', rvprop: 'content', rvslots: 'main' });
+      const j = (await (await get(`https://commons.wikimedia.org/w/api.php?${q}`)).json()) as { query?: { pages?: { pageid?: number; revisions?: { slots?: { main?: { content?: string } } }[] }[] } };
+      const page = j.query?.pages?.[0];
+      const text = page?.revisions?.[0]?.slots?.main?.content ?? '';
+      let item = /\|\s*wikidata\s*=\s*(Q\d+)/i.exec(text)?.[1];
+      if (!item && page?.pageid) {
+        const mi = (await (await get(`https://commons.wikimedia.org/w/api.php?action=wbgetentities&format=json&ids=M${page.pageid}`)).json()) as { entities?: Record<string, { statements?: Record<string, { mainsnak?: { datavalue?: { value?: { id?: string } } } }[]> }> };
+        item = Object.values(mi.entities ?? {})[0]?.statements?.P6243?.[0]?.mainsnak?.datavalue?.value?.id;
+      }
+      const sizeLine = /\{\{\s*Size\s*\|[^}]*\}\}/i.exec(text)?.[0];
+      if (!item) { out[card.id] = { note: `нет элемента Викиданных${sizeLine ? `; на странице: ${sizeLine}` : ''}` }; continue; }
+      const w = (await (await get(`https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=${item}`)).json()) as { entities?: Record<string, { claims?: Record<string, { mainsnak?: { datavalue?: { value?: { amount?: string; unit?: string } } } }[]> }> };
+      const claims = w.entities?.[item]?.claims ?? {};
+      const cm = (p: string) => {
+        const v = claims[p]?.[0]?.mainsnak?.datavalue?.value;
+        if (!v?.amount) return undefined;
+        const n = Number(v.amount);
+        // Q174728 — сантиметр, Q11573 — метр, Q174789 — миллиметр
+        return v.unit?.endsWith('/Q174728') ? n : v.unit?.endsWith('/Q11573') ? n * 100 : v.unit?.endsWith('/Q174789') ? n / 10 : undefined;
+      };
+      const h = cm('P2048');
+      const wd = cm('P2049');
+      out[card.id] = h && wd ? { cm: [wd, h], item, note: `Викиданные ${item}: ширина ${wd} см, высота ${h} см` } : { item, note: `у ${item} нет высоты и ширины в сантиметрах${sizeLine ? `; на странице: ${sizeLine}` : ''}` };
+    } catch (e) {
+      out[card.id] = { note: (e as Error).message };
+    }
+    console.log(card.id, JSON.stringify(out[card.id]));
+  }
+  writeFileSync(join(CONTENT, 'dimensions.json'), `${JSON.stringify(out, null, 2)}\n`);
+}
+
 if (import.meta.main) {
   const cmd = process.argv[2];
   if (cmd === 'search') await search();
-  else if (cmd === 'fetch') await fetchSources();
+  else if (cmd === 'fetch') await fetchSources(process.argv.includes('--again'));
+  else if (cmd === 'dims') await dims();
   else {
-    console.error('bun tools/content/fetch.ts search | fetch');
+    console.error('bun tools/content/fetch.ts search | fetch [--again] | dims');
     process.exit(2);
   }
 }

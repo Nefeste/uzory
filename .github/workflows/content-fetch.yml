@@ -15,6 +15,14 @@ on:
         description: 'Искать кандидатов заново по content/wanted.yaml'
         type: boolean
         default: false
+      again:
+        description: 'Скачать заново и исходники, которые уже есть (крупнее)'
+        type: boolean
+        default: false
+      dims:
+        description: 'Размеры холстов картин из Викиданных → content/dimensions.json'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -52,7 +60,12 @@ jobs:
             echo "поиск не заказан — только исходники по карточкам"
           fi
       - name: Исходники по карточкам
-        run: bun tools/content/fetch.ts fetch
+        env:
+          AGAIN: ${{ inputs.again }}
+        run: bun tools/content/fetch.ts fetch $([ "$AGAIN" = "true" ] && echo --again)
+      - name: Размеры холстов
+        if: inputs.dims
+        run: bun tools/content/fetch.ts dims
       - name: В ветку
         if: always()
         run: |

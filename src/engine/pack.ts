@@ -1,14 +1,53 @@
-// Набор картинок (docs/04-data-model.md, «Набор»): «UZP1», u32 длина JSON, JSON с карточками
-// и палитрами, затем узоры подряд — u8 w, u8 h, w × h байт клеток. Все числа — little-endian.
-// `at` у картинки — смещение её узора от начала двоичной части (сразу после JSON): так
-// JSON не зависит от собственной длины.
+// Набор картинок (docs/04-data-model.md, «Набор»): «UZP2», u32 длина JSON, JSON с карточками
+// и палитрами, затем узоры подряд — u16 w, u16 h, u32 длина клеток в байтах и клетки
+// построчно полосами: varint длина полосы, байт нити. Числа фиксированной длины —
+// little-endian. `at` у картинки — смещение её узора от начала двоичной части (сразу
+// после JSON): так JSON не зависит от собственной длины.
 import { isDate } from './dates';
 import { type CalendarDay, patternKey, type Picture, pictureError } from './library';
 import { hex, parseHex, type Pattern, patternError, type Thread } from './pattern';
 import { utf8Decode, utf8Encode } from './utf8';
 import { Reader, Writer } from './varint';
 
-const MAGIC = [0x55, 0x5a, 0x50, 0x31]; // UZP1
+const MAGIC = [0x55, 0x5a, 0x50, 0x32]; // UZP2
+
+/**
+ * Клетки полосами «длина, нить»: у картин в четыре клетки на сантиметр соседние клетки
+ * чаще одной нити, и набор выходит в разы меньше, чем байт на клетку.
+ */
+function encodeCells(cells: Uint8Array): Uint8Array {
+  const w = new Writer(Math.max(16, cells.length >> 1));
+  for (let i = 0; i < cells.length;) {
+    const t = cells[i];
+    let j = i + 1;
+    while (j < cells.length && cells[j] === t) j++;
+    w.uint(j - i);
+    w.byte(t);
+    i = j;
+  }
+  return w.finish();
+}
+
+/** Клетки узора из полос; ошибка — строкой. */
+function decodeCells(bytes: Uint8Array, n: number): Uint8Array | string {
+  const out = new Uint8Array(n);
+  const r = new Reader(bytes);
+  let i = 0;
+  try {
+    while (i < n) {
+      const run = r.uint();
+      const t = r.byte();
+      if (run < 1 || i + run > n) return `полоса ${run} клеток за концом узора`;
+      out.fill(t, i, i + run);
+      i += run;
+    }
+  } catch {
+    return 'клетки обрываются';
+  }
+  return r.done ? out : 'лишние байты после клеток';
+}
+
+const u16 = (b: Uint8Array, at: number) => b[at] | (b[at + 1] << 8);
 
 export class PackError extends Error {}
 
@@ -43,12 +82,15 @@ export interface PackInput {
 
 export function writePack(input: PackInput): Uint8Array {
   let at = 0;
+  const encoded: Uint8Array[] = [];
   const pictures: PackPicture[] = input.pictures.map(({ picture, pattern }) => {
     if (pattern.key !== patternKey(picture)) throw new PackError(`узор ${pattern.key} у картинки ${patternKey(picture)}`);
     const err = patternError(pattern) ?? pictureError(picture);
     if (err) throw new PackError(err);
     const out: PackPicture = { ...picture, palette: pattern.threads.map((t) => [hex(t.rgb), t.name]), at };
-    at += 2 + pattern.w * pattern.h;
+    const cells = encodeCells(pattern.cells);
+    encoded.push(cells);
+    at += 8 + cells.length;
     return out;
   });
   const json: PackJson = { id: input.id, created: input.created, pictures };
@@ -58,11 +100,11 @@ export function writePack(input: PackInput): Uint8Array {
   w.bytes(MAGIC);
   w.u32le(text.length);
   w.bytes(text);
-  for (const { pattern } of input.pictures) {
-    w.byte(pattern.w);
-    w.byte(pattern.h);
-    w.bytes(pattern.cells);
-  }
+  input.pictures.forEach(({ pattern }, k) => {
+    w.bytes([pattern.w & 0xff, pattern.w >> 8, pattern.h & 0xff, pattern.h >> 8]);
+    w.u32le(encoded[k].length);
+    w.bytes(encoded[k]);
+  });
   return w.finish();
 }
 
@@ -89,17 +131,21 @@ export function packPattern(pack: Pack, pic: PackPicture): Pattern {
   const key = patternKey(pic);
   if (!Number.isInteger(pic.at) || pic.at < 0) throw new PackError(`${key}: смещение ${pic.at}`);
   const start = pack.base + pic.at;
-  if (start + 2 > pack.bytes.length) throw new PackError(`${key}: узор за концом файла`);
-  const w = pack.bytes[start];
-  const h = pack.bytes[start + 1];
-  if (start + 2 + w * h > pack.bytes.length) throw new PackError(`${key}: клетки за концом файла`);
+  const b = pack.bytes;
+  if (start + 8 > b.length) throw new PackError(`${key}: узор за концом файла`);
+  const w = u16(b, start);
+  const h = u16(b, start + 2);
+  const len = new Reader(b, start + 4).u32le();
+  if (start + 8 + len > b.length) throw new PackError(`${key}: клетки за концом файла`);
+  const cells = decodeCells(b.subarray(start + 8, start + 8 + len), w * h);
+  if (typeof cells === 'string') throw new PackError(`${key}: ${cells}`);
   if (!Array.isArray(pic.palette)) throw new PackError(`${key}: нет палитры`);
   const threads: Thread[] = pic.palette.map((t) => {
     const rgb = Array.isArray(t) && typeof t[0] === 'string' ? parseHex(t[0]) : null;
     if (rgb === null || typeof t[1] !== 'string') throw new PackError(`${key}: нить ${JSON.stringify(t)}`);
     return { rgb, name: t[1] };
   });
-  const pattern: Pattern = { key, w, h, threads, cells: pack.bytes.slice(start + 2, start + 2 + w * h) };
+  const pattern: Pattern = { key, w, h, threads, cells };
   const err = patternError(pattern);
   if (err) throw new PackError(`${key}: ${err}`);
   return pattern;

@@ -6,29 +6,40 @@ import { pick, rng } from './seed';
 
 export function samplePattern(seed: number, w: number, h: number, threads: number): Pattern {
   const r = rng(seed);
-  const n = Math.max(threads, Math.round((w * h) / 30));
-  const sx: number[] = [];
-  const sy: number[] = [];
-  const st: number[] = [];
-  for (let i = 0; i < n; i++) {
-    sx.push(r() * w);
-    sy.push(r() * h);
-    st.push(i < threads ? i : pick(r, threads));
+  // центры — по одному в квадрате со стороной √30 клеток, со случайным сдвигом: ближайший
+  // центр ищется в квадратах на два вокруг (дальше он заведомо не ближе своего), и узор
+  // в сотни тысяч клеток строится за доли секунды, а не за минуты полного перебора
+  const step = Math.sqrt(30);
+  const gw = Math.ceil(w / step);
+  const gh = Math.ceil(h / step);
+  const n = gw * gh;
+  const sx = new Float64Array(n);
+  const sy = new Float64Array(n);
+  const st = new Uint8Array(n);
+  for (let k = 0; k < n; k++) {
+    sx[k] = ((k % gw) + r()) * step;
+    sy[k] = (Math.floor(k / gw) + r()) * step;
+    st[k] = k < threads ? k : pick(r, threads);
   }
   const cells = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
+    const gy = Math.floor((y + 0.5) / step);
     for (let x = 0; x < w; x++) {
+      const gx = Math.floor((x + 0.5) / step);
       let best = 0;
       let bd = Infinity;
-      for (let i = 0; i < n; i++) {
-        const d = (sx[i] - x - 0.5) ** 2 + (sy[i] - y - 0.5) ** 2;
-        if (d < bd) { bd = d; best = i; }
+      for (let yy = Math.max(0, gy - 2); yy <= Math.min(gh - 1, gy + 2); yy++) {
+        for (let xx = Math.max(0, gx - 2); xx <= Math.min(gw - 1, gx + 2); xx++) {
+          const k = yy * gw + xx;
+          const d = (sx[k] - x - 0.5) ** 2 + (sy[k] - y - 0.5) ** 2;
+          if (d < bd) { bd = d; best = k; }
+        }
       }
       cells[y * w + x] = st[best];
     }
   }
   // нить, чей центр не достался ни одной клетке, получает клетку своего центра
-  for (let t = 0; t < threads; t++) cells[Math.min(h - 1, Math.floor(sy[t])) * w + Math.min(w - 1, Math.floor(sx[t]))] = t;
+  for (let t = 0; t < Math.min(threads, n); t++) cells[Math.min(h - 1, Math.floor(sy[t])) * w + Math.min(w - 1, Math.floor(sx[t]))] = t;
   const palette = Array.from({ length: threads }, (_, t) => {
     const hue = (t * 137.508 * Math.PI) / 180;
     const L = 0.35 + 0.55 * ((t * 7) % threads) / threads;

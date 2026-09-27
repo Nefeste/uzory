@@ -105,6 +105,7 @@ export const ru = {
     stitches: 'Стежков',
     strokes: 'Штрихов',
     size: 'Размер файла',
+    big: (size: string, what: string) => `${size}: ${what.toLowerCase()}`,
     encode: 'Сборка файла',
     write: 'Запись на диск',
     read: 'Чтение, разбор и переигрывание',

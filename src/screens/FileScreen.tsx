@@ -11,7 +11,7 @@ import { samplePattern, sampleBrush } from '../engine/sample';
 import type { Pattern } from '../engine/pattern';
 import { BASE_PACK } from '../content/generated/pack';
 import { T } from '../i18n';
-import { readFile, writeFile } from '../state/files';
+import { readFile, removeFile, writeFile } from '../state/files';
 import { WorkSession } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
 
@@ -56,6 +56,22 @@ export function FileScreen({ onBack, onReplay }: { onBack: () => void; onReplay:
       packPattern(pack, last);
       out.push([F.packOpen, F.ms(now() - t)]);
     }
+    // картина в четыре клетки на сантиметр: файл законченного «Утра» — сотни килобайт,
+    // а во время вышивания он переписывается раз в секунду
+    const big = samplePattern(6, 852, 556, 30);
+    const bigStrokes = sampleBrush(big);
+    const B = `${big.w} × ${big.h}`;
+    t = now();
+    const bigBytes = encodeWork(big.key, Date.now(), bigStrokes);
+    out.push([F.big(B, F.encode), F.ms(now() - t)]);
+    out.push([F.big(B, F.size), F.kb(bigBytes.length)]);
+    t = now();
+    await writeFile(`${BENCH_WORK}-big.log`, bigBytes);
+    out.push([F.big(B, F.write), F.ms(now() - t)]);
+    t = now();
+    replay(big, decodeWork((await readFile(`${BENCH_WORK}-big.log`))!).strokes);
+    out.push([F.big(B, F.read), F.ms(now() - t)]);
+    await removeFile(`${BENCH_WORK}-big.log`);
     // для «Повтора»: работа пишется как настоящая
     const s = new WorkSession(BENCH_WORK, p, f.started, r.strokes, Date.now());
     await s.flush(true);

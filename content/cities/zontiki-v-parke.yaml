@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: zontiki-v-parke
+title: Зонтики в парке Аполло
+collection: cities
+order: 2
+made: "2026"
+place: "парк Аполло, Киров"
+source:
+  file: zontiki-v-parke.jpg
+  url: ""
+  basis: "снимок автора игры, 23.06.2026, парк Аполло, Киров"
+pattern:
+  crop: [0.10, 0.10, 0.90, 0.90]   # зонтики крупнее
+  size: 240
+  threads: 40

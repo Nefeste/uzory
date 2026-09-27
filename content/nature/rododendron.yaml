@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: rododendron
+title: Рододендрон
+collection: nature
+order: 2
+made: "2026"
+place: "Ботанический сад, Киров"
+source:
+  file: rododendron.jpg
+  url: ""
+  basis: "снимок автора игры, 30.05.2026, Ботанический сад, Киров"
+pattern:
+  crop: [0.05, 0, 0.95, 1]
+  size: 160
+  threads: 40

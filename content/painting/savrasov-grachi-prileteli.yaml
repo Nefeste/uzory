@@ -13,5 +13,5 @@ source:
   url: https://commons.wikimedia.org/wiki/File:Aleksey_Savrasov_-_Грачи_прилетели_-_Google_Art_Project.jpg
   basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1897"
 pattern:
-  size: 160
+  size: 248   # четыре клетки на сантиметр: холст 62 × 48,5 см (Викиданные Q1993685)
   threads: 40

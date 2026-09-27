@@ -14,6 +14,12 @@ import { nameThreads } from './names';
  */
 export const MIN_DELTA: Record<SizeClass, number> = { S: 0.08, M: 0.045, L: 0.03, XL: 0.025 };
 export const KMEANS_ITERS = 30;
+/**
+ * Палитру ищем по выборке не больше стольких клеток: у картин в четыре клетки на сантиметр —
+ * сотни тысяч клеток, и k-средние по всем шли по 6–11 с на картину. Узоры меньше выборки
+ * собираются как раньше, до байта.
+ */
+export const KMEANS_SAMPLE = 60000;
 export const CLEAN_PASSES = 6;
 export const SMALL_REGION = 3;
 
@@ -215,7 +221,11 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   }
   const size = sizeOf(stitchIdx.length);
   const min = o.minDelta ?? MIN_DELTA[size];
-  const pts = stitchIdx.map((i) => labs[i]);
+  let pts = stitchIdx.map((i) => labs[i]);
+  if (pts.length > KMEANS_SAMPLE) {
+    const r = rng(hash32(`${o.id}#sample`));
+    pts = Array.from({ length: KMEANS_SAMPLE }, () => pts[Math.floor(r() * pts.length)]);
+  }
   let centers = kmeans(pts, o.threads, hash32(o.id));
   const log: BuildLog = { asked: o.threads, afterKmeans: centers.length, afterMerge: 0, final: 0, singlesBefore: 0, smallBefore: 0 };
   const assignAll = () => { for (const i of stitchIdx) cells[i] = nearest(labs[i], centers); };

@@ -11,7 +11,8 @@ export const SIZES: Record<SizeClass, { cells: number; side: number; threads: [n
   S: { cells: 1600, side: 40, threads: [3, 10] },
   M: { cells: 4900, side: 70, threads: [8, 20] },
   L: { cells: 14400, side: 120, threads: [12, 32] },
-  XL: { cells: 40000, side: 200, threads: [20, 45] },
+  // «Огромная» — до четырёх клеток на сантиметр холста (08-game-design): сторона — предел текстуры канвы
+  XL: { cells: 600000, side: 1024, threads: [20, 45] },
 };
 
 /** Тёмная картинка: больше половины клеток — нити темнее этой светлоты OKLab. */

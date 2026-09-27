@@ -13,6 +13,5 @@ source:
   url: https://commons.wikimedia.org/wiki/File:Maslenitsa_kustodiev.jpg
   basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1927"
 pattern:
-  crop: [0.28, 0.30, 1, 1]   # тройка, люди и жёлтый дом: на всём холсте толпа — пятна
-  size: 180
+  size: 392   # четыре клетки на сантиметр: холст 71 × 98 см (страница файла на Викискладе)
   threads: 40
