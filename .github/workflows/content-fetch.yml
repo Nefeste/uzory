@@ -47,6 +47,12 @@ jobs:
           echo '{"name":"fetch-deps","private":true}' > package.json
           bun add sharp@0.35.4 yaml@2
           echo "NODE_PATH=$RUNNER_TEMP/deps/node_modules" >> "$GITHUB_ENV"
+      - name: Chromium для альбома VK
+        if: inputs.vk != ''
+        run: |
+          cd "$RUNNER_TEMP/deps"
+          bun add playwright@1.56.1
+          node_modules/.bin/playwright install --with-deps chromium
       - name: Альбом VK — в черновик релиза
         if: inputs.vk != ''
         env:
