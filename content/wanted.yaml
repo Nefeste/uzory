@@ -1,0 +1,29 @@
+# Что поискать для прототипа П3 (docs/specs/2026-09-spikes.md): CI находит файлы и их
+# лицензии (bun tools/content/fetch.ts search) и кладёт кандидатов в content/candidates.json.
+# Из кандидатов ассистент пишет карточки с точным адресом файла и основанием, а CI скачивает
+# исходники (fetch). Картины из российских музеев здесь — только для проверки: в выпуск они
+# идут после решения владельца (docs/09-content.md, §2, В12).
+commons:
+  - Shishkin Morning in a Pine Forest
+  - Shishkin Rye 1878
+  - Aivazovsky The Ninth Wave
+  - Aivazovsky Rainbow 1873
+  - Levitan Golden Autumn 1895
+  - Levitan March 1895
+  - Savrasov The Rooks Have Come Back
+  - Kuindzhi Moonlit Night on the Dnieper
+  - Polenov Moscow Courtyard
+  - Vasnetsov Alyonushka
+  - Kustodiev Maslenitsa
+  - Kustodiev Merchant Wife at Tea
+  - Bilibin Vasilisa the Beautiful
+  - Bilibin Ivan Tsarevich Firebird
+loc:
+  - Seliger
+  - peasant girls
+  - Karlinskii
+  - Chusovaia
+  - Kirillo-Belozerskii
+  - Onega
+  - Lilies
+  - Samarkand

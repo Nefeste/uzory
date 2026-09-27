@@ -1,0 +1,53 @@
+# Исходники картинок (tools/content/fetch.ts): поиск кандидатов с лицензиями и скачивание
+# исходников по карточкам. Нужен, потому что среда ассистента не видит Викисклад и
+# Библиотеку Конгресса. Коммитит найденное и скачанное обратно в ту же ветку; коммит
+# токеном Actions новых запусков не вызывает.
+name: Content fetch
+
+on:
+  push:
+    branches: ['claude/**', main]
+    paths:
+      - 'content/**.yaml'
+      - 'tools/content/fetch.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: content-fetch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    name: Поиск и скачивание
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Зависимости (только sharp и yaml)
+        run: |
+          mkdir -p "$RUNNER_TEMP/deps" && cd "$RUNNER_TEMP/deps"
+          echo '{"name":"fetch-deps","private":true}' > package.json
+          bun add sharp@0.35.4 yaml@2
+          echo "NODE_PATH=$RUNNER_TEMP/deps/node_modules" >> "$GITHUB_ENV"
+      - name: Кандидаты
+        run: |
+          ln -s "$RUNNER_TEMP/deps/node_modules" node_modules
+          bun tools/content/fetch.ts search
+      - name: Исходники по карточкам
+        run: bun tools/content/fetch.ts fetch
+      - name: В ветку
+        if: always()
+        run: |
+          rm -f node_modules
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content
+          if git diff --cached --quiet; then echo "нового нет"; exit 0; fi
+          git commit -m "Исходники картинок: кандидаты и скачанные файлы (CI)"
+          git push

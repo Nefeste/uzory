@@ -1,0 +1,15 @@
+# Кайма рушника: ромбы с раппортом между двумя полосами.
+id: kayma-rushnika
+title: Кайма рушника
+collection: ornaments
+order: 4
+source:
+  url: ""
+  basis: своя работа студии (генератор border)
+drawn:
+  generator: border
+  params: { width: 44, height: 13, step: 11 }
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#d9a441", медовая]

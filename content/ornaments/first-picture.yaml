@@ -1,0 +1,17 @@
+# Первая картинка (docs/specs/2026-09-first-picture.md): ромб кольцами в цветах сайта
+# студии — кумачовая, еловая, льняная; ни одной одиночной клетки — всё проходится кистью.
+id: first-picture
+title: Первая картинка
+collection: ornaments
+order: 0
+free: true
+source:
+  url: ""
+  basis: своя работа студии (генератор first, цвета — как в узоре-примере на gornitsa.games)
+drawn:
+  generator: first
+  params: { size: 19 }
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#a8904f", льняная]

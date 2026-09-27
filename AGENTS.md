@@ -2,8 +2,9 @@ This is an Expo/React Native mobile game for RuStore: «Узоры», a color-by
 digital cross-stitch (a grid of numbered cells, threads, stitches). Prioritize mobile-first
 patterns, smooth canvas performance on inexpensive Android phones, and calm, honest UX.
 
-**Status: specification only, no code yet.** The next step is stage 0 in `docs/07-roadmap.md`
-(prototypes in `docs/specs/2026-09-spikes.md`).
+**Status: stage 0 — prototypes 0.0.1** (`docs/specs/2026-09-spikes.md`): canvas, picture
+build, work file, Android CI; `store/` holds the RuStore listing materials (pre-order) that the
+studio site reuses.
 
 ## Read `docs/` before changing anything
 
@@ -54,17 +55,24 @@ removed. Before writing any code that touches an Expo, EAS, or React Native API:
 The same applies to `@shopify/react-native-skia`, `react-native-reanimated`,
 `react-native-gesture-handler` and RuStore Pay / Review SDKs: read their current docs before use.
 
-## Commands (planned)
+## Commands
 
 ```bash
 npx expo install <package>          # ALWAYS use instead of npm/yarn/pnpm/bun add
+bun tools/content/build.ts          # FIRST: builds src/content/generated/pack.ts (not in git)
 npx expo start                      # dev server
 npm run lint                        # zero warnings
 npx tsc --noEmit                    # typecheck (also -p tools)
-bun test tools/test                 # engine, pictures, files
+bun test tools/test                 # engine, shader golden frames, files, texts
 bun tools/content/build.ts --check  # build packs and run every picture check
-npm run export:web && npm run e2e   # web build + Playwright scenarios
+bun tools/content/sheet.ts          # preview sheet for the owner → dist/sheet/
+npm run export:web && npm run e2e   # web build + Playwright scenario
+bun tools/store/icons.ts            # icons from the shader; bun tools/store/shots.ts — store screenshots
 ```
+
+Picture sources (Wikimedia Commons, Library of Congress) are not reachable from every agent
+environment: `.github/workflows/content-fetch.yml` searches candidates into
+`content/candidates.json` and downloads the files named in cards (`tools/content/fetch.ts`).
 
 Run lint, typecheck and tests before declaring any task done. Canvas changes are re-measured on
 the reference phone (hidden «Замер» screen); numbers go to `docs/02-architecture.md`.
