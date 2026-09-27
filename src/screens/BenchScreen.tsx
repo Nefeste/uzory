@@ -12,7 +12,7 @@ import { APP_BUILD, APP_VERSION } from '../version';
 import { Button, Screen, Segmented, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
 
-type Size = '120' | '150';
+type Size = '120' | '150' | '250';
 type Surface = 'texture' | 'surface';
 type Length = 'quick' | 'full';
 
@@ -31,7 +31,11 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
   const counting = useRef(false);
   const api = useRef<CanvasApi | null>(null);
 
-  const pattern = useMemo(() => (size === '120' ? samplePattern(1, 120, 120, 32) : samplePattern(2, 150, 200, 40)), [size]);
+  // 250 × 250 · 45 — предел формата (сторона до 255): большие картины, 27.09.2026
+  const pattern = useMemo(
+    () => (size === '120' ? samplePattern(1, 120, 120, 32) : size === '150' ? samplePattern(2, 150, 200, 40) : samplePattern(4, 250, 250, 45)),
+    [size],
+  );
   const stitched = useMemo(() => sampleStitched(3, pattern, 0.5), [pattern]);
 
   const run = () => {
@@ -81,7 +85,7 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
           {script ? T.bench.running : live ? `${T.bench.phases.live}: ${live.fps} fps, ${T.bench.worst} ${live.worst} ms` : T.bench.manual}
         </Txt>
         {result ? <Txt selectable style={styles.result} testID="bench-result">{result}</Txt> : null}
-        <Segmented value={size} onChange={setSize} options={[{ id: '120', label: '120 × 120 · 32' }, { id: '150', label: '150 × 200 · 40' }]} />
+        <Segmented value={size} onChange={setSize} options={[{ id: '120', label: '120 × 120 · 32' }, { id: '150', label: '150 × 200 · 40' }, { id: '250', label: '250 × 250 · 45' }]} />
         <Segmented value={path} onChange={setPath} testID="bench-path" options={[{ id: 'shader', label: T.bench.paths.shader }, { id: 'layers', label: T.bench.paths.layers }]} />
         {Platform.OS === 'android' ? (
           <Segmented value={surface} onChange={setSurface} options={[{ id: 'texture', label: T.bench.surfaces.texture }, { id: 'surface', label: T.bench.surfaces.surface }]} />
