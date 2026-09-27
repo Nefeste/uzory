@@ -1,32 +1,40 @@
 # из anamnez: .github/workflows/android.yml @ 3d76cf5
-# Проверки на каждый push и PR; сборка APK и AAB, подписанных постоянным ключом
-# (ADR 0014), и публикация в Releases (docs/05-process.md, «Автоматика»).
+# Проверки, веб-сценарий, сборка APK и AAB, подписанных постоянным ключом (ADR 0014),
+# и публикация в Releases (docs/05-process.md, «Автоматика»).
 #
-# Без секретов ключа релиза нет никогда: на main APK собирается только на проверку
-# (манифест, разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью
-# не должен попасть ни на чей телефон. На рабочих ветках без ключа сборки нет вовсе
-# (минуты Actions дороже проверки, которую и так сделает main) — кроме коммита с «[apk]»
-# в сообщении: так проверяется, что нативная сборка вообще собирается.
+# Сам — только после merge в main: до merge Actions не запускаются ни на рабочих ветках,
+# ни на PR (решение владельца 27.09.2026; проверки ассистент гоняет у себя перед каждым
+# push). Руками — Actions → Android → Run workflow: на любой ветке проверки, а с «apk» —
+# и сборка; релиз — только с main.
+#
+# Без секретов ключа релиза нет никогда: APK собирается только на проверку (манифест,
+# разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью не должен
+# попасть ни на чей телефон.
 name: Android
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - 'store/**'
       - 'research/**'
       - '**.md'
       - 'content/candidates.json'
-  pull_request:
   workflow_dispatch:
+    inputs:
+      apk:
+        description: 'Собрать и APK (на ветке, кроме main, — файл в артефактах, без релиза)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+# каждый merge в main собирается до конца; ручные запуски на ветке сменяют друг друга
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   checks:
@@ -88,7 +96,6 @@ jobs:
   # Есть ли постоянный ключ — решается один раз, до сборок: от этого зависит, что собирать.
   key:
     name: Ключ подписи
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.k.outputs.ready }}
@@ -103,16 +110,17 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CERT: ${{ vars.ANDROID_CERT_SHA256 }}
           MAIN: ${{ github.ref == 'refs/heads/main' }}
-          MSG: ${{ github.event.head_commit.message }}
+          WANT: ${{ inputs.apk == true }}
         run: |
           set -euo pipefail
+          # сборка — на main (после merge) и по ручному запуску с «apk»
+          if [ "$MAIN" = "true" ] || [ "$WANT" = "true" ]; then BUILD=yes; else BUILD=no; fi
           APK='{"target":"apk","task":"assembleRelease","file":"android/app/build/outputs/apk/release/app-release.apk"}'
           AAB='{"target":"aab","task":"bundleRelease","file":"android/app/build/outputs/bundle/release/app-release.aab"}'
           if [ -z "$KEYSTORE_B64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]; then
             echo "ready=no" >> "$GITHUB_OUTPUT"
             echo "matrix={\"include\":[$APK]}" >> "$GITHUB_OUTPUT"
-            # проверочная сборка с рабочей ветки — по «[apk]» в сообщении коммита
-            if [ "$MAIN" = "true" ] || printf '%s' "$MSG" | grep -qF '[apk]'; then echo "build=yes" >> "$GITHUB_OUTPUT"; else echo "build=no" >> "$GITHUB_OUTPUT"; fi
+            echo "build=$BUILD" >> "$GITHUB_OUTPUT"
             echo "::warning::Секретов ключа подписи нет: APK для телефона не будет. Как завести ключ — docs/05-process.md, «Секреты»."
             exit 0
           fi
@@ -125,7 +133,7 @@ jobs:
             exit 1
           fi
           echo "ready=yes" >> "$GITHUB_OUTPUT"
-          echo "build=yes" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":[$APK,$AAB]}" >> "$GITHUB_OUTPUT"
 
   # APK — Releases и RuStore, AAB — на будущее (Google Play, 1.2). Две сборки из одного
@@ -300,7 +308,7 @@ jobs:
   release:
     name: Релиз
     needs: [checks, web, key, build]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.key.outputs.ready == 'yes'
+    if: github.ref == 'refs/heads/main' && needs.key.outputs.ready == 'yes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

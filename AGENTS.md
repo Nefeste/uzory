@@ -73,6 +73,12 @@ bun tools/store/icons.ts            # icons from the shader; bun tools/store/sho
 Picture sources (Wikimedia Commons, Library of Congress) are not reachable from every agent
 environment: `.github/workflows/content-fetch.yml` searches candidates into
 `content/candidates.json` and downloads the files named in cards (`tools/content/fetch.ts`).
+It runs only on manual dispatch — trigger it on your branch after adding cards (input `search`
+to refresh candidates), then pull the bot's commit.
+
+**CI runs only after merge** (owner's decision, 27.09.2026): `android.yml` runs on push to `main`
+and on manual dispatch, never on working branches or PRs. Run typecheck, lint, tests and the
+web scenario locally before every push; the APK is built and released only from `main`.
 
 Run lint, typecheck and tests before declaring any task done. Canvas changes are re-measured on
 the reference phone (hidden «Замер» screen); numbers go to `docs/02-architecture.md`.
