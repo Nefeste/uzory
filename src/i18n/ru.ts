@@ -67,7 +67,7 @@ export const ru = {
     open: 'Вышивать',
     about: 'О картине',
     source: 'Источник',
-    notForRelease: 'Только для проверки: картина из российского музея, в выпуск — после решения владельца',
+    notForRelease: 'Только для проверки: в выпуск — после «да» владельца и решения о правах',
     stats: (singles: string, small: string, minDist: string) => `одиночных ${singles} % · в мелких пятнах ${small} % · различимость ${minDist}`,
   },
   bench: {

@@ -96,9 +96,22 @@ describe('заливка', () => {
     expect(fillRegion(p, st, 9).sort((a, b) => a - b)).toEqual([9, 10, 12, 13, 14, 15]);
     expect(fillRegion(p, st, 5)).toEqual([]); // канва
     st[13] = 1;
-    // 12 теперь отрезана: сосед сверху — нить 1, справа — вышитая 13
-    expect(fillRegion(p, st, 9).sort((a, b) => a - b)).toEqual([9, 10, 14, 15]);
-    expect(fillRegion(p, st, 13)).toEqual([]); // уже вышита
+    // вышитая 13 область не разрывает: 12 заливается через неё
+    expect(fillRegion(p, st, 9).sort((a, b) => a - b)).toEqual([9, 10, 12, 14, 15]);
+  });
+
+  test('двойное касание по только что вышитой клетке заливает остальное', () => {
+    const p = grid([
+      '0010',
+      '0.10',
+      '1001',
+      '0000',
+    ]);
+    const st = new Uint8Array(p.cells.length);
+    st[13] = 1; // первое касание
+    expect(fillRegion(p, st, 13)).toEqual([12, 14, 9, 15, 10]);
+    for (const c of [9, 10, 12, 14, 15]) st[c] = 1;
+    expect(fillRegion(p, st, 13)).toEqual([]); // вся область вышита
   });
 
   test('обход в ширину: первой идёт начальная клетка, дальше — кругами', () => {

@@ -44,6 +44,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
               {item.pic.author ? <Txt dim>{[item.pic.author.name, item.pic.made].filter(Boolean).join(', ')}</Txt> : null}
               <Txt>{item.meta}</Txt>
               <Txt dim style={styles.small}>{item.stats}</Txt>
+              {item.pic.trial ? <Txt dim style={styles.small}>{T.sheet.notForRelease}</Txt> : null}
             </View>
           </Card>
         )}

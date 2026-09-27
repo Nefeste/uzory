@@ -2,15 +2,8 @@
 // только по сторонам: по диагонали область не переходит, клетки канвы — граница.
 import { CANVAS, type Pattern } from './pattern';
 
-/**
- * Невышитые клетки той же нити, связанные с `start` по сторонам, в порядке обхода
- * в ширину (для «Как вышивалось» заливка расходится кругами). Если `start` не подходит —
- * пусто.
- */
-export function fillRegion(p: Pattern, stitched: Uint8Array, start: number): number[] {
-  if (start < 0 || start >= p.cells.length) return [];
-  const t = p.cells[start];
-  if (t === CANVAS || stitched[start]) return [];
+/** Клетки, связанные с `start` по сторонам через клетки, для которых `joins` — да; обход в ширину. */
+function flood(p: Pattern, start: number, joins: (i: number) => boolean): number[] {
   const seen = new Uint8Array(p.cells.length);
   const out: number[] = [start];
   seen[start] = 1;
@@ -18,7 +11,7 @@ export function fillRegion(p: Pattern, stitched: Uint8Array, start: number): num
     const i = out[head];
     const x = i % p.w, y = (i - x) / p.w;
     const push = (j: number) => {
-      if (!seen[j] && p.cells[j] === t && !stitched[j]) { seen[j] = 1; out.push(j); }
+      if (!seen[j] && joins(j)) { seen[j] = 1; out.push(j); }
     };
     if (x > 0) push(i - 1);
     if (x < p.w - 1) push(i + 1);
@@ -26,6 +19,19 @@ export function fillRegion(p: Pattern, stitched: Uint8Array, start: number): num
     if (y < p.h - 1) push(i + p.w);
   }
   return out;
+}
+
+/**
+ * Заливка: невышитые клетки области `start` — связной по сторонам области той же нити.
+ * Вышитые клетки область не разрывают: двойное касание приходит по клетке, которую только
+ * что вышило первое касание. Порядок — обход в ширину от `start` (для «Как вышивалось»
+ * заливка расходится кругами). Канва — пусто.
+ */
+export function fillRegion(p: Pattern, stitched: Uint8Array, start: number): number[] {
+  if (start < 0 || start >= p.cells.length) return [];
+  const t = p.cells[start];
+  if (t === CANVAS) return [];
+  return flood(p, start, (j) => p.cells[j] === t).filter((i) => !stitched[i]);
 }
 
 export interface Group {
@@ -47,7 +53,7 @@ export function nearestGroup(p: Pattern, stitched: Uint8Array, thread: number, x
   let bestD = Infinity;
   for (let i = 0; i < p.cells.length; i++) {
     if (seen[i] || p.cells[i] !== thread || stitched[i]) continue;
-    const cells = fillRegion(p, stitched, i);
+    const cells = flood(p, i, (j) => p.cells[j] === thread && !stitched[j]);
     let sx = 0, sy = 0, x0 = p.w, y0 = p.h, x1 = -1, y1 = -1;
     for (const c of cells) {
       seen[c] = 1;

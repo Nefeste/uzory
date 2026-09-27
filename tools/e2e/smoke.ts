@@ -7,6 +7,7 @@ import { extname, join } from 'node:path';
 import { chromium, type Page } from 'playwright';
 import { fitScale, NUMBERS_DP } from '../../src/canvas/camera';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
+import { fillRegion } from '../../src/engine/regions';
 import { buildAll } from '../content/build';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -74,8 +75,35 @@ try {
   await page.getByTestId('hint').waitFor({ timeout: 5000 }).catch(() => {});
   check((await page.getByTestId('hint').count()) > 0, 'касание чужой клетки показывает её нить');
 
-  // кисть: провести по строке с клетками выбранной нити
+  // заливка: двойное касание по клетке выбранной нити — вся её связная область. Первое
+  // касание уже вышивает клетку; второе — через 80 мс, пока штрих ещё ждёт второго пальца
+  await page.getByTestId('thread-1').click();
+  const whereLeft = async () => Number((await page.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
   const row = Math.floor(first.h / 2);
+  const rowOwn = Array.from({ length: first.w }, (_, x) => row * first.w + x).filter((i) => first.cells[i] === 0);
+  const none = new Uint8Array(first.cells.length);
+  let region: number[] = [];
+  for (let i = 0; i < first.cells.length; i++) {
+    if (first.cells[i] !== 0) continue;
+    const r = fillRegion(first, none, i);
+    // кисти ниже должна остаться работа в своей строке
+    if (r.length > region.length && rowOwn.some((c) => !r.includes(c))) region = r;
+  }
+  const left0 = await whereLeft();
+  const rp = await cellPoint(page, first, region[0]);
+  await page.mouse.click(rp.x, rp.y);
+  await page.waitForTimeout(80);
+  await page.mouse.click(rp.x, rp.y);
+  const leftBelow = (n: number) => page.waitForFunction((k) => {
+    const m = document.querySelector('[data-testid="where"]')?.textContent?.match(/(\d+)\s*$/);
+    return !!m && Number(m[1]) <= k;
+  }, n, { timeout: 5000 }).catch(() => {});
+  await leftBelow(left0 - region.length);
+  const left1 = await whereLeft();
+  check(left1 === left0 - region.length, `двойное касание залило область: ${left0 - left1} из ${region.length} клеток`);
+  await page.waitForTimeout(300); // следующее касание — уже не третье подряд
+
+  // кисть: провести по строке с клетками выбранной нити
   const a = await cellPoint(page, first, row * first.w);
   const b = await cellPoint(page, first, row * first.w + first.w - 1);
   await page.mouse.move(a.x, a.y);
@@ -86,11 +114,11 @@ try {
     await page.waitForTimeout(8);
   }
   await page.mouse.up();
-  // штрих уходит в работу по кадрам: ждём процент, а не угадываем время
-  await page.waitForFunction(() => document.querySelector('[data-testid="percent"]')?.textContent?.trim() !== '0 %', null, { timeout: 5000 }).catch(() => {});
+  // штрих уходит в работу по кадрам: ждём счётчик, а не угадываем время
+  await leftBelow(left1 - 1);
   await page.screenshot({ path: join(OUT, '02b-brush.png') });
-  const pct1 = await page.getByTestId('percent').innerText();
-  check(pct1 !== '0 %', `кисть вышила строку: ${pct1}`);
+  const left2 = await whereLeft();
+  check(left2 < left1, `кисть вышила строку: ${left1 - left2} клеток, ${await page.getByTestId('percent').innerText()}`);
 
   for (let t = 0; t < first.threads.length; t++) {
     await page.getByTestId(`thread-${t + 1}`).click();

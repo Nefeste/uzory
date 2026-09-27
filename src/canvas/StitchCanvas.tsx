@@ -566,15 +566,16 @@ export function StitchCanvas(props: Props) {
       if (cell >= 0 && bytes.get()[cell * 4] !== 255) scheduleOnRN(onPick, cell);
     });
 
-  const focal = useSharedValue({ x: 0, y: 0 });
+  // Жесты двух пальцев на Android «начинаются» и с одним пальцем: второй палец — только
+  // когда указателей правда два, иначе они снимали бы каждый штрих кисти.
   const pinch = Gesture.Pinch()
-    .onBegin(() => {
+    .onBegin((e) => {
+      'worklet';
+      if (e.numberOfPointers >= 2) twoFingers();
+    })
+    .onStart(() => {
       'worklet';
       twoFingers();
-    })
-    .onStart((e) => {
-      'worklet';
-      focal.set({ x: e.focalX, y: e.focalY });
     })
     .onChange((e) => {
       'worklet';
@@ -594,7 +595,11 @@ export function StitchCanvas(props: Props) {
   const twoPan = Gesture.Pan()
     .minPointers(2)
     .averageTouches(true)
-    .onBegin(() => {
+    .onBegin((e) => {
+      'worklet';
+      if (e.numberOfPointers >= 2) twoFingers();
+    })
+    .onStart(() => {
       'worklet';
       twoFingers();
     })
