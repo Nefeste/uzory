@@ -65,8 +65,9 @@
 | `rustore.yml` | вручную | кладёт APK из Releases в черновик новой версии RuStore (`tools/store/rustore.mjs` из «Вотчины») |
 | `content-fetch.yml` | изменения карточек `content/**.yaml` | ищет кандидатов с лицензиями (`content/candidates.json`) и скачивает исходники, названные в карточках; коммитит в ту же ветку — среда ассистента Викисклад и Библиотеку Конгресса не видит |
 
-Сейчас (0.0.x) `android.yml` делает всё сам, включая веб-сборку со сценарием; `content.yml`,
-`e2e.yml` и `rustore.yml` — с 0.1. На рабочих ветках APK собирается, когда в секретах есть
+Сейчас (0.0.x) `android.yml` делает всё сам, включая веб-сборку со сценарием; `content.yml`
+и `e2e.yml` — с 0.1. `rustore.yml` уже есть, но первую версию RuStore принимает только
+через консоль ([`store/preorder.md`](../store/preorder.md)). На рабочих ветках APK собирается, когда в секретах есть
 ключ, или по «[apk]» в сообщении коммита (проверочная сборка, файл выбрасывается).
 
 **Минуты Actions.** Репозиторий приватный: на бесплатном тарифе GitHub — 2000 минут
@@ -91,6 +92,24 @@
 | `CATALOG_SIGNING_KEY` | закрытый ключ Ed25519 для подписи каталога ([`03-server-api.md`](03-server-api.md)) | создать один раз; копию хранить у владельца отдельно; открытый ключ — в коде приложения |
 | `RUSTORE_API_TOKEN`, `RUSTORE_KEY_ID` | загрузка в RuStore | консоль RuStore → «API RuStore» |
 | `RUSTORE_APP_ID` (переменная) | приложение в RuStore Pay | консоль RuStore |
+
+### Как завести ключ подписи (один раз, В8)
+
+```bash
+keytool -genkeypair -v -keystore uzory-release.jks -alias uzory \
+  -keyalg RSA -keysize 4096 -validity 36500 \
+  -dname "CN=Gornitsa, O=Gornitsa, C=RU"            # спросит два пароля — записать
+base64 -w0 uzory-release.jks > uzory-release.jks.b64    # macOS: base64 -i uzory-release.jks
+keytool -list -v -keystore uzory-release.jks -alias uzory | grep SHA256
+```
+
+В репозитории → Settings → Secrets and variables → Actions: секреты
+`ANDROID_KEYSTORE_BASE64` (содержимое `.b64`), `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` (`uzory`), `ANDROID_KEY_PASSWORD`; переменная `ANDROID_CERT_SHA256` —
+отпечаток из последней строки. Сам файл `.jks` и пароли — в двух местах вне GitHub
+(ADR [0014](adr/0014-permanent-app-id-and-key.md)): потерянный ключ — это новое приложение
+в RuStore. После этого каждый push собирает подписанный APK (Actions → запуск → артефакт
+`uzory-apk-N`), а `main` публикует его в Releases.
 
 ## Выкладывание наборов
 

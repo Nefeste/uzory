@@ -26,6 +26,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
@@ -35,10 +37,20 @@ jobs:
           echo '{"name":"fetch-deps","private":true}' > package.json
           bun add sharp@0.35.4 yaml@2
           echo "NODE_PATH=$RUNNER_TEMP/deps/node_modules" >> "$GITHUB_ENV"
+      # поиск — только когда поменялся список того, что искать, или сам поиск: иначе каждый
+      # запуск переписывал бы candidates.json новым порядком выдачи
       - name: Кандидаты
+        env:
+          BEFORE: ${{ github.event.before }}
         run: |
           ln -s "$RUNNER_TEMP/deps/node_modules" node_modules
-          bun tools/content/fetch.ts search
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ ! -f content/candidates.json ] \
+            || ! git cat-file -e "$BEFORE" 2>/dev/null \
+            || git diff --name-only "$BEFORE" HEAD | grep -qxE 'content/wanted\.yaml|tools/content/fetch\.ts'; then
+            bun tools/content/fetch.ts search
+          else
+            echo "content/wanted.yaml и поиск не менялись — поиск пропущен"
+          fi
       - name: Исходники по карточкам
         run: bun tools/content/fetch.ts fetch
       - name: В ветку
