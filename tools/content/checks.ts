@@ -13,6 +13,10 @@ export const SIZES: Record<SizeClass, { cells: number; side: number; threads: [n
   L: { cells: 14400, side: 120, threads: [12, 32] },
 };
 
+/** Тёмная картинка: больше половины клеток — нити темнее этой светлоты OKLab. */
+export const DARK_L = 0.3;
+export const DARK_SHARE = 0.5;
+
 /** Цвет невышитой клетки на канве — нить не должна с ним сливаться. */
 export const EMPTY_CELL = 0xf3f0e6;
 
@@ -60,5 +64,8 @@ export function checkPattern(p: Pattern, card: Card): Checked {
   if (stats.small > 3) errors.push(`в мелких пятнах ${pct(stats.small)} клеток, можно 3 %`);
   else if (stats.small > 2.4) warnings.push(`в мелких пятнах ${pct(stats.small)} — у порога`);
   for (const t of stats.lonely) errors.push(`нить ${t + 1} «${p.threads[t].name}» — из одних одиночек`);
+  // «Лунная ночь на Днепре»: почти всё почти чёрное — на телефоне узор сливается в пятно
+  const dark = stats.counts.reduce((s, c, t) => s + (rgbToLab(p.threads[t].rgb)[0] < DARK_L ? c : 0), 0) / Math.max(1, stats.cells);
+  if (dark > DARK_SHARE) warnings.push(`тёмная картинка: ${pct(dark * 100)} клеток почти чёрные`);
   return { errors, warnings, stats, size };
 }

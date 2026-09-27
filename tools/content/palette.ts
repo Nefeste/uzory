@@ -7,8 +7,12 @@ import { hash32, rng } from '../../src/engine/seed';
 import type { Grid } from './image';
 import { nameThreads } from './names';
 
-/** Пороги различимости нитей по размеру (docs/09-content.md, §6). */
-export const MIN_DELTA: Record<SizeClass, number> = { S: 0.08, M: 0.065, L: 0.05 };
+/**
+ * Пороги различимости нитей по размеру (docs/09-content.md, §6). Средний и большой снижены
+ * 27.09.2026 (было 0,065 и 0,05): при старых из 32 заказанных нитей у картин оставалось 9–16,
+ * узор выходил тусклым, а мелкие цветные пятна (лица, белка на стволе) сливались с фоном.
+ */
+export const MIN_DELTA: Record<SizeClass, number> = { S: 0.08, M: 0.045, L: 0.03 };
 export const KMEANS_ITERS = 30;
 export const CLEAN_PASSES = 6;
 export const SMALL_REGION = 3;
