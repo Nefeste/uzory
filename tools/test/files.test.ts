@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { base64Decode, base64Encode } from '../../src/engine/base64';
 import type { Picture } from '../../src/engine/library';
 import { openPack, packError, packPattern, writePack } from '../../src/engine/pack';
+import { samplePattern } from '../../src/engine/sample';
 import { rng } from '../../src/engine/seed';
 import { utf8Decode, utf8Encode } from '../../src/engine/utf8';
 import { Reader, Writer } from '../../src/engine/varint';
@@ -121,6 +122,17 @@ describe('набор', () => {
       const p = packPattern(pack, pack.json.pictures[i]);
       expect(p).toEqual(pictures[i].pattern);
     }
+  });
+
+  test('большой узор — 852 × 556, как «Утро» в четыре клетки на сантиметр: читается и сжат', () => {
+    const pattern = { ...samplePattern(5, 852, 556, 30), key: 'big@1' };
+    const picture = { ...pic('big', 0), size: 'XL' as const };
+    const bytes = writePack({ id: 'x', created: '2026-09-27', pictures: [{ picture, pattern }] });
+    const pack = openPack(bytes);
+    expect(packError(pack)).toBeNull();
+    expect(packPattern(pack, pack.json.pictures[0])).toEqual(pattern);
+    // полосы «длина, нить» — меньше байта на клетку
+    expect(bytes.length).toBeLessThan(pattern.w * pattern.h);
   });
 
   test('испорченный набор не проходит', () => {

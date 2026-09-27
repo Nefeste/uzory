@@ -12,13 +12,13 @@ import { APP_BUILD, APP_VERSION } from '../version';
 import { Button, Screen, Segmented, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
 
-type Size = '120' | '150' | '250';
+type Size = '150' | '250' | '852';
 type Surface = 'texture' | 'surface';
 type Length = 'quick' | 'full';
 
 export function BenchScreen({ onBack }: { onBack: () => void }) {
   const font = useFont(DIGIT_FONT, DIGIT_FONT_SIZE);
-  const [size, setSize] = useState<Size>('120');
+  const [size, setSize] = useState<Size>('150');
   const [path, setPath] = useState<RenderPath>('shader');
   const [surface, setSurface] = useState<Surface>('texture');
   const [mosaic, setMosaic] = useState(false);
@@ -31,9 +31,9 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
   const counting = useRef(false);
   const api = useRef<CanvasApi | null>(null);
 
-  // 250 × 250 · 45 — предел формата (сторона до 255): большие картины, 27.09.2026
+  // 852 × 556 · 30 — «Утро в сосновом лесу» в четыре клетки на сантиметр холста (139 × 213 см)
   const pattern = useMemo(
-    () => (size === '120' ? samplePattern(1, 120, 120, 32) : size === '150' ? samplePattern(2, 150, 200, 40) : samplePattern(4, 250, 250, 45)),
+    () => (size === '150' ? samplePattern(2, 150, 200, 40) : size === '250' ? samplePattern(4, 250, 250, 45) : samplePattern(6, 852, 556, 30)),
     [size],
   );
   const stitched = useMemo(() => sampleStitched(3, pattern, 0.5), [pattern]);
@@ -85,7 +85,7 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
           {script ? T.bench.running : live ? `${T.bench.phases.live}: ${live.fps} fps, ${T.bench.worst} ${live.worst} ms` : T.bench.manual}
         </Txt>
         {result ? <Txt selectable style={styles.result} testID="bench-result">{result}</Txt> : null}
-        <Segmented value={size} onChange={setSize} options={[{ id: '120', label: '120 × 120 · 32' }, { id: '150', label: '150 × 200 · 40' }, { id: '250', label: '250 × 250 · 45' }]} />
+        <Segmented value={size} onChange={setSize} options={[{ id: '150', label: '150 × 200 · 40' }, { id: '250', label: '250 × 250 · 45' }, { id: '852', label: '852 × 556 · 30' }]} />
         <Segmented value={path} onChange={setPath} testID="bench-path" options={[{ id: 'shader', label: T.bench.paths.shader }, { id: 'layers', label: T.bench.paths.layers }]} />
         {Platform.OS === 'android' ? (
           <Segmented value={surface} onChange={setSurface} options={[{ id: 'texture', label: T.bench.surfaces.texture }, { id: 'surface', label: T.bench.surfaces.surface }]} />
