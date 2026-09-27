@@ -41,7 +41,7 @@ jobs:
         run: |
           set -e
           if [ -z "$TAG" ]; then
-            TAG="$(gh release list --limit 1 --json tagName --jq '.[0].tagName')"
+            TAG="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
           fi
           echo "Пре-релиз: $TAG"
           gh release download "$TAG" --pattern 'uzory-*.apk' --dir dist

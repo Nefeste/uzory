@@ -76,6 +76,11 @@ environment: `.github/workflows/content-fetch.yml` searches candidates into
 It runs only on manual dispatch — trigger it on your branch after adding cards (input `search`
 to refresh candidates), then pull the bot's commit.
 
+The repository is **public**. The owner's own photos for «Природа» and «Города» arrive as
+assets of a **draft release** (drafts are visible to maintainers only): list releases via the
+API, download assets with `Accept: application/octet-stream`. Only selected photos enter git
+(card + 800 px source) — never commit the rest, never post them in logs or comments.
+
 **CI runs only after merge** (owner's decision, 27.09.2026): `android.yml` runs on push to `main`
 and on manual dispatch, never on working branches or PRs. Run typecheck, lint, tests and the
 web scenario locally before every push; the APK is built and released only from `main`.
