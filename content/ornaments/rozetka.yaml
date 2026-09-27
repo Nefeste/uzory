@@ -1,0 +1,15 @@
+# Розетка: восемь ромбов-лепестков вокруг сердцевины — по мотивам солярных знаков вышивки.
+id: rozetka
+title: Розетка
+collection: ornaments
+order: 3
+source:
+  url: ""
+  basis: своя работа студии (генератор rosette)
+drawn:
+  generator: rosette
+  params: { size: 27, petal: 3, dist: 8 }
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#d9a441", медовая]

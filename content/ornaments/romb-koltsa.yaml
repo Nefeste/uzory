@@ -1,0 +1,15 @@
+# Ромбы кольцами — по мотивам рушников: кольца по «манхэттенскому» расстоянию.
+id: romb-koltsa
+title: Ромбы кольцами
+collection: ornaments
+order: 2
+source:
+  url: ""
+  basis: своя работа студии (генератор rhombus-rings)
+drawn:
+  generator: rhombus-rings
+  params: { size: 23, radius: 11, rings: [0, 0, 1, 1, -1, 2, 2, -1] }
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#2b2b2b", угольная]
+    l: ["#a8904f", льняная]

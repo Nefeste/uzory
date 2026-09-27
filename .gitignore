@@ -1,6 +1,12 @@
 node_modules/
 dist/
+dist-web/
 .expo/
 web-build/
 *.log
 .DS_Store
+src/content/generated/
+public/canvaskit.wasm
+android/
+ios/
+tools/e2e/out/

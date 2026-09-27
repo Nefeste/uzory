@@ -1,0 +1,63 @@
+# из votchina: .github/workflows/rustore.yml @ 1242776
+name: RuStore
+
+# Выкладывает APK из пре-релиза в черновик новой версии RuStore (docs/05-process.md, «Выпуск версии»).
+# Запускается только руками: Actions → RuStore → Run workflow. На модерацию черновик уходит,
+# только если отмечено «submit»; иначе владелец проверяет его в консоли и отправляет сам.
+#
+# Нужны секрет RUSTORE_API_TOKEN (приватный ключ из «API RuStore» в консоли) и переменная
+# или секрет RUSTORE_KEY_ID (номер этого ключа из таблицы ключей). Первую версию приложения
+# RuStore принимает только через консоль — этот запуск для второй и следующих.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег пре-релиза (пусто — последний)'
+        required: false
+        default: ''
+      submit:
+        description: 'Сразу отправить на модерацию'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: APK из пре-релиза
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -e
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release list --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          echo "Пре-релиз: $TAG"
+          gh release download "$TAG" --pattern 'uzory-*.apk' --dir dist
+          ls -l dist
+          echo "APK=$(ls dist/uzory-*.apk | head -1)" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: В RuStore
+        env:
+          RUSTORE_KEY_ID: ${{ vars.RUSTORE_KEY_ID || secrets.RUSTORE_KEY_ID }}
+          RUSTORE_API_TOKEN: ${{ secrets.RUSTORE_API_TOKEN }}
+        run: |
+          node tools/store/rustore.mjs "$APK" ${{ inputs.submit && '--submit' || '' }}
+          {
+            echo "### RuStore"
+            echo ""
+            echo "Загружен \`$(basename "$APK")\` из пре-релиза \`$TAG\`."
+            echo "${{ inputs.submit && 'Черновик отправлен на модерацию.' || 'Черновик ждёт в консоли: проверить «Что нового» и отправить на модерацию.' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

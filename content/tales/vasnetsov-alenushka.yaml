@@ -1,0 +1,17 @@
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+id: vasnetsov-alenushka
+title: Алёнушка
+collection: tales
+order: 10
+author: { name: Виктор Васнецов, life: 1848–1926 }
+made: "1881"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: vasnetsov-alenushka.jpg
+  url: https://commons.wikimedia.org/wiki/File:Viktor_Vasnetsov_-_Аленушка_-_Google_Art_Project.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1926"
+pattern:
+  size: 100
+  threads: 32

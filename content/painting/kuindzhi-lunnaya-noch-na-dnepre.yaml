@@ -1,0 +1,17 @@
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+id: kuindzhi-lunnaya-noch-na-dnepre
+title: Лунная ночь на Днепре
+collection: painting
+order: 15
+author: { name: Архип Куинджи, life: 1842–1910 }
+made: "1880"
+place: "Государственный Русский музей, Санкт-Петербург"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: kuindzhi-lunnaya-noch-na-dnepre.jpg
+  url: https://commons.wikimedia.org/wiki/File:Kuindzhi_Moonlit_night_on_the_Dnieper_1880_grm_x2.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1910"
+pattern:
+  size: 100
+  threads: 32

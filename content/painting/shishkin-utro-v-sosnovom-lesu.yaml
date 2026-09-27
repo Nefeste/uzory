@@ -1,0 +1,17 @@
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+id: shishkin-utro-v-sosnovom-lesu
+title: Утро в сосновом лесу
+collection: painting
+order: 10
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: shishkin-utro-v-sosnovom-lesu.jpg
+  url: https://commons.wikimedia.org/wiki/File:Shishkin,_Ivan_-_Morning_in_a_Pine_Forest.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); Шишкин ум. 1898, медведей писал К. Савицкий, ум. 1905"
+pattern:
+  size: 100
+  threads: 32

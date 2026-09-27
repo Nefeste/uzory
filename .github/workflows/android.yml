@@ -1,0 +1,377 @@
+# из anamnez: .github/workflows/android.yml @ 3d76cf5
+# Проверки, веб-сценарий, сборка APK и AAB, подписанных постоянным ключом (ADR 0014),
+# и публикация в Releases (docs/05-process.md, «Автоматика»).
+#
+# Сам — только после merge в main: до merge Actions не запускаются ни на рабочих ветках,
+# ни на PR (решение владельца 27.09.2026; проверки ассистент гоняет у себя перед каждым
+# push). Руками — Actions → Android → Run workflow: на любой ветке проверки, а с «apk» —
+# и сборка; релиз — только с main.
+#
+# Без секретов ключа релиза нет никогда: APK собирается только на проверку (манифест,
+# разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью не должен
+# попасть ни на чей телефон.
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'store/**'
+      - 'research/**'
+      - '**.md'
+      - 'content/candidates.json'
+  workflow_dispatch:
+    inputs:
+      apk:
+        description: 'Собрать и APK (на ветке, кроме main, — файл в артефактах, без релиза)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# каждый merge в main собирается до конца; ручные запуски на ветке сменяют друг друга
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  checks:
+    name: Проверки
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: npm ci
+      - name: Картинки — сборка и проверки
+        run: bun tools/content/build.ts
+      - name: Типы приложения
+        run: npx tsc --noEmit
+      - name: Типы инструментов и тестов
+        run: npx tsc --noEmit -p tools
+      - name: Линтер
+        run: npm run lint
+      - name: Тесты
+        run: bun test tools/test
+      - name: Отчёт сборки картинок
+        if: always()
+        run: test -f dist/report.md && cat dist/report.md >> "$GITHUB_STEP_SUMMARY" || true
+
+  # Веб-сборка и сценарий Playwright (docs/06-testing.md, §5).
+  web:
+    name: Веб-сборка и сценарий
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: npm ci
+      - run: bun tools/content/build.ts
+      - run: npm run export:web
+      - name: Chromium для Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Сценарий
+        run: bun tools/e2e/smoke.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens-${{ github.run_number }}
+          path: tools/e2e/out/
+          if-no-files-found: ignore
+
+  # Есть ли постоянный ключ — решается один раз, до сборок: от этого зависит, что собирать.
+  key:
+    name: Ключ подписи
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.k.outputs.ready }}
+      build: ${{ steps.k.outputs.build }}
+      matrix: ${{ steps.k.outputs.matrix }}
+    steps:
+      - id: k
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          CERT: ${{ vars.ANDROID_CERT_SHA256 }}
+          MAIN: ${{ github.ref == 'refs/heads/main' }}
+          WANT: ${{ inputs.apk == true }}
+        run: |
+          set -euo pipefail
+          # сборка — на main (после merge) и по ручному запуску с «apk»
+          if [ "$MAIN" = "true" ] || [ "$WANT" = "true" ]; then BUILD=yes; else BUILD=no; fi
+          APK='{"target":"apk","task":"assembleRelease","file":"android/app/build/outputs/apk/release/app-release.apk"}'
+          AAB='{"target":"aab","task":"bundleRelease","file":"android/app/build/outputs/bundle/release/app-release.aab"}'
+          if [ -z "$KEYSTORE_B64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]; then
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            echo "matrix={\"include\":[$APK]}" >> "$GITHUB_OUTPUT"
+            echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+            echo "::warning::Секретов ключа подписи нет: APK для телефона не будет. Как завести ключ — docs/05-process.md, «Секреты»."
+            exit 0
+          fi
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Секреты ключа заданы не все: нужны ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS и ANDROID_KEY_PASSWORD."
+            exit 1
+          fi
+          if [ -z "$CERT" ]; then
+            echo "::error::Ключ есть, а переменной репозитория ANDROID_CERT_SHA256 нет — не с чем сверить подпись. Отпечаток: keytool -list -v -keystore uzory-release.jks -alias uzory | grep SHA256"
+            exit 1
+          fi
+          echo "ready=yes" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":[$APK,$AAB]}" >> "$GITHUB_OUTPUT"
+
+  # APK — Releases и RuStore, AAB — на будущее (Google Play, 1.2). Две сборки из одного
+  # коммита параллельно: Gradle не считает переменные окружения входом сборки JS.
+  build:
+    name: Сборка ${{ matrix.target }}
+    needs: [key]
+    if: needs.key.outputs.build == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.key.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v5
+      - run: npm ci
+      # бандл JS берёт встроенный набор из src/content/generated — его собирает сборка картинок
+      - name: Встроенный набор
+        run: bun tools/content/build.ts
+      - name: Нативный проект (expo prebuild)
+        run: npx expo prebuild --platform android --no-install
+      - name: Больше памяти Gradle
+        run: printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\n' >> android/gradle.properties
+
+      - name: Файл ключа
+        if: needs.key.outputs.ready == 'yes'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/uzory-release.jks"
+          echo "ORG_GRADLE_PROJECT_UZORY_UPLOAD_STORE_FILE=$RUNNER_TEMP/uzory-release.jks" >> "$GITHUB_ENV"
+
+      - name: Сборка ${{ matrix.target }}
+        working-directory: android
+        env:
+          NODE_ENV: production
+          ORG_GRADLE_PROJECT_UZORY_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_UZORY_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_UZORY_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # Две архитектуры: у аудитории бывают недорогие 32-битные телефоны (docs/02-architecture.md,
+        # «Сборка приложения»); доля и размер — вопрос прототипа П1.
+        run: ./gradlew ${{ matrix.task }} --no-daemon --stacktrace -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      # Подпись проверяется на готовом файле, а не по настройкам. Отпечаток постоянного ключа
+      # закреплён переменной ANDROID_CERT_SHA256 — чужой ключ в секретах остановит сборку.
+      - name: Подпись
+        id: cert
+        env:
+          READY: ${{ needs.key.outputs.ready }}
+          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
+          FILE: ${{ matrix.file }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/uzory-release.jks"
+          BT="$ANDROID_HOME/build-tools/$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -n1)"
+          if [ "$TARGET" = "apk" ]; then
+            OUT="$("$BT/apksigner" verify --print-certs "$FILE" 2>&1)"
+          else
+            OUT="$(keytool -printcert -jarfile "$FILE" 2>&1)"
+          fi
+          echo "$OUT"
+          hex() { tr '[:upper:]' '[:lower:]' | sed -E 's/^[[:space:]]*sha-?256:?//' | tr -d ': \t'; }
+          CERT="$(printf '%s\n' "$OUT" | grep -iE 'sha-?256( digest)?:' | head -n1 | sed -E 's/.*([Dd]igest|SHA-?256):?[[:space:]]*//' | hex || true)"
+          # общеизвестный отладочный ключ шаблона React Native
+          DEBUG=fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
+          EXPECTED="$(printf '%s' "$EXPECTED" | hex)"
+          if ! printf '%s' "$CERT" | grep -qE '^[0-9a-f]{64}$'; then echo "::error::Не нашёл отпечаток SHA-256 в выводе (см. выше)."; exit 1; fi
+          if [ "$READY" = "yes" ]; then
+            if [ "$CERT" = "$DEBUG" ]; then echo "::error::Ключ подложен, а $TARGET подписан отладочным: плагин подписи не сработал."; exit 1; fi
+            if [ "$CERT" != "$EXPECTED" ]; then echo "::error::Отпечаток $CERT не совпал с ANDROID_CERT_SHA256."; exit 1; fi
+            LABEL="постоянным ключом"
+          else
+            LABEL="отладочным ключом — только проверка, файл не выкладывается"
+          fi
+          echo "sha256=$CERT" >> "$GITHUB_OUTPUT"
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+          { echo "### Подпись $TARGET"; echo ""; echo "Подписан $LABEL; SHA-256 сертификата: \`$CERT\`"; } >> "$GITHUB_STEP_SUMMARY"
+
+      # Что внутри: 16 КБ, обе архитектуры и никаких других, разрешения по белому списку,
+      # резервная копия включена, размер в бюджете (docs/06-testing.md, §7).
+      - name: Содержимое
+        env:
+          FILE: ${{ matrix.file }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -n1)"
+          WORK="$RUNNER_TEMP/contents"; rm -rf "$WORK"; mkdir -p "$WORK"; unzip -q "$FILE" -d "$WORK"
+          if [ "$TARGET" = "apk" ]; then LIBS="$WORK/lib"; else LIBS="$WORK/base/lib"; fi
+
+          # 1. 16 КБ: у каждой 64-битной .so все сегменты LOAD выровнены не меньше чем на 2^14
+          BAD=0
+          while IFS= read -r so; do
+            for a in $(readelf -lW "$so" | awk '$1=="LOAD"{print $NF}'); do
+              if [ $((a)) -lt 16384 ]; then echo "::error::$(basename "$so"): LOAD выровнен на $a, нужно 0x4000"; BAD=1; fi
+            done
+          done < <(find "$LIBS/arm64-v8a" -name '*.so')
+          [ "$BAD" = 0 ] || exit 1
+          if [ "$TARGET" = "apk" ]; then "$BT/zipalign" -c -P 16 -v 4 "$FILE" > "$RUNNER_TEMP/zipalign.log" || { tail -n 30 "$RUNNER_TEMP/zipalign.log"; echo "::error::zipalign: APK не выровнен на 16 КБ"; exit 1; }; fi
+          echo "16 КБ: выровнено ($(find "$LIBS/arm64-v8a" -name '*.so' | wc -l) библиотек)"
+          # ровно две архитектуры, как заказано сборке
+          ARCHS="$(find "$LIBS" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | paste -sd ' ')"
+          if [ "$ARCHS" != "arm64-v8a armeabi-v7a" ]; then echo "::error::Архитектуры: $ARCHS, а нужно arm64-v8a и armeabi-v7a"; exit 1; fi
+
+          SIZE="$(stat -c %s "$FILE")"
+          MB="$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')"
+          { echo "### $TARGET"; echo ""; echo "Размер: $MB МБ (две архитектуры)"; } >> "$GITHUB_STEP_SUMMARY"
+          echo "Размер $TARGET: $MB МБ"
+          if [ "$SIZE" -gt $((90 * 1048576)) ]; then echo "::error::Больше 90 МБ — бюджет APK (docs/02-architecture.md, «Ограничения»)."; exit 1; fi
+
+          if [ "$TARGET" = "apk" ]; then
+            # 2. Разрешения ровно по белому списку (docs/05-process.md)
+            PERMS="$("$BT/aapt2" dump permissions "$FILE" | sed -nE "s/.*name='([^']+)'.*/\1/p" | sort -u)"
+            # shellcheck disable=SC2016 # обратные кавычки — разметка итогов
+            { echo ""; echo "Разрешения:"; printf '%s\n' "$PERMS" | sed 's/^/- `/; s/$/`/'; } >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$PERMS"
+            DENY='EXTERNAL_STORAGE|READ_MEDIA|SYSTEM_ALERT_WINDOW|AD_ID|LOCATION|CAMERA|RECORD_AUDIO|CONTACTS|READ_PHONE|CALL_LOG|SMS|MANAGE_|QUERY_ALL_PACKAGES|ACCOUNTS|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK'
+            if printf '%s\n' "$PERMS" | grep -E "$DENY"; then echo "::error::В APK запретное разрешение (выше)."; exit 1; fi
+            # Каталог и наборы по сети, вибрация стежка, настройки звука (expo-audio с 0.2)
+            # и служебное разрешение самого приложения. Новое — сюда, в docs/05-process.md
+            # и в политику конфиденциальности; ненужное — в blockedPermissions в app.json.
+            ALLOW='^(android\.permission\.(INTERNET|ACCESS_NETWORK_STATE|VIBRATE|MODIFY_AUDIO_SETTINGS)|games\.gornitsa\.uzory\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
+            EXTRA="$(printf '%s\n' "$PERMS" | grep -vE "$ALLOW" || true)"
+            if [ -n "$EXTRA" ]; then echo "::error::Разрешения вне списка: $(printf '%s\n' "$EXTRA" | paste -sd ' ')."; exit 1; fi
+
+            # 3. Резервная копия включена: работы переживают переустановку (docs/04-data-model.md)
+            BACKUP="$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$FILE" | grep -A0 'allowBackup' || true)"
+            echo "allowBackup: $BACKUP"
+            if ! printf '%s' "$BACKUP" | grep -qE '0xffffffff|true'; then echo "::error::allowBackup не включён."; exit 1; fi
+            echo "- резервная копия: включена" >> "$GITHUB_STEP_SUMMARY"
+
+            TARGET_SDK="$("$BT/aapt2" dump badging "$FILE" | sed -nE "s/^targetSdkVersion:'([0-9]+)'.*/\1/p")"
+            echo "target API: $TARGET_SDK" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Собрать
+        if: needs.key.outputs.ready == 'yes'
+        env:
+          FILE: ${{ matrix.file }}
+          TARGET: ${{ matrix.target }}
+          LABEL: ${{ steps.cert.outputs.label }}
+          SHA: ${{ steps.cert.outputs.sha256 }}
+        run: |
+          mkdir -p dist
+          cp "$FILE" "dist/uzory-${{ github.run_number }}.$TARGET"
+          printf '%s\n%s\n' "$LABEL" "$SHA" > "dist/signature-$TARGET.txt"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        if: needs.key.outputs.ready == 'yes'
+        with:
+          name: uzory-${{ matrix.target }}-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+
+  # Одна публикация на обе сборки, только с main. Первая сборка новой версии — релиз
+  # «Latest» с разделом версии из README; прочие — пре-релизы build-N.
+  release:
+    name: Релиз
+    needs: [checks, web, key, build]
+    if: github.ref == 'refs/heads/main' && needs.key.outputs.ready == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: repo
+          sparse-checkout: |
+            app.json
+            README.md
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Подпись
+        id: sig
+        run: |
+          ls -la dist
+          echo "label=$(sed -n 1p dist/signature-apk.txt)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(sed -n 2p dist/signature-apk.txt)" >> "$GITHUB_OUTPUT"
+      - name: Версия — новая или уже выпущена
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./repo/app.json').expo.version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "fresh=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=yes" >> "$GITHUB_OUTPUT"
+          fi
+          # «Что нового» — раздел «### X.Y.Z …» из «## Версии» README, до следующего заголовка
+          awk -v v="$V" 'index($0, "### " v) == 1 { on = 1; next } on && /^##/ { exit } on' repo/README.md > notes.md
+          {
+            cat notes.md
+            echo
+            echo "---"
+            echo "**uzory-${{ github.run_number }}.apk** — для телефона: скачайте и откройте. Этот же файл — для RuStore."
+            echo "**uzory-${{ github.run_number }}.aab** — только для загрузки в магазины, принимающие AAB (на телефон не ставится)."
+            echo "Подписаны ${{ steps.sig.outputs.label }}, SHA-256 сертификата: \`${{ steps.sig.outputs.sha }}\`."
+            echo "Собрано из коммита ${{ github.sha }}, сборка ${{ github.run_number }}."
+          } > release.md
+          cat release.md
+      - name: Релиз vX.Y.Z
+        if: steps.ver.outputs.fresh == 'yes'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Узоры ${{ steps.ver.outputs.version }}
+          body_path: release.md
+          files: |
+            dist/*.apk
+            dist/*.aab
+          prerelease: ${{ startsWith(steps.ver.outputs.version, '0.') }}
+          make_latest: true
+      - name: Пре-релиз build-N
+        if: steps.ver.outputs.fresh != 'yes'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Узоры — сборка ${{ github.run_number }}
+          body_path: release.md
+          files: |
+            dist/*.apk
+            dist/*.aab
+          prerelease: true
