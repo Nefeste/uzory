@@ -1,6 +1,7 @@
 // Канва без телефона: тот же шейдер на CanvasKit (Skia в WASM, та же версия, что у Skia
 // 2.6.2 в вебе), рисование на процессоре. Для золотых кадров в тестах и кадров для глаз.
 import CanvasKitInit from 'canvaskit-wasm/bin/full/canvaskit.js';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { SKSL, uniformList, type Uniforms } from '../../src/canvas/shader';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
@@ -11,10 +12,52 @@ export type CK = any;
 let ck: Promise<CK> | null = null;
 export const canvasKit = (): Promise<CK> => (ck ??= CanvasKitInit({ locateFile: (f: string) => join(dir, f) }));
 
-export const GW = 30;
+export const GW = 32;
 export const GH = 48;
 
-/** Атлас цифр: 10 белых цифр по GW × GH — без шрифта, «семисегментные» (для тестов хватает). */
+/**
+ * Атлас цифр шрифтом приложения (Onest SemiBold), как src/canvas/textures.ts: проба, затем
+ * по центру ячейки по высоте нарисованного.
+ */
+export async function fontDigitBytes(): Promise<Uint8Array> {
+  const CK = await canvasKit();
+  const file = join(dirname(require.resolve('@expo-google-fonts/onest/package.json')), '600SemiBold', 'Onest_600SemiBold.ttf');
+  const tf = CK.Typeface.MakeTypefaceFromData(readFileSync(file).buffer);
+  const font = new CK.Font(tf, 50);
+  const W = GW * 10;
+  const draw = (baseline: number) => {
+    const surface = CK.MakeSurface(W, GH);
+    const c = surface.getCanvas();
+    c.clear(CK.TRANSPARENT);
+    const paint = new CK.Paint();
+    paint.setColor(CK.WHITE);
+    paint.setAntiAlias(true);
+    for (let d = 0; d < 10; d++) {
+      const t = String(d);
+      const ids = font.getGlyphIDs(t);
+      const adv = font.getGlyphWidths(ids)[0];
+      c.drawText(t, d * GW + (GW - adv) / 2, baseline, paint, font);
+    }
+    surface.flush();
+    return surface.makeImageSnapshot().readPixels(0, 0, { width: W, height: GH, colorType: CK.ColorType.RGBA_8888, alphaType: CK.AlphaType.Unpremul, colorSpace: CK.ColorSpace.SRGB }) as Uint8Array;
+  };
+  const guess = GH * 0.8;
+  const px = draw(guess);
+  let top = GH;
+  let bottom = -1;
+  for (let y = 0; y < GH; y++) {
+    for (let x = 0; x < W; x++) {
+      if (px[(y * W + x) * 4 + 3] > 40) {
+        if (y < top) top = y;
+        bottom = y;
+        break;
+      }
+    }
+  }
+  return draw(guess + GH / 2 - (top + bottom + 1) / 2);
+}
+
+/** Атлас цифр: 10 белых цифр по GW × GH — «семисегментные», без шрифта (для тестов хватает). */
 export function digitBytes(): Uint8Array {
   const seg: Record<number, string> = { 0: 'abcdef', 1: 'bc', 2: 'abdeg', 3: 'abcdg', 4: 'bcfg', 5: 'acdfg', 6: 'acdefg', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
   const r: Record<string, number[]> = { a: [7, 5, 16, 5], b: [21, 7, 5, 16], c: [21, 25, 5, 16], d: [7, 38, 16, 5], e: [4, 25, 5, 16], f: [4, 7, 5, 16], g: [7, 21, 16, 5] };
@@ -55,6 +98,8 @@ export interface Frame {
 export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
   width: number; height: number; s: number; tx: number; ty: number;
   near: boolean; mosaic?: boolean; hatch?: boolean; selected?: number;
+  /** цифры шрифтом приложения, а не «семисегментные» */
+  font?: boolean;
 }): Promise<Frame> {
   const CK = await canvasKit();
   const effect = CK.RuntimeEffect.Make(SKSL, (e: string) => { throw new Error(`SkSL: ${e}`); });
@@ -62,7 +107,7 @@ export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
   const img = (data: Uint8Array, w: number, h: number) => CK.MakeImage({ width: w, height: h, alphaType: CK.AlphaType.Unpremul, colorType: CK.ColorType.RGBA_8888, colorSpace: CK.ColorSpace.SRGB }, data, w * 4);
   const cells = img(cellBytes(p, stitched), p.w, p.h);
   const pal = img(paletteBytes(p), 64, 1);
-  const dig = img(digitBytes(), GW * 10, GH);
+  const dig = img(opts.font ? await fontDigitBytes() : digitBytes(), GW * 10, GH);
   const nearest = (i: CK) => i.makeShaderOptions(CK.TileMode.Clamp, CK.TileMode.Clamp, CK.FilterMode.Nearest, CK.MipmapMode.None);
   const linear = (i: CK) => i.makeShaderOptions(CK.TileMode.Clamp, CK.TileMode.Clamp, CK.FilterMode.Linear, CK.MipmapMode.None);
   const u: Uniforms = {

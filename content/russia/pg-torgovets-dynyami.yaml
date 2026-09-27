@@ -1,4 +1,5 @@
-# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json.
+# Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json —
+# цветная сборка Библиотеки Конгресса (ppmsc, prokc), а не одноцветный отпечаток (prok, ppem).
 id: pg-torgovets-dynyami
 title: Торговец дынями. Самарканд
 collection: russia
@@ -11,5 +12,6 @@ source:
   download: https://tile.loc.gov/storage-services/service/pnp/ppmsc/03900/03949v.jpg
   basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
 pattern:
+  crop: [0.03, 0.03, 0.97, 0.97]   # края сборки — цветная кайма от сдвига трёх негативов
   size: 100
-  threads: 24
+  threads: 32

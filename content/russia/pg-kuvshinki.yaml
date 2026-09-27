@@ -1,15 +1,15 @@
 # Прототип П3 (docs/specs/2026-09-spikes.md): файл выбран по content/candidates.json —
 # цветная сборка Библиотеки Конгресса (ppmsc, prokc), а не одноцветный отпечаток (prok, ppem).
-id: pg-nilov-monastyr
-title: Нилова пустынь на Селигере
+id: pg-kuvshinki
+title: Кувшинки. Этюд
 collection: russia
-order: 10
+order: 15
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1910"
 source:
-  file: pg-nilov-monastyr.jpg
-  url: https://www.loc.gov/item/2018680368/
-  download: https://tile.loc.gov/storage-services/service/pnp/prokc/21100/21110v.jpg
+  file: pg-kuvshinki.jpg
+  url: https://www.loc.gov/item/2018678763/
+  download: https://tile.loc.gov/storage-services/service/pnp/prokc/20800/20880v.jpg
   basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
 pattern:
   crop: [0.03, 0.03, 0.97, 0.97]   # края сборки — цветная кайма от сдвига трёх негативов

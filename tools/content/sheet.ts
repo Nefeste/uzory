@@ -5,6 +5,7 @@
 //   bun tools/content/sheet.ts                  все картинки → dist/sheet/*.png
 //   bun tools/content/sheet.ts --only russia
 //   bun tools/content/sheet.ts --variants <id>  сетка 70/100/120 × 16/24/32 нити (П3)
+//   bun tools/content/sheet.ts --deltas <id>    сетка 70/100/120 × порог различимости 0,05/0,04/0,03
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -20,10 +21,33 @@ const OUT = join(ROOT, 'dist', 'sheet');
 const H = 420;
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
+/** Узор целиком издалека — как на телефоне, когда номера не видны: вышитое цветом нити. */
+async function far(p: Pattern, height = H): Promise<Buffer> {
+  const s = Math.max(2, Math.min(24, Math.floor(height / Math.max(p.w, p.h))));
+  const all = new Uint8Array(p.cells.length).fill(1);
+  const f = await renderFrame(p, all, { width: p.w * s, height: p.h * s, s, tx: 0, ty: 0, near: false });
+  return sharp(Buffer.from(f.png())).resize({ height, width: Math.round((height * p.w) / p.h), kernel: 'nearest' }).png().toBuffer();
+}
+
+/**
+ * Кусок узора вблизи — как на экране вышивания: левая половина вышита, правая с номерами.
+ * Для маленьких узоров — весь узор.
+ */
+async function close(p: Pattern, mosaic: boolean, size = H): Promise<Buffer> {
+  const n = Math.min(22, Math.max(p.w, p.h));
+  const s = size / n;
+  const cx = p.w / 2;
+  const cy = p.h / 2;
+  const stitched = Uint8Array.from(p.cells, (_, i) => ((i % p.w) < cx ? 1 : 0));
+  const f = await renderFrame(p, stitched, { width: size, height: size, s, tx: size / 2 - cx * s, ty: size / 2 - cy * s, near: true, mosaic, font: true });
+  return Buffer.from(f.png());
+}
+
+/** Для орнаментов: узор целиком вышитым. */
 async function render(p: Pattern, mosaic: boolean, height = H): Promise<Buffer> {
   const s = Math.max(4, Math.min(24, Math.floor(height / Math.max(p.w, p.h))));
   const all = new Uint8Array(p.cells.length).fill(1);
-  const f = await renderFrame(p, all, { width: p.w * s, height: p.h * s, s, tx: 0, ty: 0, near: true, mosaic });
+  const f = await renderFrame(p, all, { width: p.w * s, height: p.h * s, s, tx: 0, ty: 0, near: true, mosaic, font: true });
   return sharp(Buffer.from(f.png())).resize({ height, width: Math.round((height * p.w) / p.h), kernel: 'nearest' }).png().toBuffer();
 }
 
@@ -56,7 +80,10 @@ function caption(b: Built): Buffer {
 }
 
 async function row(b: Built): Promise<Buffer> {
-  const tiles = [await sourceTile(b), await render(b.pattern, false), await render(b.pattern, true)].filter(Boolean) as Buffer[];
+  const big = Math.max(b.pattern.w, b.pattern.h) > 40;
+  const tiles = (big
+    ? [await sourceTile(b), await far(b.pattern), await close(b.pattern, false), await close(b.pattern, true)]
+    : [await sourceTile(b), await render(b.pattern, false), await render(b.pattern, true)]).filter(Boolean) as Buffer[];
   const metas = await Promise.all(tiles.map((t) => sharp(t).metadata()));
   const cap = caption(b);
   const capMeta = await sharp(cap).metadata();
@@ -86,36 +113,44 @@ async function stack(rows: Buffer[], file: string) {
   console.log(file);
 }
 
-async function variants(id: string) {
+async function variants(id: string, mode: 'threads' | 'deltas') {
   const file = listCards().find((f) => f.endsWith(`/${id}.yaml`));
   if (!file) throw new Error(`карточки ${id} нет`);
   const { card, errors } = readCard(file);
   if (!card || !card.pattern) throw new Error(errors.join('; ') || 'карточка без исходника');
   const raster = await decode(join(card.dir, card.source.file!));
   const tiles: Buffer[] = [];
+  const second = mode === 'threads' ? [16, 24, 32] : [0.05, 0.04, 0.03];
   for (const size of [70, 100, 120]) {
-    for (const threads of [16, 24, 32]) {
+    for (const v of second) {
       const g = toGrid(raster, card.pattern.crop ?? [0, 0, 1, 1], size);
-      const { pattern, log } = buildPattern(g, { id: card.id, v: card.v, threads });
+      const opts = mode === 'threads' ? { threads: v } : { threads: 32, minDelta: v };
+      const { pattern, log } = buildPattern(g, { id: card.id, v: card.v, ...opts });
       const c = checkPattern(pattern, card);
-      const img = await render(pattern, true, 360);
-      const label = Buffer.from(`<svg width="380" height="44"><rect width="100%" height="100%" fill="#f7f7f2"/><text x="8" y="18" font-family="DejaVu Sans" font-size="14">${size} клеток · заказано ${threads} → ${log.final} нитей</text><text x="8" y="37" font-family="DejaVu Sans" font-size="13" fill="${c.errors.length ? '#b3162f' : '#1f3c34'}">${esc(c.errors[0] ?? `одиночных ${c.stats.singles.toFixed(2)} %, различимость ${c.stats.minDelta.toFixed(3)}`)}</text></svg>`);
+      const img = await far(pattern, 330);
+      const what = mode === 'threads' ? `заказано ${v}` : `порог ${v.toFixed(2)}`;
+      const note = c.errors[0] ?? `одиночных ${c.stats.singles.toFixed(2)} %, различимость ${c.stats.minDelta.toFixed(3)}`;
+      const label = Buffer.from(`<svg width="380" height="44"><rect width="100%" height="100%" fill="#f7f7f2"/><text x="8" y="18" font-family="DejaVu Sans" font-size="14">${size} клеток · ${what} → ${log.final} нитей</text><text x="8" y="37" font-family="DejaVu Sans" font-size="12" fill="${c.errors.length ? '#b3162f' : '#1f3c34'}">${esc(note.slice(0, 60))}</text></svg>`);
       const m = await sharp(img).metadata();
-      tiles.push(await sharp({ create: { width: 380, height: 420, channels: 3, background: '#ecede6' } })
-        .composite([{ input: img, left: Math.max(0, Math.round((380 - (m.width ?? 0)) / 2)), top: 0 }, { input: label, left: 0, top: 372 }]).png().toBuffer());
+      const w = Math.min(380, m.width ?? 380);
+      const fitted = (m.width ?? 0) > 380 ? await sharp(img).resize({ width: 380 }).toBuffer() : img;
+      tiles.push(await sharp({ create: { width: 380, height: 390, channels: 3, background: '#ecede6' } })
+        .composite([{ input: fitted, left: Math.max(0, Math.round((380 - w) / 2)), top: 0 }, { input: label, left: 0, top: 344 }]).png().toBuffer());
     }
   }
-  const parts = tiles.map((t, i) => ({ input: t, left: (i % 3) * 390, top: Math.floor(i / 3) * 430 }));
+  const parts = tiles.map((t, i) => ({ input: t, left: (i % 3) * 390, top: Math.floor(i / 3) * 400 }));
   mkdirSync(OUT, { recursive: true });
-  const out = join(OUT, `variants-${id}.png`);
-  await sharp({ create: { width: 1170, height: 1290, channels: 3, background: '#ecede6' } }).composite(parts).png().toFile(out);
+  const out = join(OUT, `${mode === 'threads' ? 'variants' : 'deltas'}-${id}.png`);
+  await sharp({ create: { width: 1170, height: 1200, channels: 3, background: '#ecede6' } }).composite(parts).png().toFile(out);
   console.log(out);
 }
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.includes('--variants')) {
-    await variants(args[args.indexOf('--variants') + 1]);
+    await variants(args[args.indexOf('--variants') + 1], 'threads');
+  } else if (args.includes('--deltas')) {
+    await variants(args[args.indexOf('--deltas') + 1], 'deltas');
   } else {
     const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : undefined;
     const r = await buildAll({ only });

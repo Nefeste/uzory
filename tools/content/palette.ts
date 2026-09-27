@@ -21,6 +21,8 @@ export interface BuildOptions {
   canvas?: number;
   /** порог «близко к фону» в OKLab */
   canvasDelta?: number;
+  /** порог различимости вместо MIN_DELTA — для листа вариантов П3 */
+  minDelta?: number;
 }
 
 export interface BuildLog {
@@ -91,10 +93,15 @@ export function kmeans(points: Lab[], k: number, seed: number): Lab[] {
   return centers;
 }
 
-/** Сливает нити ближе порога, взвешенно по числу клеток, пока такие есть. */
-function mergeClose(centers: Lab[], weights: number[], min: number): { centers: Lab[]; weights: number[] } {
+/**
+ * Сливает нити ближе порога, взвешенно по числу клеток, пока такие есть. `map[k]` — куда
+ * ушла прежняя нить k: клетки переназначаются по нему, а не заново по цвету, чтобы не
+ * вернуть «конфетти», убранное чисткой.
+ */
+function mergeClose(centers: Lab[], weights: number[], min: number): { centers: Lab[]; weights: number[]; map: number[] } {
   const c = centers.map((x) => [...x] as Lab);
   const w = [...weights];
+  let map = centers.map((_, k) => k);
   for (;;) {
     let best = Infinity;
     let pa = -1;
@@ -109,8 +116,9 @@ function mergeClose(centers: Lab[], weights: number[], min: number): { centers: 
     w[pa] = w[pa] + w[pb];
     c.splice(pb, 1);
     w.splice(pb, 1);
+    map = map.map((m) => (m === pb ? pa : m > pb ? m - 1 : m));
   }
-  return { centers: c, weights: w };
+  return { centers: c, weights: w, map };
 }
 
 /** Связные области одной нити (соседи по сторонам): номер области на клетку и размеры. */
@@ -142,7 +150,8 @@ export function regions(cells: Int32Array, w: number, h: number): { comp: Int32A
  * Чистка: область меньше SMALL_REGION клеток перекрашивается в соседнюю нить с самой
  * длинной общей границей; до CLEAN_PASSES проходов. −1 в клетках — канва, её не трогаем.
  */
-export function cleanup(cells: Int32Array, w: number, h: number): void {
+export function cleanup(cells: Int32Array, w: number, h: number): boolean {
+  let changed = false;
   for (let pass = 0; pass < CLEAN_PASSES; pass++) {
     const { comp, sizes } = regions(cells, w, h);
     const border = new Map<number, Map<number, number>>();
@@ -158,7 +167,8 @@ export function cleanup(cells: Int32Array, w: number, h: number): void {
         border.set(c, m);
       }
     }
-    if (!border.size) return;
+    if (!border.size) return changed;
+    changed = true;
     const target = new Map<number, number>();
     for (const [c, m] of border) {
       let best = -1;
@@ -172,6 +182,7 @@ export function cleanup(cells: Int32Array, w: number, h: number): void {
       if (t !== undefined) cells[i] = t;
     }
   }
+  return changed;
 }
 
 /** Порядок «как нитки в коробке»: почти серые, затем 12 секторов оттенка, светлые раньше. */
@@ -199,7 +210,7 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
     else stitchIdx.push(i);
   }
   const size = sizeOf(stitchIdx.length);
-  const min = MIN_DELTA[size];
+  const min = o.minDelta ?? MIN_DELTA[size];
   const pts = stitchIdx.map((i) => labs[i]);
   let centers = kmeans(pts, o.threads, hash32(o.id));
   const log: BuildLog = { asked: o.threads, afterKmeans: centers.length, afterMerge: 0, final: 0, singlesBefore: 0, smallBefore: 0 };
@@ -210,46 +221,48 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
     return wt;
   };
   assignAll();
-  centers = mergeClose(centers, weights(), min).centers;
+  const remap = (map: number[]) => { for (const i of stitchIdx) cells[i] = map[cells[i]]; };
+  {
+    const m = mergeClose(centers, weights(), min);
+    centers = m.centers;
+    remap(m.map);
+  }
   log.afterMerge = centers.length;
-  assignAll();
   {
     const { sizes } = regions(cells, g.w, g.h);
     let small = 0;
     let singles = 0;
-    for (const s of sizes) { if (s < SMALL_REGION + 1) small += s; if (s === 1) singles++; }
+    for (const s of sizes) { if (s <= SMALL_REGION) small += s; if (s === 1) singles++; }
     log.singlesBefore = (singles * 100) / Math.max(1, stitchIdx.length);
     log.smallBefore = (small * 100) / Math.max(1, stitchIdx.length);
   }
   const minCells = Math.max(8, Math.ceil(stitchIdx.length * 0.002));
-  for (let round = 0; round < 4; round++) {
-    cleanup(cells, g.w, g.h);
-    // нить, у которой клеток меньше порога, сливается с ближайшей
+  // Чистка, слияние маленьких нитей, пересчёт цветов и различимость — пока что-то меняется.
+  // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
+  for (let round = 0; round < 8; round++) {
+    let changed = cleanup(cells, g.w, g.h);
     let wt = weights();
-    let changed = false;
     for (;;) {
       let worst = -1;
       for (let k = 0; k < centers.length; k++) if (wt[k] < minCells && (worst < 0 || wt[k] < wt[worst])) worst = k;
       if (worst < 0 || centers.length < 2) break;
       const others = centers.map((c, k) => (k === worst ? [1e9, 1e9, 1e9] as Lab : c));
       const to = nearest(centers[worst], others);
-      for (const i of stitchIdx) if (cells[i] === worst) cells[i] = to;
-      for (const i of stitchIdx) if (cells[i] > worst) cells[i]--;
+      remap(centers.map((_, k) => (k === worst ? (to > worst ? to - 1 : to) : k > worst ? k - 1 : k)));
       centers.splice(worst, 1);
       wt = weights();
       changed = true;
     }
-    // цвета нитей — по клеткам, которые им достались
     const sum = centers.map(() => [0, 0, 0, 0]);
     for (const i of stitchIdx) {
       const s = sum[cells[i]];
       s[0] += labs[i][0]; s[1] += labs[i][1]; s[2] += labs[i][2]; s[3]++;
     }
-    centers = centers.map((c, k) => (sum[k][3] ? [sum[k][0] / sum[k][3], sum[k][1] / sum[k][3], sum[k][2] / sum[k][3]] as Lab : c));
-    const merged = mergeClose(centers, weights(), min);
-    if (merged.centers.length !== centers.length) {
-      centers = merged.centers;
-      assignAll();
+    centers = centers.map((c, k) => (sum[k][3] ? rgbToLab(labToRgb([sum[k][0] / sum[k][3], sum[k][1] / sum[k][3], sum[k][2] / sum[k][3]])) : c));
+    const m = mergeClose(centers, weights(), min);
+    if (m.centers.length !== centers.length) {
+      centers = m.centers.map((c) => rgbToLab(labToRgb(c)));
+      remap(m.map);
       changed = true;
     }
     if (!changed) break;
@@ -257,12 +270,12 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // палитра в sRGB, порядок коробки, названия
   const rgbs = centers.map((c) => labToRgb(c));
   const order = boxOrder(centers.map((_, k) => rgbToLab(rgbs[k])));
-  const remap = new Int32Array(centers.length);
-  order.forEach((old, neu) => (remap[old] = neu));
+  const place = new Int32Array(centers.length);
+  order.forEach((old, neu) => (place[old] = neu));
   const palette = order.map((k) => rgbs[k]);
   const names = nameThreads(palette);
   const out = new Uint8Array(n);
-  for (let i = 0; i < n; i++) out[i] = cells[i] < 0 ? CANVAS : remap[cells[i]];
+  for (let i = 0; i < n; i++) out[i] = cells[i] < 0 ? CANVAS : place[cells[i]];
   log.final = palette.length;
   return {
     pattern: { key: `${o.id}@${o.v}`, w: g.w, h: g.h, threads: palette.map((rgb, k) => ({ rgb, name: names[k] })), cells: out },

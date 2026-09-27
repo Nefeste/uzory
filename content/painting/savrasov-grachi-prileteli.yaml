@@ -14,4 +14,4 @@ source:
   basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1897"
 pattern:
   size: 100
-  threads: 24
+  threads: 32
