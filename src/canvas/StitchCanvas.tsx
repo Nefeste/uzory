@@ -402,10 +402,14 @@ export function StitchCanvas(props: Props) {
 
   // ---------- кисть ----------
 
+  /**
+   * Отдаёт штрих в JS: во время долгого — частями раз в секунду, в конце — с `final`.
+   * Конец уходит, даже если все клетки уже ушли частями: по нему экран обновляет процент.
+   */
   const flush = (final: boolean) => {
     'worklet';
     const b = brush.get();
-    if (b.pending.length && onStroke) {
+    if (onStroke && (b.pending.length || (final && b.cells.length))) {
       scheduleOnRN(onStroke, b.thread, b.pending.slice(), final);
     }
     b.pending = [];

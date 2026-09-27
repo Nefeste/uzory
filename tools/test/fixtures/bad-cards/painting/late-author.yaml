@@ -1,0 +1,10 @@
+id: late-author
+title: Автор умер позже границы
+collection: painting
+order: 1
+author: { name: Кто-то, life: 1890–1960 }
+made: "1925"
+place: "собрание"
+museum: none
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 60, threads: 16 }

@@ -115,7 +115,8 @@ try {
   // лист
   await page.getByTestId('home-sheet').click();
   await page.getByTestId('sheet-first-picture').waitFor();
-  check((await page.locator('[data-testid^="sheet-"]').count()) === built.length, `лист: ${built.length} картинок`);
+  // список прокручивается и рисует не всё сразу: проверяем, что он не пуст и первые на месте
+  check((await page.locator('[data-testid^="sheet-"]').count()) >= Math.min(built.length, 5), `лист: ${built.length} картинок в наборе`);
   await page.screenshot({ path: join(OUT, '05-sheet.png') });
   await page.getByTestId('back').click();
 
@@ -138,6 +139,17 @@ try {
   const live = await page.getByTestId('bench-live').innerText();
   check(/fps/.test(live), `замер: ${live}`);
   await page.screenshot({ path: join(OUT, '07-bench.png') });
+  // замер сам: сдвиг, масштаб и кисть по 10 секунд — числа появляются на экране
+  await page.getByTestId('bench-run').click();
+  await page.getByTestId('bench-result').waitFor({ timeout: 90_000 });
+  const result = await page.getByTestId('bench-result').innerText();
+  check(/Кисть: \d+ кадров/.test(result) && !/стежков: 0/.test(result), 'замер прошёл все три фазы, кисть вышивала');
+  console.log(result);
+  // путь Б — «слои»
+  await page.getByTestId('bench-path-layers').click();
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: join(OUT, '08-bench-layers.png') });
+  check(/fps/.test(await page.getByTestId('bench-live').innerText()), 'путь «слои» рисует');
 } catch (e) {
   failures.push(`сценарий упал: ${(e as Error).message}`);
   await page.screenshot({ path: join(OUT, 'failure.png') }).catch(() => {});

@@ -5,7 +5,7 @@ Same rules as [`listing.ru.md`](listing.ru.md). Lengths are checked by `tools/te
 
 ## Title
 
-Uzory — Cross-Stitch by Numbers
+Uzory: Cross-Stitch by Number
 
 ## Short description (up to 80 characters)
 

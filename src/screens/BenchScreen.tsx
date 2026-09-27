@@ -82,7 +82,7 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
         </Txt>
         {result ? <Txt selectable style={styles.result} testID="bench-result">{result}</Txt> : null}
         <Segmented value={size} onChange={setSize} options={[{ id: '120', label: '120 × 120 · 32' }, { id: '150', label: '150 × 200 · 40' }]} />
-        <Segmented value={path} onChange={setPath} options={[{ id: 'shader', label: T.bench.paths.shader }, { id: 'layers', label: T.bench.paths.layers }]} />
+        <Segmented value={path} onChange={setPath} testID="bench-path" options={[{ id: 'shader', label: T.bench.paths.shader }, { id: 'layers', label: T.bench.paths.layers }]} />
         {Platform.OS === 'android' ? (
           <Segmented value={surface} onChange={setSurface} options={[{ id: 'texture', label: T.bench.surfaces.texture }, { id: 'surface', label: T.bench.surfaces.surface }]} />
         ) : null}

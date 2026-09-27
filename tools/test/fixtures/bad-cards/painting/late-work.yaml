@@ -1,0 +1,10 @@
+id: late-work
+title: Работа после 1930 года
+collection: painting
+order: 1
+author: { name: Кто-то, life: 1870–1940 }
+made: "1935"
+place: "собрание"
+museum: none
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 60, threads: 16 }

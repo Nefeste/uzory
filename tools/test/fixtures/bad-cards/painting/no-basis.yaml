@@ -1,0 +1,10 @@
+id: no-basis
+title: Без основания
+collection: painting
+order: 1
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "собрание"
+museum: none
+source: { file: x.jpg, url: "https://example.org" }
+pattern: { size: 60, threads: 16 }
