@@ -15,7 +15,10 @@ import { parse } from 'yaml';
 import { CONTENT, listCards, readCard } from './cards';
 
 const UA = 'UzoryContentBot/0.1 (https://gornitsa.games; game studio Gornitsa)';
-const ALLOWED = [/^https:\/\/commons\.wikimedia\.org\//, /^https:\/\/upload\.wikimedia\.org\//, /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//];
+const ALLOWED = [
+  /^https:\/\/commons\.wikimedia\.org\//, /^https:\/\/(upload|thumb)\.wikimedia\.org\//,
+  /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//,
+];
 const MAX_SIDE = 800;
 
 async function get(url: string): Promise<Response> {
