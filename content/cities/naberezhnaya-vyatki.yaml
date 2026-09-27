@@ -1,0 +1,15 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: naberezhnaya-vyatki
+title: Набережная Вятки
+collection: cities
+order: 1
+made: "2026"
+place: "Нововятский район, Киров"
+source:
+  file: naberezhnaya-vyatki.jpg
+  url: ""
+  basis: "снимок автора игры, 26.09.2026, Нововятский район, Киров"
+pattern:
+  size: 240
+  threads: 40

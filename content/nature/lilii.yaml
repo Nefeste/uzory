@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: lilii
+title: Лилии
+collection: nature
+order: 1
+made: "2026"
+place: "Киров"
+source:
+  file: lilii.jpg
+  url: ""
+  basis: "снимок автора игры, 02.07.2026, Киров"
+pattern:
+  crop: [0.18, 0, 0.88, 0.95]   # цветы крупнее, без тёмного края
+  size: 160
+  threads: 40

@@ -1,0 +1,15 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
+# docs/specs/2026-09-spikes.md, П3.
+id: ledokhod-na-vyatke
+title: Ледоход на Вятке
+collection: nature
+order: 5
+made: "2025"
+place: "река Вятка, Киров"
+source:
+  file: ledokhod-na-vyatke.jpg
+  url: ""
+  basis: "снимок автора игры, 29.03.2025, река Вятка, Киров"
+pattern:
+  size: 200
+  threads: 40
