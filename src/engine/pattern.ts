@@ -26,7 +26,7 @@ export interface Pattern {
   cells: Uint8Array;
 }
 
-export type SizeClass = 'S' | 'M' | 'L';
+export type SizeClass = 'S' | 'M' | 'L' | 'XL';
 
 /** Ошибка узора словами — или null, если узор цел. Проверяет и сборка, и загрузка набора. */
 export function patternError(p: Pattern): string | null {
@@ -72,8 +72,11 @@ export function stitchable(p: Pattern): number {
 /** Размер по числу вышиваемых клеток (docs/08-game-design.md, «Размеры узоров»). */
 export function sizeClass(p: Pattern): SizeClass {
   const n = stitchable(p);
-  return n <= 1600 ? 'S' : n <= 4900 ? 'M' : 'L';
+  return n <= 1600 ? 'S' : n <= 4900 ? 'M' : n <= 14400 ? 'L' : 'XL';
 }
+
+/** Картинкой дня бывают только малые и средние (docs/08-game-design.md, «Картинка дня»). */
+export const dailySize = (s: SizeClass) => s === 'S' || s === 'M';
 
 /**
  * Оценка времени для карточки, в минутах: вышиваемые клетки ÷ 4 в секунду + 15 секунд

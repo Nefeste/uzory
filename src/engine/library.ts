@@ -1,4 +1,5 @@
 // Картинка библиотеки — всё, что показывается вокруг узора (docs/04-data-model.md, «Картинка»).
+import type { SizeClass } from './pattern';
 
 export type CollectionId = 'ornaments' | 'painting' | 'tales' | 'russia'
   | 'flowers' | 'nature' | 'cities' | 'kids';
@@ -7,6 +8,9 @@ export type CollectionId = 'ornaments' | 'painting' | 'tales' | 'russia'
 export const COLLECTIONS: readonly CollectionId[] = [
   'ornaments', 'painting', 'tales', 'russia', 'flowers', 'nature', 'cities', 'kids',
 ];
+
+/** Размеры узоров (docs/08-game-design.md, «Размеры узоров»). */
+export const SIZE_CLASSES: readonly SizeClass[] = ['S', 'M', 'L', 'XL'];
 
 /** Сколько первых картинок каждой коллекции бесплатны (docs/08-game-design.md). */
 export const FREE_FIRST = 5;
@@ -20,7 +24,7 @@ export interface Picture {
   collection: CollectionId;
   /** место в коллекции; первые пять (order < 5) бесплатны */
   order: number;
-  size: 'S' | 'M' | 'L';
+  size: SizeClass;
   /** бесплатна всегда, независимо от order («Детям») */
   free?: true;
   author?: { name: string; life?: string };
@@ -59,7 +63,7 @@ export function pictureError(p: Picture): string | null {
   if (typeof p.title !== 'string' || !p.title.trim()) return `${at}: нет названия`;
   if (!COLLECTIONS.includes(p.collection)) return `${at}: коллекция «${String(p.collection)}»`;
   if (!Number.isInteger(p.order) || p.order < 0) return `${at}: order ${String(p.order)}`;
-  if (p.size !== 'S' && p.size !== 'M' && p.size !== 'L') return `${at}: размер «${String(p.size)}»`;
+  if (!SIZE_CLASSES.includes(p.size)) return `${at}: размер «${String(p.size)}»`;
   if (p.free !== undefined && p.free !== true) return `${at}: free только true`;
   if (p.hidden !== undefined && p.hidden !== true) return `${at}: hidden только true`;
   if (p.trial !== undefined && p.trial !== true) return `${at}: trial только true`;

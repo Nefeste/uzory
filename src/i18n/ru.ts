@@ -15,7 +15,7 @@ export const ru = {
     version: (v: string, build: number) => `Версия ${v} (сборка ${build})`,
     threads,
     minutes,
-    sizes: { S: 'Малая', M: 'Средняя', L: 'Большая' } as Record<'S' | 'M' | 'L', string>,
+    sizes: { S: 'Малая', M: 'Средняя', L: 'Большая', XL: 'Огромная' } as Record<'S' | 'M' | 'L' | 'XL', string>,
     meta: (w: number, h: number, n: number, min: number) => `${w} × ${h} · ${threads(n)} · ≈ ${min} мин`,
     percent: (p: number) => `${p} %`,
   },

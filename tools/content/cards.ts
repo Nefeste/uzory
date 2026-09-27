@@ -5,6 +5,7 @@ import { basename, dirname, join, relative } from 'node:path';
 import { parse } from 'yaml';
 import { COLLECTIONS, type CollectionId } from '../../src/engine/library';
 import { parseHex } from '../../src/engine/pattern';
+import { SIZES } from './checks';
 
 export const ROOT = join(import.meta.dir, '..', '..');
 export const CONTENT = join(ROOT, 'content');
@@ -82,8 +83,10 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
   if (card.pattern) {
     const p = card.pattern;
     if (!card.source?.file) errors.push('pattern без source.file');
-    if (!Number.isInteger(p.size) || p.size < 8 || p.size > 120) errors.push(`pattern.size ${p.size} вне 8…120`);
-    if (!Number.isInteger(p.threads) || p.threads < 2 || p.threads > 32) errors.push(`pattern.threads ${p.threads} вне 2…32`);
+    // пределы — самого большого размера, «Огромной» (docs/08-game-design.md, «Размеры узоров»)
+    const top = SIZES.XL;
+    if (!Number.isInteger(p.size) || p.size < 8 || p.size > top.side) errors.push(`pattern.size ${p.size} вне 8…${top.side}`);
+    if (!Number.isInteger(p.threads) || p.threads < 2 || p.threads > top.threads[1]) errors.push(`pattern.threads ${p.threads} вне 2…${top.threads[1]}`);
     if (p.crop && (p.crop.length !== 4 || p.crop[0] >= p.crop[2] || p.crop[1] >= p.crop[3] || p.crop.some((x) => x < 0 || x > 1))) errors.push(`pattern.crop ${JSON.stringify(p.crop)}`);
     if (p.canvas !== undefined && parseHex(p.canvas) === null) errors.push(`pattern.canvas «${p.canvas}» не #rrggbb`);
   }

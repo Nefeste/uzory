@@ -14,7 +14,7 @@ import { base64Encode } from '../../src/engine/base64';
 import { addDays } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
-import { CANVAS, type Pattern, parseHex } from '../../src/engine/pattern';
+import { CANVAS, dailySize, type Pattern, parseHex } from '../../src/engine/pattern';
 import { type Card, CONTENT, listCards, readCard, releasable, ROOT } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { decode, toGrid } from './image';
@@ -76,7 +76,7 @@ export function toPicture(card: Card, size: Picture['size'], created: string, tr
  * чтобы две картинки одной коллекции не шли подряд (docs/09-content.md, §8–9).
  */
 export function autoCalendar(pictures: Picture[], from: string): CalendarDay[] {
-  const queues = COLLECTIONS.map((c) => pictures.filter((p) => p.collection === c && p.size !== 'L' && !p.hidden));
+  const queues = COLLECTIONS.map((c) => pictures.filter((p) => p.collection === c && dailySize(p.size) && !p.hidden));
   const out: CalendarDay[] = [];
   let last: string | null = null;
   for (;;) {

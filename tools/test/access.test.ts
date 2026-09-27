@@ -51,7 +51,8 @@ describe('access', () => {
 
 describe('календарь', () => {
   const pictures: Picture[] = [];
-  for (let i = 0; i < 60; i++) pictures.push(pic(`p${String(i).padStart(2, '0')}`, { size: (['S', 'M', 'L'] as const)[i % 3] }));
+  // малые и средние — половина: календарю хватает не бывших на 30 дней вперёд
+  for (let i = 0; i < 80; i++) pictures.push(pic(`p${String(i).padStart(2, '0')}`, { size: (['S', 'M', 'L', 'XL'] as const)[i % 4] }));
   pictures.push(pic('gone', { hidden: true, size: 'S' }));
   const calendar = [0, 1, 3, 4].map((i) => ({ date: addDays('2026-10-01', i), picture: pictures[i === 2 ? 1 : i === 3 ? 4 : i].id }));
 
@@ -67,7 +68,7 @@ describe('календарь', () => {
     expect(new Set(ids).size).toBe(30);
     for (const id of ids) {
       const p = pictures.find((q) => q.id === id)!;
-      expect(p.size).not.toBe('L');
+      expect(['S', 'M']).toContain(p.size);
       expect(p.hidden).toBeUndefined();
       expect(calendar.some((c) => c.picture === id)).toBe(false);
     }

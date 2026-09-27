@@ -3,6 +3,7 @@
 // картинка библиотеки, выбранная по дате: у всех с одинаковой библиотекой — одна и та же.
 import { addDays, daysBetween } from './dates';
 import type { CalendarDay, Picture } from './library';
+import { dailySize } from './pattern';
 import { hash32 } from './seed';
 
 export interface DailySource {
@@ -46,7 +47,7 @@ export class Daily {
     for (const [date, id] of this.planned) if (this.pinned[date] === undefined) this.mark(id, date);
     for (const id of this.planned.values()) this.used.add(id);
     this.pool = src.pictures
-      .filter((p) => !p.hidden && p.size !== 'L')
+      .filter((p) => !p.hidden && dailySize(p.size))
       .map((p) => p.id)
       .sort();
   }
