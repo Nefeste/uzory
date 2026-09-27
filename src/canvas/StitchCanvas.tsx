@@ -709,8 +709,15 @@ export function StitchCanvas(props: Props) {
 
   useEffect(() => {
     if (!script) return;
+    const initial = props.stitched;
     scheduleOnUI(() => {
       'worklet';
+      // каждый замер — с одного и того же вышитого: иначе следующий прогон кисти идёт
+      // по клеткам, вышитым прошлым, и почти не обновляет текстуру
+      const data = bytes.get();
+      for (let i = 0, o = 1; i < initial.length; i++, o += 4) if (data[o - 1] !== 255) data[o] = initial[i] ? 255 : 0;
+      img.set(rgbaImage(data, w, h));
+      rebuildColors();
       const r = probe.get();
       r.pan = [];
       r.zoom = [];

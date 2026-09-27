@@ -21,9 +21,9 @@ interface Thread {
 
 interface Pattern {
   key: string;                      // «shishkin-utro-v-sosnovom-lesu@1» — картинка и версия узора
-  w: number; h: number;             // 1…120 (08-game-design, «Размеры узоров»)
-  threads: Thread[];                // 1…32, в порядке полосы нитей: по цвету, от светлых к тёмным
-  cells: Uint8Array;                // w × h, построчно: индекс нити 0…31 или CANVAS
+  w: number; h: number;             // 1…200 (08-game-design, «Размеры узоров»); формат — до 255
+  threads: Thread[];                // 1…45, в порядке полосы нитей: по цвету, от светлых к тёмным
+  cells: Uint8Array;                // w × h, построчно: индекс нити 0…44 или CANVAS
 }
 ```
 
@@ -46,7 +46,7 @@ interface Picture {
   title: string;                    // «Утро в сосновом лесу»
   collection: CollectionId;
   order: number;                    // место в коллекции; первые пять (order < 5) бесплатны
-  size: 'S' | 'M' | 'L';            // малая, средняя, большая — выводится из числа клеток
+  size: 'S' | 'M' | 'L' | 'XL';     // малая, средняя, большая, огромная — из числа клеток
   free?: true;                      // бесплатна всегда, независимо от order («Детям»)
   author?: { name: string; life?: string };   // «Иван Шишкин», «1832–1898»
   made?: string;                    // «1889»

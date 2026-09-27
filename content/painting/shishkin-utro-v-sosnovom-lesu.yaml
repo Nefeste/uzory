@@ -13,5 +13,6 @@ source:
   url: https://commons.wikimedia.org/wiki/File:Shishkin,_Ivan_-_Morning_in_a_Pine_Forest.jpg
   basis: "Викисклад: Public domain (PD-old-70, PD-Art); Шишкин ум. 1898, медведей писал К. Савицкий, ум. 1905"
 pattern:
-  size: 100
-  threads: 32
+  crop: [0.22, 0.20, 0.95, 1]   # медведи крупнее: без левого края и верхушек
+  size: 170
+  threads: 40

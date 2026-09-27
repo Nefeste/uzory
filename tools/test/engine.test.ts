@@ -33,8 +33,12 @@ describe('узор', () => {
     expect(sizeClass(p)).toBe('S');
     expect(sizeClass(randomPattern(1, 70, 70, 20))).toBe('M');
     expect(sizeClass(randomPattern(1, 120, 120, 32))).toBe('L');
+    expect(sizeClass(randomPattern(1, 121, 120, 32))).toBe('XL');
+    expect(sizeClass(randomPattern(1, 200, 200, 45))).toBe('XL');
     // 14 400 клеток ÷ 4 + 32 × 15 с = 4080 с ≈ 70 мин (08-game-design: «25–70 мин»)
     expect(estimateMinutes(randomPattern(1, 120, 120, 32))).toBe(70);
+    // 40 000 ÷ 4 + 45 × 15 = 10 675 с ≈ 3 ч («Огромная»: до 3 ч)
+    expect(estimateMinutes(randomPattern(1, 200, 200, 45))).toBe(180);
     expect(estimateMinutes(p)).toBe(5);
   });
 });

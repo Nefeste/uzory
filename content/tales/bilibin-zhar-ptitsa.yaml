@@ -13,5 +13,5 @@ source:
   url: https://commons.wikimedia.org/wiki/File:Firebird.jpg
   basis: "Викисклад: Public domain (PD-old-70); автор ум. 1942"
 pattern:
-  size: 90
-  threads: 20
+  size: 180
+  threads: 40

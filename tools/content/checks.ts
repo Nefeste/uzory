@@ -11,6 +11,7 @@ export const SIZES: Record<SizeClass, { cells: number; side: number; threads: [n
   S: { cells: 1600, side: 40, threads: [3, 10] },
   M: { cells: 4900, side: 70, threads: [8, 20] },
   L: { cells: 14400, side: 120, threads: [12, 32] },
+  XL: { cells: 40000, side: 200, threads: [20, 45] },
 };
 
 /** Тёмная картинка: больше половины клеток — нити темнее этой светлоты OKLab. */
@@ -39,9 +40,10 @@ export function checkPattern(p: Pattern, card: Card): Checked {
   const size = sizeClass(p);
   const lim = SIZES[size];
   const n = p.threads.length;
-  if (stats.cells > SIZES.L.cells) errors.push(`${stats.cells} клеток — больше ${SIZES.L.cells}`);
-  if (Math.max(p.w, p.h) > SIZES.L.side) errors.push(`сторона ${Math.max(p.w, p.h)} — больше ${SIZES.L.side}`);
-  if (n > SIZES.L.threads[1]) errors.push(`${n} нитей — больше ${SIZES.L.threads[1]}`);
+  const top = SIZES.XL;
+  if (stats.cells > top.cells) errors.push(`${stats.cells} клеток — больше ${top.cells}`);
+  if (Math.max(p.w, p.h) > top.side) errors.push(`сторона ${Math.max(p.w, p.h)} — больше ${top.side}`);
+  if (n > top.threads[1]) errors.push(`${n} нитей — больше ${top.threads[1]}`);
   if (Math.max(p.w, p.h) > lim.side) warnings.push(`размер ${size}: сторона ${Math.max(p.w, p.h)} больше ${lim.side}`);
   if (n < lim.threads[0] || n > lim.threads[1]) warnings.push(`размер ${size}: ${n} нитей вне ${lim.threads[0]}–${lim.threads[1]}`);
   const minCells = Math.max(8, Math.ceil(stats.cells * 0.002));
