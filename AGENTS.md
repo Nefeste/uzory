@@ -6,6 +6,19 @@ patterns, smooth canvas performance on inexpensive Android phones, and calm, hon
 build, work file, Android CI; `store/` holds the RuStore listing materials (pre-order) that the
 studio site reuses.
 
+## Studio charter — read first
+
+This project belongs to the «Горница» studio. Studio-wide rules live only in the public
+charter repository `Nefeste/gornitsa` (https://github.com/Nefeste/gornitsa); this repository
+keeps only what is specific to the project. Before changing anything — and after a context
+reset — read the charter's `AGENTS.md`, then `docs/05-rules.md` (hard rules for every game)
+and `docs/04-process.md` (how work is done). Raw files:
+`https://raw.githubusercontent.com/Nefeste/gornitsa/main/<path>`.
+
+Precedence: the owner's recorded decision → the charter → this project's documents. A project
+rule may narrow a charter rule, never weaken it. If a document here restates or contradicts
+the charter, replace it with a link or report the contradiction to the owner.
+
 ## Read `docs/` before changing anything
 
 The project documents itself in [`docs/`](docs/README.md), in Russian, and that is the source of
@@ -26,34 +39,26 @@ reset:
   the opposite; each records what it costs.
 - `docs/specs/` — specification-driven development: a notable feature gets a spec **before** code.
 
-Working rule: a code change that makes one of these documents wrong is not finished. Update the
-document in the same commit. New notable feature → `docs/specs/<year>-<month>-<name>.md` first.
-Architectural decision → an ADR. Released version → a section in the root `README.md` and a line
-in the roadmap.
+Working rule, spec-first lifecycle, ADRs and version sections are the same in every studio
+project — charter `docs/04-process.md`. In addition here: new pictures are **content records**,
+not specs (`docs/05-process.md`, «Второй поток: картинки»).
 
 ## Sister projects
 
-Infrastructure is reused from the studio's other games **by copying** (ADR 0001), with the source
-named in the first line of the copied file (`// из votchina: src/ui/dialog.tsx @ <commit>`):
+Infrastructure is reused from the studio's other games **by copying** with a source line on top
+(studio ADR 0002, project ADR 0001):
 `Nefeste/votchina` (dialog, i18n mechanics, crash log and report, storage, settings, release
 signing plugin, Android CI, RuStore upload), `Nefeste/anamnez` (Skia setup incl. web CanvasKit
-loading), `Nefeste/nardy` (RuStore Pay and Review integration). The studio site
-`Nefeste/gornitsagames` holds the brand (fonts Kurale and Onest, color tokens, the ornament band)
-and the nginx config of the server that hosts picture packs.
+loading), `Nefeste/nardy` (RuStore Pay and Review integration). The studio brand
+(fonts Kurale and Onest, colour tokens, the ornament band) is in the charter's `brand/`; the site
+`Nefeste/gornitsagames` holds the nginx config of the server that hosts picture packs.
 
-## Expo has changed — do not trust your training data
+## Expo and native SDKs
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or
-removed. Before writing any code that touches an Expo, EAS, or React Native API:
-
-1. Read the major version of the `expo` package in `package.json` (planned: SDK 57, as the sister
-   projects).
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt and follow its links; never answer
-   from memory.
-
-The same applies to `@shopify/react-native-skia`, `react-native-reanimated`,
-`react-native-gesture-handler` and RuStore Pay / Review SDKs: read their current docs before use.
+Planned Expo SDK 57, as the sister projects (see `package.json`). Never write Expo, React Native,
+`@shopify/react-native-skia`, `react-native-reanimated`, `react-native-gesture-handler` or RuStore
+Pay / Review code from memory — follow «Expo has changed» in the charter's `AGENTS.md` and read
+the current docs of each SDK before use.
 
 ## Commands
 
@@ -81,14 +86,19 @@ assets of a **draft release** (drafts are visible to maintainers only): list rel
 API, download assets with `Accept: application/octet-stream`. Only selected photos enter git
 (card + 800 px source) — never commit the rest, never post them in logs or comments.
 
-**CI runs only after merge** (owner's decision, 27.09.2026): `android.yml` runs on push to `main`
-and on manual dispatch, never on working branches or PRs. Run typecheck, lint, tests and the
-web scenario locally before every push; the APK is built and released only from `main`.
+**CI runs only after merge** (studio rule, charter `docs/04-process.md`): `android.yml` runs on
+push to `main` and on manual dispatch. Run typecheck, lint, tests and the web scenario locally
+before every push; the APK is built and released only from `main`.
 
 Run lint, typecheck and tests before declaring any task done. Canvas changes are re-measured on
 the reference phone (hidden «Замер» screen); numbers go to `docs/02-architecture.md`.
 
 ## Hard rules
+
+Studio-wide rules — no React Native `Alert`, player-facing strings only in `src/i18n/`, generated
+`ios/`/`android/`, a permanent application id and signing key, a pure engine, no ads in the middle
+of play, no pressure, content only from named sources — are in the charter's `docs/05-rules.md`
+and are not repeated here. This project's own rules:
 
 - **The engine is pure**: `src/engine/` — no React, no `Date.now()`, no `Math.random()`; today's
   date and subscription rights are arguments. The picture build is deterministic: same source,
@@ -117,8 +127,5 @@ the reference phone (hidden «Замер» screen); numbers go to `docs/02-archi
   functions inside worklets (the compiler hoists them out) — use loops, or `"use no memo"` on
   the canvas component; big arrays live in shared values, not in worklet closures;
   `scheduleOnRN` instead of `runOnJS` (Reanimated 4).
-- **Portrait on phones** (ADR 0013). Never use React Native's `Alert` — use `src/ui/dialog.tsx`.
-- **All user-visible strings go through `src/i18n/`**, read at render time.
-- If `ios/` and `android/` do not exist, they are generated (Continuous Native Generation). Never
-  create or edit them by hand — configure native behaviour in `app.json` and config plugins.
-- `games.gornitsa.uzory` and the signing key are permanent from the first build (ADR 0014).
+- **Portrait on phones** (ADR 0013).
+- `applicationId` is `games.gornitsa.uzory` (ADR 0014).

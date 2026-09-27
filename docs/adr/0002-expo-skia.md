@@ -1,5 +1,7 @@
 # 0002. Expo / React Native / TypeScript, как у соседей; канва — Skia
 
+*Общее правило — ADR студии [0003](https://github.com/Nefeste/gornitsa/blob/main/adr/0003-expo-stack-ci.md) в уставе «Горницы» (`Nefeste/gornitsa`). Эта записка остаётся как история решения и описание того, как оно устроено в проекте.*
+
 **Решили.** Приложение — Expo SDK 57 (React Native 0.86, React 19, Hermes, React Compiler,
 TypeScript), как «Вотчина», «Нарды» и «Анамнез». Канва рисуется `@shopify/react-native-skia`,
 жесты и камера — `react-native-gesture-handler` и `react-native-reanimated` на UI-потоке,
