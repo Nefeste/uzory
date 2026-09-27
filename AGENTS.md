@@ -2,7 +2,7 @@ This is an Expo/React Native mobile game for RuStore: «Узоры», a color-by
 digital cross-stitch (a grid of numbered cells, threads, stitches). Prioritize mobile-first
 patterns, smooth canvas performance on inexpensive Android phones, and calm, honest UX.
 
-**Status: stage 0 — prototypes 0.0.3** (`docs/specs/2026-09-spikes.md`): canvas, picture
+**Status: stage 0 — prototypes 0.0.4** (`docs/specs/2026-09-spikes.md`): canvas, picture
 build, work file, Android CI; `store/` holds the RuStore listing materials (pre-order) that the
 studio site reuses.
 

@@ -13,6 +13,5 @@ source:
   url: https://commons.wikimedia.org/wiki/File:Viktor_Vasnetsov_-_Аленушка_-_Google_Art_Project.jpg
   basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1926"
 pattern:
-  crop: [0.05, 0.38, 0.70, 0.92]   # Алёнушка у пруда: на всём холсте фигура теряется в тёмном лесу
-  size: 160
+  size: 692   # четыре клетки на сантиметр: холст 173 × 121 см (Викиданные Q4063783)
   threads: 40
