@@ -79,7 +79,8 @@ Picture sources (Wikimedia Commons, Library of Congress) are not reachable from 
 environment: `.github/workflows/content-fetch.yml` searches candidates into
 `content/candidates.json` and downloads the files named in cards (`tools/content/fetch.ts`).
 It runs only on manual dispatch — trigger it on your branch after adding cards (input `search`
-to refresh candidates), then pull the bot's commit.
+to refresh candidates, `again` to re-download existing sources at up to 2000 px, `dims` for
+canvas sizes from Wikidata → `content/dimensions.json`), then pull the bot's commit.
 
 The repository is **public**. The owner's own photos for «Природа» and «Города» arrive as
 assets of a **draft release** (drafts are visible to maintainers only): list releases via the
