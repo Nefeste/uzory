@@ -9,15 +9,17 @@ import {
   Canvas, FilterMode, MipmapMode, Picture, Skia, TileMode,
   type SkFont, type SkImage, type SkPicture, type SkRSXform, type SkRect, type SkRuntimeEffect, type SkShader,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
-import { PixelRatio } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useEffect, useMemo, useRef } from 'react';
+import { PixelRatio, Platform, View } from 'react-native';
+import { Gesture, GestureDetector, MouseButton } from 'react-native-gesture-handler';
 import {
   cancelAnimation, useDerivedValue, useFrameCallback, useSharedValue, withDecay, withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import type { Pattern } from '../engine/pattern';
-import { type Camera, clampScale, clampX, clampY, fitScale, MAX_DP, NUMBERS_DP, OPEN_BIG_DP, OPEN_DP } from './camera';
+import {
+  type Camera, clampScale, clampX, clampY, fitScale, MAX_DP, NUMBERS_DP, OPEN_BIG_DP, OPEN_DP, wheelFactor, zoomAround,
+} from './camera';
 import { SKSL, uniformList } from './shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from './textures';
 import { traverse } from './traverse';
@@ -118,6 +120,7 @@ interface Brush {
   lastTapCell: number;
 }
 
+const WEB = Platform.OS === 'web';
 const HOLD_DP = 6;
 const TWO_FINGER_MS = 100;
 const DOUBLE_TAP_MS = 250;
@@ -610,7 +613,81 @@ export function StitchCanvas(props: Props) {
       ty.set(clampY(ty.get() + e.changeY, k, h, vh));
     });
 
-  const gesture = Gesture.Simultaneous(oneFinger, hold, pinch, twoPan);
+  // Мышь в браузере (docs/specs/2026-09-web.md, «Управление»): левая кнопка — как палец,
+  // правая и средняя двигают канву. На телефоне этого жеста нет: палец — не кнопка мыши.
+  const mousePan = Gesture.Pan()
+    .mouseButton(MouseButton.RIGHT | MouseButton.MIDDLE)
+    .minDistance(1)
+    .activeCursor('grabbing')
+    .onBegin(() => {
+      'worklet';
+      cancelAnimation(s);
+      cancelAnimation(tx);
+      cancelAnimation(ty);
+    })
+    .onChange((e) => {
+      'worklet';
+      const k = s.get();
+      tx.set(clampX(tx.get() + e.changeX, k, w, vw));
+      ty.set(clampY(ty.get() + e.changeY, k, h, vh));
+    });
+
+  const gesture = WEB
+    ? Gesture.Simultaneous(oneFinger, hold, pinch, twoPan, mousePan)
+    : Gesture.Simultaneous(oneFinger, hold, pinch, twoPan);
+
+  // Колёсико — масштаб у курсора, клавиши — сдвиг и масштаб (там же, «Управление»). В вебе
+  // жесты и кадры идут в одном потоке, поэтому камера меняется прямо из обработчиков.
+  const box = useRef<View>(null);
+  useEffect(() => {
+    if (!WEB) return;
+    const el = box.current as unknown as HTMLElement | null;
+    if (!el) return;
+    const stop = () => {
+      cancelAnimation(s);
+      cancelAnimation(tx);
+      cancelAnimation(ty);
+    };
+    const zoomAt = (fx: number, fy: number, f: number) => {
+      stop();
+      const c = zoomAround({ s: s.get(), tx: tx.get(), ty: ty.get() }, fx, fy, f, w, h, vw, vh);
+      s.set(c.s);
+      tx.set(c.tx);
+      ty.set(c.ty);
+    };
+    const panBy = (dx: number, dy: number) => {
+      stop();
+      const k = s.get();
+      tx.set(withTiming(clampX(tx.get() + dx, k, w, vw), { duration: 120 }));
+      ty.set(withTiming(clampY(ty.get() + dy, k, h, vh), { duration: 120 }));
+    };
+    const onWheel = (e: WheelEvent) => {
+      // и колёсико мыши, и щипок на тачпаде (он приходит колёсиком с Ctrl): иначе браузер
+      // крутит страницу или меняет масштаб всей вкладки
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, wheelFactor(e.deltaY, e.deltaMode, e.ctrlKey, vh));
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const step = 0.2;
+      if (e.key === 'ArrowLeft') panBy(vw * step, 0);
+      else if (e.key === 'ArrowRight') panBy(-vw * step, 0);
+      else if (e.key === 'ArrowUp') panBy(0, vh * step);
+      else if (e.key === 'ArrowDown') panBy(0, -vh * step);
+      else if (e.key === '+' || e.key === '=') zoomAt(vw / 2, vh / 2, 1.25);
+      else if (e.key === '-' || e.key === '_') zoomAt(vw / 2, vh / 2, 0.8);
+      else if (e.key === '0') apiRef.current?.fit(250);
+      else return;
+      e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [w, h, vw, vh, s, tx, ty, apiRef]);
 
   // ---------- замер ----------
 
@@ -789,11 +866,15 @@ export function StitchCanvas(props: Props) {
     };
   });
 
+  const canvas = (
+    <Canvas style={{ width: vw, height: vh }} opaque={props.opaque}>
+      <Picture picture={picture} />
+    </Canvas>
+  );
+  // в вебе — обёртка: колёсику нужен элемент страницы; на телефоне дерево видов прежнее
   return (
     <GestureDetector gesture={gesture}>
-      <Canvas style={{ width: vw, height: vh }} opaque={props.opaque}>
-        <Picture picture={picture} />
-      </Canvas>
+      {WEB ? <View ref={box} style={{ width: vw, height: vh }}>{canvas}</View> : canvas}
     </GestureDetector>
   );
 }

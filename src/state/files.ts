@@ -1,6 +1,6 @@
 // Файлы работ на телефоне (docs/04-data-model.md, «Телефон»): папка приложения,
 // запись целиком через временный файл и переименование, прошлая версия — `.bak`.
-// В вебе — src/state/files.web.ts (хранилище браузера).
+// В вебе — src/state/files.web.ts (IndexedDB браузера).
 import { Directory, File, Paths } from 'expo-file-system';
 
 const dir = () => {

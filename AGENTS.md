@@ -2,8 +2,9 @@ This is an Expo/React Native mobile game for RuStore: «Узоры», a color-by
 digital cross-stitch (a grid of numbered cells, threads, stitches). Prioritize mobile-first
 patterns, smooth canvas performance on inexpensive Android phones, and calm, honest UX.
 
-**Status: stage 0 — prototypes 0.0.4** (`docs/specs/2026-09-spikes.md`): canvas, picture
-build, work file, Android CI; `store/` holds the RuStore listing materials (pre-order) that the
+**Status: stage 0 — prototypes 0.0.5** (`docs/specs/2026-09-spikes.md`): canvas, picture
+build, work file, Android CI, a closed web version for the owner's computer
+(`docs/specs/2026-09-web.md`); `store/` holds the RuStore listing materials (pre-order) that the
 studio site reuses.
 
 ## Studio charter — read first
@@ -51,7 +52,8 @@ Infrastructure is reused from the studio's other games **by copying** with a sou
 signing plugin, Android CI, RuStore upload), `Nefeste/anamnez` (Skia setup incl. web CanvasKit
 loading), `Nefeste/nardy` (RuStore Pay and Review integration). The studio brand
 (fonts Kurale and Onest, colour tokens, the ornament band) is in the charter's `brand/`; the site
-`Nefeste/gornitsagames` holds the nginx config of the server that hosts picture packs.
+`Nefeste/gornitsagames` holds the nginx config of the server that hosts picture packs and the
+closed web version (`deploy/uzory/` there).
 
 ## Expo and native SDKs
 
@@ -72,6 +74,8 @@ bun test tools/test                 # engine, shader golden frames, files, texts
 bun tools/content/build.ts --check  # build packs and run every picture check
 bun tools/content/sheet.ts          # preview sheet for the owner → dist/sheet/
 npm run export:web && npm run e2e   # web build + Playwright scenario
+UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
+E2E_DIST=dist-site E2E_BASE=/uzory/test npm run e2e   # the same scenario on the site build
 bun tools/store/icons.ts            # icons from the shader; bun tools/store/shots.ts — store screenshots
 ```
 
@@ -89,7 +93,16 @@ API, download assets with `Accept: application/octet-stream`. Only selected phot
 
 **CI runs only after merge** (studio rule, charter `docs/04-process.md`): `android.yml` runs on
 push to `main` and on manual dispatch. Run typecheck, lint, tests and the web scenario locally
-before every push; the APK is built and released only from `main`.
+(both builds — from the root and for `/uzory/test`) before every push; the APK is built and
+released only from `main`.
+
+**The closed web version** (`docs/specs/2026-09-web.md`) is the same app at
+`gornitsa.games/uzory/test/` behind a password the owner sets on the server
+(`sudo uzory-password`) — never ask for it, never handle it. After a merge, CI encrypts the web
+build with the site server's age key and force-writes the orphan branch `vps` (CI only — never
+push there by hand). The build contains trial pictures: never upload it unencrypted anywhere
+(artifacts of a public repository are downloadable by anyone). Web-only input (mouse buttons,
+wheel, keys) lives behind `Platform.OS === 'web'`; the phone gesture tree stays as it is.
 
 Run lint, typecheck and tests before declaring any task done. Canvas changes are re-measured on
 the reference phone (hidden «Замер» screen); numbers go to `docs/02-architecture.md`.

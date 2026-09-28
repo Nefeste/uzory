@@ -43,6 +43,8 @@ export const ru = {
     pick: 'Выбрать',
     threadName: (n: number, name: string) => `${n} — ${name}`,
     saveFailed: 'Не удалось сохранить работу: на телефоне мало места',
+    saveFailedWeb: 'Не удалось сохранить работу: браузер не дал места',
+    mouse: 'Колёсико — ближе и дальше, правая кнопка — двигать канву, двойной щелчок — залить область',
     broken: 'Узор не открылся. Работа не тронута.',
     style: 'Стиль',
     styles: { cross: 'Крестик', mosaic: 'Мозаика' },
@@ -68,6 +70,7 @@ export const ru = {
     about: 'О картине',
     source: 'Источник',
     notForRelease: 'Только для проверки: в выпуск — после «да» владельца и решения о правах',
+    progress: (p: number) => `Вышито ${p} % — откроется с того же места`,
     stats: (singles: string, small: string, minDist: string) => `одиночных ${singles} % · в мелких пятнах ${small} % · различимость ${minDist}`,
   },
   bench: {

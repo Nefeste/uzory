@@ -79,7 +79,7 @@ function Root() {
       screen = <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} onNext={home} />;
       break;
     case 'sheet':
-      screen = <SheetScreen onBack={back} onOpen={(pic) => go({ name: 'stitch', pic })} />;
+      screen = <SheetScreen onBack={back} onOpen={(pic, workId) => go({ name: 'stitch', pic, workId })} />;
       break;
     case 'bench':
       screen = <BenchScreen onBack={back} />;

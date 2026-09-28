@@ -14,7 +14,8 @@ import { FONTS } from './theme';
  */
 export const FONT_MAX = 1.3;
 
-export function Screen({ children, title, onBack, right }: { children: ReactNode; title?: string; onBack?: () => void; right?: ReactNode }) {
+/** `wide` — канва на весь экран компьютера; остальное — колонкой шириной с телефон-планшет. */
+export function Screen({ children, title, onBack, right, wide }: { children: ReactNode; title?: string; onBack?: () => void; right?: ReactNode; wide?: boolean }) {
   const { theme } = useSettings();
   const insets = useSafeAreaInsets();
   return (
@@ -30,7 +31,7 @@ export function Screen({ children, title, onBack, right }: { children: ReactNode
           <View style={styles.right}>{right}</View>
         </View>
       ) : null}
-      <View style={styles.column}>{children}</View>
+      <View style={[styles.column, wide && styles.wide]}>{children}</View>
     </View>
   );
 }
@@ -114,6 +115,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   column: { flex: 1, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  wide: { maxWidth: 1600 },
   header: { height: 52, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 34, lineHeight: 36, marginTop: -4 },

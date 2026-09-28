@@ -39,6 +39,23 @@ export function clampY(ty: number, s: number, h: number, vh: number): number {
   return Math.min(vh / 2, Math.max(vh / 2 - h * s, ty));
 }
 
+/** Масштаб в f раз вокруг точки экрана (fx, fy): клетка под ней остаётся на месте. */
+export function zoomAround(c: Camera, fx: number, fy: number, f: number, w: number, h: number, vw: number, vh: number): Camera {
+  'worklet';
+  const s = clampScale(c.s * f, w, h, vw, vh);
+  return { s, tx: clampX(fx - ((fx - c.tx) * s) / c.s, s, w, vw), ty: clampY(fy - ((fy - c.ty) * s) / c.s, s, h, vh) };
+}
+
+/**
+ * Колёсико в браузере: во сколько раз приблизить. Щелчок колёсика (100 точек) — в 1,22 раза;
+ * щипок на тачпаде приходит колёсиком с Ctrl мелкими шагами — он чувствительнее.
+ */
+export function wheelFactor(deltaY: number, deltaMode: number, ctrl: boolean, vh: number): number {
+  'worklet';
+  const px = deltaMode === 1 ? deltaY * 16 : deltaMode === 2 ? deltaY * vh : deltaY;
+  return Math.exp(-px * (ctrl ? 0.01 : 0.002));
+}
+
 /** Камера, при которой клетка (cx, cy) — в центре экрана при масштабе s. */
 export function centerOn(cx: number, cy: number, s: number, vw: number, vh: number): Camera {
   'worklet';
