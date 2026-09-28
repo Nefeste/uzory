@@ -1,6 +1,6 @@
 // Кисть и камера (docs/06-testing.md, «Канва»): обход сетки против перебора, пределы камеры.
 import { describe, expect, test } from 'bun:test';
-import { clampScale, clampX, fitScale, MAX_DP, NUMBERS_DP, openCamera } from '../../src/canvas/camera';
+import { clampScale, clampX, fitScale, MAX_DP, NUMBERS_DP, openCamera, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { traverse } from '../../src/canvas/traverse';
 import { rng } from '../../src/engine/seed';
 
@@ -77,5 +77,25 @@ describe('камера', () => {
     expect(small.tx).toBeCloseTo((400 - 17 * small.s) / 2);
     expect(openCamera(120, 120, 400, 700, false).s).toBe(28);
     expect(openCamera(120, 120, 400, 700, true).s).toBe(36);
+  });
+
+  test('масштаб вокруг точки: клетка под курсором остаётся под ним', () => {
+    const c = { s: 20, tx: -300, ty: -500 };
+    const z = zoomAround(c, 130, 240, 1.5, 120, 120, 400, 700);
+    expect(z.s).toBe(30);
+    expect((130 - z.tx) / z.s).toBeCloseTo((130 - c.tx) / c.s);
+    expect((240 - z.ty) / z.s).toBeCloseTo((240 - c.ty) / c.s);
+    // дальше «всего узора» и ближе предела — нельзя
+    expect(zoomAround(c, 0, 0, 0.001, 120, 120, 400, 700).s).toBe(fitScale(120, 120, 400, 700));
+    expect(zoomAround(c, 0, 0, 1000, 120, 120, 400, 700).s).toBe(MAX_DP);
+  });
+
+  test('колёсико: щелчок — в 1,22 раза, обратно — столько же; строки и страницы — в точках', () => {
+    expect(wheelFactor(-100, 0, false, 700)).toBeCloseTo(1.2214, 3);
+    expect(wheelFactor(-100, 0, false, 700) * wheelFactor(100, 0, false, 700)).toBeCloseTo(1);
+    expect(wheelFactor(-3, 1, false, 700)).toBeCloseTo(wheelFactor(-48, 0, false, 700));
+    expect(wheelFactor(1, 2, false, 700)).toBeCloseTo(wheelFactor(700, 0, false, 700));
+    // щипок на тачпаде: мелкие шаги с Ctrl
+    expect(wheelFactor(-10, 0, true, 700)).toBeCloseTo(Math.exp(0.1));
   });
 });

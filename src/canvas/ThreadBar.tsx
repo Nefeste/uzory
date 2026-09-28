@@ -1,7 +1,7 @@
 // Полоса нитей (docs/specs/2026-09-canvas.md, «Полоса нитей»): кружок цвета с номером,
 // под ним — сколько клеток осталось; выбранная — с кольцом; законченная — ✓ и в конец.
 import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { digitOn } from '../engine/color';
 import { hex, type Thread } from '../engine/pattern';
 import { FONT_MAX } from '../ui/components';
@@ -25,6 +25,20 @@ export function ThreadBar({ threads, left, selected, onSelect, onLong }: {
   useEffect(() => {
     if (pos >= 0) scroll.current?.scrollTo({ x: Math.max(0, pos * ITEM - ITEM * 2), animated: true });
   }, [pos]);
+
+  // в браузере колёсико мыши листает полосу вбок; тачпад листает её сам
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = (scroll.current as unknown as { getScrollableNode?: () => HTMLElement } | null)?.getScrollableNode?.();
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   return (
     <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} testID="threads">

@@ -52,10 +52,12 @@ export function StitchScreen({ pattern, title, workId, onBack, onDone }: {
         setBroken(true);
         return;
       }
-      s.onSaveError = () => setLine({ text: T.stitch.saveFailed });
+      s.onSaveError = () => setLine({ text: Platform.OS === 'web' ? T.stitch.saveFailedWeb : T.stitch.saveFailed });
       const first = s.state.left.findIndex((n) => n > 0);
       setSelected(first < 0 ? 0 : first);
       setSession(s);
+      // с компьютера: как управлять мышью (docs/specs/2026-09-web.md); уходит с первым штрихом
+      if (Platform.OS === 'web') setLine({ text: T.stitch.mouse });
     })();
     return () => {
       alive = false;
@@ -137,7 +139,7 @@ export function StitchScreen({ pattern, title, workId, onBack, onDone }: {
   const left = session ? session.state.left[selected] : 0;
 
   return (
-    <Screen title={title} onBack={onBack} right={<Txt dim testID="percent">{T.common.percent(percent)}</Txt>}>
+    <Screen title={title} onBack={onBack} wide right={<Txt dim testID="percent">{T.common.percent(percent)}</Txt>}>
       <View style={[styles.canvas, { backgroundColor: '#e2e3da' }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;
@@ -155,7 +157,7 @@ export function StitchScreen({ pattern, title, workId, onBack, onDone }: {
             />
           ) : <ActivityIndicator style={styles.msg} color={theme.accent} />}
         {line ? (
-          <View style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="hint">
+          <View style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, line.pick === undefined && styles.through]} testID="hint">
             <Txt style={styles.lineText}>{line.text}</Txt>
             {line.pick !== undefined ? (
               <Button small kind="secondary" label={T.stitch.pick} testID="pick"
@@ -182,6 +184,8 @@ const styles = StyleSheet.create({
   // строка — поверх канвы: её появление не меняет размер канвы и не сдвигает клетки
   line: { position: 'absolute', left: 8, right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: 6 },
   lineText: { flex: 1, fontSize: 15 },
+  // строка без кнопки не мешает вышивать клетки под ней
+  through: { pointerEvents: 'none' },
   bar: { paddingTop: 6 },
   where: { alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4 },
 });

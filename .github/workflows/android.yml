@@ -1,6 +1,6 @@
 # из anamnez: .github/workflows/android.yml @ 3d76cf5
 # Проверки, веб-сценарий, сборка APK и AAB, подписанных постоянным ключом (ADR 0014),
-# и публикация в Releases (docs/05-process.md, «Автоматика»).
+# публикация в Releases и закрытая веб-версия на сайте (docs/05-process.md, «Автоматика»).
 #
 # Сам — только после merge в main: до merge Actions не запускаются ни на рабочих ветках,
 # ни на PR (решение владельца 27.09.2026; проверки ассистент гоняет у себя перед каждым
@@ -65,11 +65,12 @@ jobs:
         if: always()
         run: test -f dist/report.md && cat dist/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
-  # Веб-сборка и сценарий Playwright (docs/06-testing.md, §5).
+  # Веб-сборка и сценарий Playwright (docs/06-testing.md, §5): от корня — стенд проверок,
+  # для папки /uzory/test — закрытая веб-версия на сайте (docs/specs/2026-09-web.md).
   web:
     name: Веб-сборка и сценарий
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -86,12 +87,99 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Сценарий
         run: bun tools/e2e/smoke.ts
+      - name: Сборка для папки сайта /uzory/test
+        env:
+          UZORY_WEB_BASE: /uzory/test
+        run: npx expo export --platform web --output-dir dist-site
+      - name: Сценарий на сборке для сайта
+        env:
+          E2E_DIST: dist-site
+          E2E_BASE: /uzory/test
+        run: bun tools/e2e/smoke.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: screens-${{ github.run_number }}
           path: tools/e2e/out/
           if-no-files-found: ignore
+
+  # Закрытая веб-версия на сайте (docs/specs/2026-09-web.md): сборка для папки /uzory/test,
+  # зашифрованная открытым ключом сервера сайта (age), — в ветку vps. Ветка открыта всем,
+  # а в сборке картинки «только для проверки»; прочитать её может только сервер, который
+  # сам забирает её раз в 5 минут (deploy/uzory в репозитории Nefeste/gornitsagames).
+  # Сборка — здесь же, а не артефактом из «Веб-сборки»: артефакты открытого репозитория
+  # может скачать любой; сценарий по такой же сборке этого коммита уже прошёл там.
+  site:
+    name: Веб-версия для сайта
+    needs: [checks, web]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: uzory-site
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: npm ci
+      - run: bun tools/content/build.ts
+      - name: Сборка для папки сайта /uzory/test
+        env:
+          UZORY_WEB_BASE: /uzory/test
+        run: npx setup-skia-web public && npx expo export --platform web --output-dir dist-site
+      - name: Ключ сервера сайта
+        id: key
+        run: |
+          set -euo pipefail
+          URL=https://gornitsa.games/.well-known/uzory-age.pub
+          KEY="$(curl -fsS --retry 3 --max-time 20 "$URL" 2>/dev/null | tr -d '\r\n ' || true)"
+          if ! printf '%s' "$KEY" | grep -qE '^age1[0-9a-z]{58}$'; then
+            echo "::warning::Ключа сервера нет ($URL): сайт ещё не настроен для «Узоров» (deploy/uzory в Nefeste/gornitsagames). Веб-версия не выложена; выложит следующий запуск на main."
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=yes" >> "$GITHUB_OUTPUT"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+      - name: age
+        if: steps.key.outputs.ready == 'yes'
+        run: sudo apt-get update -q && sudo apt-get install -y -q age
+      - name: Ветка vps
+        if: steps.key.outputs.ready == 'yes'
+        env:
+          KEY: ${{ steps.key.outputs.key }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s dist-site/index.html && test -s dist-site/canvaskit.wasm
+          # пока собирали, в main пришёл новый коммит — выложит его запуск, а не этот
+          HEAD="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$HEAD" != "$GITHUB_SHA" ]; then
+            echo "main ушёл вперёд (${HEAD:0:7}) — выложит следующий запуск"
+            exit 0
+          fi
+          V="$(jq -r .expo.version app.json)"
+          mkdir vps
+          tar -C dist-site -cf - . | gzip -9 | age -r "$KEY" -o vps/test.tar.gz.age
+          jq -n --arg commit "$GITHUB_SHA" --arg version "$V" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg run "${{ github.run_number }}" --arg key "$KEY" \
+            '{commit: $commit, version: $version, built: $built, run: $run, base: "/uzory/test", key: $key}' > vps/build.json
+          cat vps/build.json
+          cd vps
+          git init -q -b vps
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Веб-версия для сайта: main ${GITHUB_SHA:0:7}, ${V}"
+          # один коммит без истории: прежние сборки не копятся в репозитории
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/vps
+          SIZE="$(du -k test.tar.gz.age | cut -f1)"
+          { echo "### Веб-версия для сайта"; echo ""; echo "Ветка \`vps\`: сборка ${V} из ${GITHUB_SHA:0:7}, зашифрована ключом сервера (${SIZE} КБ). Сервер заберёт её за 5 минут: https://gornitsa.games/uzory/test/"; } >> "$GITHUB_STEP_SUMMARY"
 
   # Есть ли постоянный ключ — решается один раз, до сборок: от этого зависит, что собирать.
   key:
