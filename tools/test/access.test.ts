@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { access, type AccessContext } from '../../src/engine/access';
 import { Daily } from '../../src/engine/calendar';
 import { addDays, daysBetween, isDate, localDate, mondayOf, monthGrids } from '../../src/engine/dates';
-import type { Picture } from '../../src/engine/library';
+import { nextPicture, type Picture } from '../../src/engine/library';
 
 const pic = (id: string, over: Partial<Picture> = {}): Picture => ({
   id, v: 1, title: id, collection: 'painting', order: 10, size: 'M',
@@ -116,5 +116,30 @@ describe('календарь', () => {
     const next = d.on('2026-10-06')!;
     expect(d.dailyFrom(next, '2026-10-01', '2026-10-05')).toBeUndefined();
     expect(d.dailyFrom(next, '2026-10-01', '2026-10-06')).toBe('2026-10-06');
+  });
+});
+
+describe('«Дальше» на «Готово»', () => {
+  const list = ['a', 'b', 'c', 'd'].map((id, order) => pic(id, { order }));
+  const [a, b, c, d] = list;
+  const openExcept = (...ids: string[]) => (p: Picture) => !ids.includes(p.id);
+
+  test('картинка дня, пока её можно вышить', () => {
+    const daily = pic('day', { collection: 'nature' });
+    expect(nextPicture(b, daily, list, openExcept())).toBe(daily);
+    // вышита или вышивалась только что — следующая в коллекции
+    expect(nextPicture(b, daily, list, openExcept('day'))).toBe(c);
+    expect(nextPicture(daily, daily, [daily], openExcept())).toBeNull();
+  });
+
+  test('следующая по порядку, по кругу, мимо вышитых и закрытых', () => {
+    expect(nextPicture(b, undefined, list, openExcept())).toBe(c);
+    expect(nextPicture(b, undefined, list, openExcept('c'))).toBe(d);
+    expect(nextPicture(d, undefined, list, openExcept())).toBe(a);
+    expect(nextPicture(c, undefined, list, openExcept('d', 'a'))).toBe(b);
+    // вся коллекция вышита — на главную; сама себя не предлагает
+    expect(nextPicture(b, undefined, list, openExcept('a', 'c', 'd'))).toBeNull();
+    // картинки нет в списке (скрыта) — с начала коллекции
+    expect(nextPicture(pic('x'), undefined, list, openExcept('a'))).toBe(b);
   });
 });

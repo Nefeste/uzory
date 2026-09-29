@@ -74,6 +74,13 @@ export const ru = {
     about: 'О картине',
     hide: 'Свернуть',
     source: 'Источник',
+    /** подпись (docs/09-content.md, §2 и §7): имя автора, название и год — всегда */
+    signature: (author: string, title: string, made: string | undefined, basedOn: string) =>
+      `${author}. ${title}${made ? `, ${made}` : ''}. Схема для вышивки по мотивам ${basedOn}`,
+    basedOn: {
+      ornaments: 'узора', painting: 'картины', tales: 'иллюстрации', russia: 'снимка', flowers: 'рисунка',
+      nature: 'снимка', cities: 'снимка', kids: 'рисунка', schemes: 'старинной схемы',
+    },
     plusNote: 'В 1.0 эта картинка — в «Узоры+». В сборке для проверки открыто всё.',
     done: 'Вышита',
   },
@@ -170,6 +177,12 @@ export const ru = {
     skip: 'Пропустить',
     next: 'Дальше',
     stats: (stitches: number, min: number) => `${stitches} стежков · ${minutes(min)}`,
+    about: 'О картине',
+    share: 'Поделиться',
+    sharing: 'Готовлю…',
+    shareFailed: 'Не удалось поделиться картинкой.',
+    mark: 'Вышито в «Узорах»',
+    markBased: (basedOn: string) => `Вышито в «Узорах» по мотивам ${basedOn}`,
   },
   sheet: {
     title: 'Лист узоров',

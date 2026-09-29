@@ -30,6 +30,7 @@ import { StitchScreen } from './src/screens/StitchScreen';
 import { WorksScreen } from './src/screens/WorksScreen';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
 import { FONT_FILES } from './src/ui/fonts';
+import { whoMade } from './src/ui/PicAbout';
 
 installCrashHandlers();
 
@@ -38,7 +39,7 @@ type Route =
   | { name: 'stitch'; pic: PackPicture; workId?: string }
   | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
   | { name: 'mine' }
-  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string }
+  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture }
   | { name: 'sheet' }
   | { name: 'bench' }
   | { name: 'file' }
@@ -57,7 +58,7 @@ type Entry = Route & { k: number };
 let nextKey = 1;
 const entry = (r: Route): Entry => ({ ...r, k: nextKey++ });
 
-const caption = (pic: PackPicture) => [pic.author?.name, pic.made].filter(Boolean).join(', ') || undefined;
+const caption = (pic: PackPicture) => whoMade(pic) || undefined;
 
 function Root() {
   const { theme, update } = useSettings();
@@ -115,21 +116,26 @@ function Root() {
       screen = (
         <StitchScreen
           pattern={pattern} title={pic.title} workId={route.workId} onBack={back}
-          info={{ author: pic.author?.name, made: pic.made, place: pic.place, about: pic.about }}
+          pic={pic}
           onStarted={(workId) => patch(route.k, { workId })}
           onSettings={() => go({ name: 'settings' })}
           onDone={(workId) => {
             // первая картинка вышита — на главной с этих пор картинка дня
             if (pic.id === FIRST_PICTURE) player.update({ firstDone: true });
-            setStack((s) => [...s.slice(0, -1), entry({ name: 'done', pattern, title: pic.title, caption: caption(pic), workId })]);
+            setStack((s) => [...s.slice(0, -1), entry({ name: 'done', pattern, title: pic.title, caption: caption(pic), workId, pic })]);
           }}
         />
       );
       break;
     }
-    case 'done':
-      screen = <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} onNext={home} />;
+    case 'done': {
+      const { pic } = route;
+      screen = (
+        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
+          onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())} />
+      );
       break;
+    }
     case 'sheet':
       screen = <SheetScreen onBack={back} onOpen={(pic, workId) => go({ name: 'stitch', pic, workId })} />;
       break;

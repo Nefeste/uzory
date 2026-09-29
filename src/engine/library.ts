@@ -82,3 +82,16 @@ export function pictureError(p: Picture): string | null {
   }
   return null;
 }
+
+/**
+ * «Дальше» на «Готово» (docs/08-game-design.md, «Готово»): сегодняшняя картинка дня, если её
+ * ещё можно вышить; иначе следующая по порядку в той же коллекции — по кругу. `open` — не
+ * вышита и доступна. Предложить нечего — null: главная.
+ */
+export function nextPicture<P extends Pick<Picture, 'id'>>(pic: P, daily: P | undefined, collection: readonly P[],
+  open: (p: P) => boolean): P | null {
+  if (daily && daily.id !== pic.id && open(daily)) return daily;
+  const i = collection.findIndex((p) => p.id === pic.id);
+  const round = i < 0 ? collection : [...collection.slice(i + 1), ...collection.slice(0, i)];
+  return round.find((p) => p.id !== pic.id && open(p)) ?? null;
+}

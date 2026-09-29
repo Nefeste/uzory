@@ -10,6 +10,7 @@ import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { ThreadBar } from '../canvas/ThreadBar';
 import { currentHint, type HintAction, type HintId, hintsAfter, hintsPassed, strokeAction } from '../engine/hints';
+import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
@@ -18,15 +19,8 @@ import { type StitchStyle, useSettings } from '../state/settings';
 import { play } from '../state/sound';
 import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, Txt } from '../ui/components';
+import { hasAbout, PicAbout } from '../ui/PicAbout';
 import { DIGIT_FONT } from '../ui/fonts';
-
-/** «О картине»: кто, когда, где хранится, рассказ (docs/09-content.md, «Рассказ о картине»). */
-export interface PictureInfo {
-  author?: string;
-  made?: string;
-  place?: string;
-  about?: string;
-}
 
 /** Уход с экрана: где вышивали — работа откроется там же (docs/specs/2026-09-canvas.md, «Камера»). */
 function leave(session: WorkSession, api: { current: CanvasApi | null }, size: { current: { w: number; h: number } | null }) {
@@ -37,12 +31,13 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onStarted, onSettings }: {
+export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onStarted, onSettings }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
   workId?: string;
-  info?: PictureInfo;
+  /** картинка библиотеки — для «О картине»; у своего узора её нет */
+  pic?: PackPicture;
   onBack: () => void;
   onDone: (workId: string) => void;
   /** новая работа записана: вернувшись из настроек, экран откроет её, а не начнёт ещё одну */
@@ -199,7 +194,7 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
 
   const hintText = hint ? (Platform.OS === 'web' ? T.stitch.hintsMouse : T.stitch.hints)[hint] : null;
   const shown = line ?? (hintText ? { text: hintText } : null);
-  const hasAbout = !!(info && (info.about || info.author || info.place));
+  const about = !!pic && hasAbout(pic);
 
   const right = (
     <View style={styles.right}>
@@ -246,7 +241,7 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
               onPress={() => undefined} testID={panel === 'menu' ? 'menu-panel' : 'about-panel'}>
               {panel === 'menu' ? (
                 <>
-                  {hasAbout ? <Button kind="ghost" label={T.stitch.about} onPress={() => setPanel('about')} testID="menu-about" /> : null}
+                  {about ? <Button kind="ghost" label={T.stitch.about} onPress={() => setPanel('about')} testID="menu-about" /> : null}
                   <Txt dim style={styles.panelLabel}>{T.stitch.style}</Txt>
                   <Segmented<StitchStyle> value={settings.style} onChange={(v) => update({ style: v })} testID="menu-style"
                     options={[{ id: 'cross', label: T.stitch.styles.cross }, { id: 'mosaic', label: T.stitch.styles.mosaic }]} />
@@ -254,10 +249,7 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
                 </>
               ) : (
                 <ScrollView contentContainerStyle={styles.aboutBody}>
-                  <Txt title style={styles.aboutTitle}>{title}</Txt>
-                  {info?.author || info?.made ? <Txt dim>{[info.author, info.made].filter(Boolean).join(', ')}</Txt> : null}
-                  {info?.place ? <Txt dim>{info.place}</Txt> : null}
-                  {info?.about ? <Txt style={styles.aboutText}>{info.about}</Txt> : null}
+                  {pic ? <PicAbout pic={pic} /> : null}
                   <Button kind="secondary" small label={T.stitch.close} onPress={() => setPanel(null)} testID="about-close" />
                 </ScrollView>
               )}
@@ -293,8 +285,6 @@ const styles = StyleSheet.create({
   aboutPanel: { left: 8, width: undefined, maxWidth: 520, bottom: 8 },
   panelLabel: { fontSize: 13, marginTop: 4 },
   aboutBody: { gap: 8 },
-  aboutTitle: { fontSize: 22 },
-  aboutText: { fontSize: 16, lineHeight: 23 },
   bar: { paddingTop: 6 },
   where: { alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4 },
 });
