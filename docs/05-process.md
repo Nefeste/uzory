@@ -101,7 +101,7 @@ merge собирается только на проверку (подпись о
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | постоянный ключ подписи (ADR [0014](adr/0014-permanent-app-id-and-key.md)) — названия как у «Вотчины» | создать один раз; копию хранить у владельца отдельно |
 | `ANDROID_CERT_SHA256` (переменная) | отпечаток сертификата: чужой ключ остановит сборку | из ключа |
 | `DEPLOY_SSH_KEY`, `DEPLOY_HOST` | выкладывание наборов на сервер студии | ключ пользователя `deploy`, его создаёт `deploy/setup-server.sh` сайта |
-| `CATALOG_SIGNING_KEY` | закрытый ключ Ed25519 для подписи каталога ([`03-server-api.md`](03-server-api.md)) | создать один раз; копию хранить у владельца отдельно; открытый ключ — в коде приложения |
+| `CATALOG_SIGNING_KEY` | закрытый ключ Ed25519 для подписи каталога ([`03-server-api.md`](03-server-api.md)) | создать один раз у себя: `bun tools/content/keygen.ts`; копию хранить у владельца отдельно; открытый ключ — в `src/state/keys.ts` (В18) |
 | `RUSTORE_API_TOKEN`, `RUSTORE_KEY_ID` | загрузка в RuStore | консоль RuStore → «API RuStore» |
 | `RUSTORE_APP_ID` (переменная) | приложение в RuStore Pay | консоль RuStore |
 
