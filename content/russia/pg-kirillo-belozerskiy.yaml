@@ -1,0 +1,19 @@
+# Россия в цвете, пачка 29.09.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
+# Библиотеки Конгресса (ppmsc — выправленная, prokc — сырая с каймой от сдвига трёх негативов),
+# найден по content/candidates.json. В выпуск — после «да» владельца в «Листе узоров» (В19).
+id: pg-kirillo-belozerskiy
+title: Кирилло-Белозерский монастырь
+collection: russia
+order: 19
+author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
+made: "1909"
+place: "Кириллов"
+source:
+  file: pg-kirillo-belozerskiy.jpg
+  url: https://www.loc.gov/item/2018678960/
+  download: https://tile.loc.gov/storage-services/service/pnp/prokc/21000/21039v.jpg
+  basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
+pattern:
+  crop: [0.06, 0.30, 0.93, 0.85]   # монастырь крупнее: без пустого неба и каймы сборки
+  size: 300
+  threads: 40
