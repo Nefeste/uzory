@@ -1,0 +1,19 @@
+# Фрагмент картины «Рожь» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: shishkin-rozh-sosny
+title: Рожь. Сосны
+collection: painting
+order: 24
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1878"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: shishkin-rozh.jpg
+  url: https://commons.wikimedia.org/wiki/File:Ivan_Shishkin_-_Рожь_-_Google_Art_Project.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1898"
+pattern:
+  crop: [0.36, 0.28, 0.60, 0.70]
+  size: 180   # четыре клетки на сантиметр: кадр 44,9 × 44,9 см холста
+  threads: 40

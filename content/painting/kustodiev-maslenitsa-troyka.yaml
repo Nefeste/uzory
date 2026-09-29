@@ -1,0 +1,19 @@
+# Фрагмент картины «Масленица» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: kustodiev-maslenitsa-troyka
+title: Масленица. Тройка
+collection: painting
+order: 22
+author: { name: Борис Кустодиев, life: 1878–1927 }
+made: "1916"
+place: "Государственный Русский музей, Санкт-Петербург"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: kustodiev-maslenitsa.jpg
+  url: https://commons.wikimedia.org/wiki/File:Maslenitsa_kustodiev.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1927"
+pattern:
+  crop: [0.28, 0.54, 0.66, 0.81]
+  size: 149   # четыре клетки на сантиметр: кадр 19,2 × 37,2 см холста
+  threads: 32

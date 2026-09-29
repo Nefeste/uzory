@@ -4,6 +4,7 @@
 //
 //   bun tools/content/sheet.ts                  все картинки → dist/sheet/*.png
 //   bun tools/content/sheet.ts --only russia
+//   bun tools/content/sheet.ts --ids a,b,c --name fragments   выбранные → dist/sheet/fragments-N.png
 //   bun tools/content/sheet.ts --variants <id>  сетка 70/100/120 × 16/24/32 нити (П3)
 //   bun tools/content/sheet.ts --deltas <id>    сетка 70/100/120 × порог различимости 0,05/0,04/0,03
 import { mkdirSync } from 'node:fs';
@@ -153,10 +154,17 @@ if (import.meta.main) {
     await variants(args[args.indexOf('--deltas') + 1], 'deltas');
   } else {
     const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : undefined;
+    // --ids: лист из выбранных картинок в заданном порядке, файлы — по --name
+    const ids = args.includes('--ids') ? args[args.indexOf('--ids') + 1].split(',') : null;
+    const name = args.includes('--name') ? args[args.indexOf('--name') + 1] : 'selected';
     const r = await buildAll({ only });
     mkdirSync(OUT, { recursive: true });
     const byCol = new Map<string, Built[]>();
-    for (const b of r.built) byCol.set(b.card.collection, [...(byCol.get(b.card.collection) ?? []), b]);
+    if (ids) {
+      const missing = ids.filter((id) => !r.built.some((b) => b.card.id === id));
+      if (missing.length) throw new Error(`нет в наборе: ${missing.join(', ')}`);
+      byCol.set(name, ids.map((id) => r.built.find((b) => b.card.id === id)!));
+    } else for (const b of r.built) byCol.set(b.card.collection, [...(byCol.get(b.card.collection) ?? []), b]);
     for (const [col, list] of byCol) {
       for (let i = 0; i < list.length; i += 6) {
         const rows = [];

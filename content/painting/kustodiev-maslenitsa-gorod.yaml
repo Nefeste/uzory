@@ -1,0 +1,19 @@
+# Фрагмент картины «Масленица» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: kustodiev-maslenitsa-gorod
+title: Масленица. Город на горе
+collection: painting
+order: 23
+author: { name: Борис Кустодиев, life: 1878–1927 }
+made: "1916"
+place: "Государственный Русский музей, Санкт-Петербург"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: kustodiev-maslenitsa.jpg
+  url: https://commons.wikimedia.org/wiki/File:Maslenitsa_kustodiev.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1927"
+pattern:
+  crop: [0.13, 0.00, 0.60, 0.33]
+  size: 184   # четыре клетки на сантиметр: кадр 23,4 × 46,1 см холста
+  threads: 40

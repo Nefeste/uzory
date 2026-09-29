@@ -1,0 +1,19 @@
+# Фрагмент картины «Алёнушка» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: vasnetsov-alenushka-na-kamne
+title: Алёнушка. На камне
+collection: tales
+order: 20
+author: { name: Виктор Васнецов, life: 1848–1926 }
+made: "1881"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: vasnetsov-alenushka.jpg
+  url: https://commons.wikimedia.org/wiki/File:Viktor_Vasnetsov_-_Аленушка_-_Google_Art_Project.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1926"
+pattern:
+  crop: [0.33, 0.40, 0.70, 0.74]
+  size: 235   # четыре клетки на сантиметр: кадр 58,8 × 44,8 см холста
+  threads: 40
