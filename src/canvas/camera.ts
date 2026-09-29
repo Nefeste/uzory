@@ -23,6 +23,16 @@ export function fitScale(w: number, h: number, vw: number, vh: number): number {
   return Math.min(MAX_DP, Math.max(1, (vw - 2 * MARGIN_DP) / w), Math.max(1, (vh - 2 * MARGIN_DP) / h));
 }
 
+/**
+ * Весь узор с полями — для просмотра («Готово»): без нижнего предела масштаба, большая картина
+ * на маленьком экране — мельче точки на клетку, как у мини-карты.
+ */
+export function viewFit(w: number, h: number, vw: number, vh: number): Camera {
+  'worklet';
+  const s = Math.min(MAX_DP, (vw - 2 * MARGIN_DP) / w, (vh - 2 * MARGIN_DP) / h);
+  return { s, tx: (vw - w * s) / 2, ty: (vh - h * s) / 2 };
+}
+
 export function clampScale(s: number, w: number, h: number, vw: number, vh: number): number {
   'worklet';
   return Math.min(MAX_DP, Math.max(fitScale(w, h, vw, vh), s));
