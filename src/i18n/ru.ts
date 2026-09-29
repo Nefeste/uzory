@@ -52,6 +52,9 @@ export const ru = {
     mine: 'Свой узор',
     mineNote: 'Узор из своего снимка: кадр, размер и проверка — прямо в браузере',
     report: 'Сообщить об ошибке',
+    /** строки раздачи картинок (docs/03-server-api.md, «Ошибки») */
+    netUpdate: 'Новые картинки — в новой версии игры. Обновите её в RuStore.',
+    netSpace: 'Не хватает места для новых картинок.',
   },
   library: {
     title: 'Библиотека',
@@ -157,6 +160,11 @@ export const ru = {
     fonts: 'Шрифты',
     fontsText: 'Kurale © 2013 The Kurale Project Authors и Onest © 2021 The Onest Project Authors — по лицензии SIL Open Font License 1.1.',
     source: 'Источник',
+    /** «2026-10-12» — дата последнего скачанного набора */
+    updated: (date: string) => {
+      const [y, m, d] = date.split('-').map(Number);
+      return `Картинки обновлены ${d} ${MONTHS[m - 1]} ${y}.`;
+    },
   },
   stitch: {
     where: 'Где ещё?',

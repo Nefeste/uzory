@@ -7,7 +7,7 @@ import { type Access, access } from '../engine/access';
 import { daysBetween, maxDate } from '../engine/dates';
 import { COLLECTIONS, type CollectionId } from '../engine/library';
 import type { PackPicture } from '../engine/pack';
-import { dailyCalendar, pictures } from './library';
+import { dailyCalendar, useLibrary } from './library';
 import { usePlayer } from './player';
 import { loadIndex, type WorkEntry } from './works';
 
@@ -48,11 +48,12 @@ export function useCatalog(): Catalog | null {
       alive = false;
     };
   }, [tick]);
-  const calendar = useMemo(() => dailyCalendar(player.pinned), [player.pinned]);
+  const all = useLibrary();
+  const calendar = useMemo(() => dailyCalendar(player.pinned, all), [player.pinned, all]);
 
   return useMemo(() => {
     if (!loaded || !works) return null;
-    const list = pictures().filter((p) => !p.hidden);
+    const list = all.filter((p) => !p.hidden);
     const byKey = new Map<string, WorkEntry[]>();
     // указатель работ — от свежих к старым
     for (const w of works) {
@@ -85,5 +86,5 @@ export function useCatalog(): Catalog | null {
       isNew: (p) => p.added > player.installed && daysBetween(p.added, today) < NEW_DAYS,
       reload: () => setTick((n) => n + 1),
     };
-  }, [loaded, works, today, player.seen, player.installed, calendar]);
+  }, [loaded, works, today, player.seen, player.installed, calendar, all]);
 }

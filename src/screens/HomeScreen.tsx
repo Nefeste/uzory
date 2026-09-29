@@ -8,7 +8,8 @@ import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
-import { dailyCalendar, FIRST_PICTURE, patternByKey, patternOf, pictureById } from '../state/library';
+import { dailyCalendar, FIRST_PICTURE, patternByKey, patternOf, pictureById, useLibrary } from '../state/library';
+import { useNet } from '../state/net';
 import { PHOTO_PICK } from '../state/photo';
 import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
@@ -36,6 +37,8 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
 }) {
   const { theme } = useSettings();
   const { player, today, loaded, update } = usePlayer();
+  const net = useNet();
+  const netLine = net.line === 'update' ? T.home.netUpdate : net.line === 'space' ? T.home.netSpace : net.notice;
   const [works, setWorks] = useState<WorkEntry[] | null>(null);
   useEffect(() => {
     void loadIndex().then(setWorks);
@@ -50,7 +53,8 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   }, [loaded, player.firstDone, firstWork, update]);
 
   // картинка дня; показанная по запасному правилу закрепляется — завтрашний набор её не сменит
-  const calendar = useMemo(() => dailyCalendar(player.pinned), [player.pinned]);
+  const all = useLibrary();
+  const calendar = useMemo(() => dailyCalendar(player.pinned, all), [player.pinned, all]);
   const dailyId = calendar.on(today);
   const fallback = dailyId !== undefined && calendar.isFallback(today);
   useEffect(() => {
@@ -113,6 +117,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
             </View>
           </Card>
         ) : null}
+        {netLine ? <Txt dim style={styles.note} testID="home-net">{netLine}</Txt> : null}
         {last && lastPic ? (
           <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))}
             onPress={() => onStitch(lastPic, last.id)} testID="continue" />

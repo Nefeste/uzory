@@ -1,6 +1,6 @@
 {
   "name": "uzory",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "main": "index",
   "private": true,
   "scripts": {
@@ -19,6 +19,8 @@
     "@expo-google-fonts/kurale": "0.4.2",
     "@expo-google-fonts/onest": "0.4.2",
     "@expo/metro-runtime": "~57.0.16",
+    "@noble/ed25519": "^3.2.0",
+    "@noble/hashes": "^2.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.25",

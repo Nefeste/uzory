@@ -10,9 +10,17 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Download, type Page } from 'playwright';
 import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
+import { BASE_PACK } from '../../src/content/generated/pack';
+import { base64Decode } from '../../src/engine/base64';
+import { addDays } from '../../src/engine/dates';
+import { openPack } from '../../src/engine/pack';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { fillRegion } from '../../src/engine/regions';
+import { newKeyPair } from '../../src/engine/sign';
+import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
+import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
+import { E2E_SECRET, e2ePack } from './net';
 import { allButLast, seed, seedWork } from './seed';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -29,6 +37,22 @@ const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.ttf': 'font/ttf', '.ico': 'image/x-icon' };
 /** что просила страница, кроме чтения файлов самой сборки: свой снимок не должен уходить в сеть */
 const requests: string[] = [];
+/**
+ * Поддельная раздача картинок (tools/e2e/net.ts): путь от /uzory/v1/ → байты. Как на сайте,
+ * она вне папки игры; каталог подписан ключом сценария — сборка верит ему только на 127.0.0.1.
+ */
+let net = new Map<string, Uint8Array>();
+/** что просили из раздачи, по порядку */
+const netHits: string[] = [];
+function publish(c: BuiltCatalog, secret: string) {
+  net = new Map(c.files);
+  net.set('catalog.json', c.json);
+  net.set('catalog.sig', utf8Encode(signJson(c.json, secret)));
+}
+const basePack = base64Decode(BASE_PACK);
+const baseId = openPack(basePack).json.id;
+// обычный день: в каталоге только встроенный набор — качать нечего
+publish(makeCatalog({ minApp: '0.0.1', packs: [{ id: baseId, bytes: basePack, builtin: true }] }), E2E_SECRET);
 const server = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
@@ -37,6 +61,13 @@ const server = Bun.serve({
     const own = req.method === 'GET' && (await Bun.file(join(DIST, decodeURIComponent(asked).slice(BASE.length))).exists());
     if (!own) requests.push(`${req.method} ${asked}`);
     let path = decodeURIComponent(new URL(req.url).pathname);
+    if (path.startsWith('/uzory/v1/')) {
+      const rel = path.slice('/uzory/v1/'.length);
+      netHits.push(rel);
+      const body = net.get(rel);
+      return body ? new Response(body.slice().buffer as ArrayBuffer, { headers: { 'content-type': rel.endsWith('.json') ? 'application/json' : 'application/octet-stream' } })
+        : new Response('not found', { status: 404 });
+    }
     if (BASE) {
       // вне папки игры на сайте — чужие страницы: сборка не должна туда ходить
       if (!path.startsWith(`${BASE}/`)) return new Response('not found', { status: 404 });
@@ -492,7 +523,7 @@ try {
   await page.getByTestId('back').click();
   await page.locator('[data-testid^="mine-item-"]').first().waitFor();
   // от выбора снимка до сих пор страница не просила у сервера ничего: снимок никуда не ушёл
-  const leaked = requests.slice(sent);
+  const leaked = requests.slice(sent).filter((r) => !r.startsWith('GET /uzory/v1/'));
   check(leaked.length === 0, `снимок не ушёл в сеть${leaked.length ? `: ${leaked.join(', ')}` : ''}`);
   // после перезагрузки узор на месте: он в хранилище браузера, а снимок — нет
   await page.reload();
@@ -554,6 +585,93 @@ try {
     check(true, 'свой узор из файла открылся на канве');
     await ctx3.close();
   }
+
+  // новые картинки по сети (docs/specs/2026-09-packs.md, «Критерии приёмки»): в каждой проверке —
+  // чистая вкладка игрока, поставившего игру три дня назад (новое — с меткой «Новое»)
+  const installedNet = addDays(todayStr, -3);
+  const w1 = e2ePack('e2e-w1', [{ id: 'e2e-novyy-uzor', title: 'Новый узор' }], todayStr);
+  const w2 = e2ePack('e2e-w2', [{ id: 'e2e-bityy-uzor', title: 'Битый узор' }], todayStr);
+  const netTab = async () => {
+    const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    await ctx.addInitScript((pl) => {
+      if (!localStorage.getItem('uzory.player.v1')) localStorage.setItem('uzory.player.v1', pl);
+    }, JSON.stringify({ installed: installedNet, seen: todayStr, pinned: {}, firstDone: true, hints: [] }));
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => errors.push(e.message));
+    p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    netHits.length = 0;
+    await p.goto(base);
+    await p.getByTestId('home-library').waitFor({ timeout: 60_000 });
+    return { ctx, p };
+  };
+  const until = async (f: () => boolean, ms = 10_000) => {
+    for (let t = 0; t < ms && !f(); t += 100) await new Promise((r) => setTimeout(r, 100));
+    return f();
+  };
+  const ornamentTiles = async (p: Page, wait?: string) => {
+    await p.getByTestId('home-library').click();
+    await p.getByTestId('lib-all-ornaments').click();
+    await p.getByTestId('tile-rozetka').waitFor({ timeout: 10_000 });
+    if (wait) await p.getByTestId(wait).waitFor({ timeout: 5000 }).catch(() => {});
+    const ids = await p.locator('[data-testid^="tile-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? ''));
+    await p.getByTestId('back').click();
+    await p.getByTestId('back').click();
+    return ids;
+  };
+
+  // чужая подпись: каталог не тронут — ни одного набора
+  publish(makeCatalog({ minApp: '0.0.1', packs: [{ id: baseId, bytes: basePack, builtin: true }, { id: 'e2e-w1', bytes: w1, from: todayStr }] }),
+    newKeyPair().secret);
+  const na = await netTab();
+  const sawSig = await until(() => netHits.includes('catalog.sig'));
+  await na.p.waitForTimeout(800);
+  const tilesA = await ornamentTiles(na.p);
+  const logA = await na.p.evaluate(() => localStorage.getItem('uzory.crashlog.v1') ?? '');
+  check(sawSig && !tilesA.includes('tile-e2e-novyy-uzor') && !netHits.some((h) => h.startsWith('packs/')) && logA.includes('catalog signature'),
+    'каталог с чужой подписью не тронут: наборы не качались, в журнале сбоев — запись');
+  await na.ctx.close();
+
+  // подпись своя: новый набор — в библиотеке с меткой «Новое»; набор с неверным SHA-256 — нет
+  const both = makeCatalog({
+    minApp: '0.0.1',
+    packs: [{ id: baseId, bytes: basePack, builtin: true }, { id: 'e2e-w1', bytes: w1, from: todayStr }, { id: 'e2e-w2', bytes: w2 }],
+  });
+  publish(both, E2E_SECRET);
+  const w2file = [...both.files.keys()].find((f) => f.startsWith('packs/e2e-w2.'))!;
+  const w2bad = w2.slice();
+  w2bad[w2bad.length - 1] ^= 1; // тот же размер, другой SHA-256
+  net.set(w2file, w2bad);
+  const nb = await netTab();
+  const gotPacks = await until(() => netHits.some((h) => h.startsWith('packs/e2e-w1.')) && netHits.some((h) => h.startsWith('packs/e2e-w2.')));
+  const tilesB = await ornamentTiles(nb.p, 'tile-e2e-novyy-uzor');
+  await nb.p.getByTestId('home-library').click();
+  await nb.p.getByTestId('lib-all-ornaments').click();
+  const newTile = await nb.p.getByTestId('tile-e2e-novyy-uzor').innerText().catch(() => '');
+  await nb.p.getByTestId('back').click();
+  await nb.p.getByTestId('back').click();
+  check(gotPacks && tilesB.includes('tile-e2e-novyy-uzor') && newTile.includes('Новое') && !tilesB.includes('tile-e2e-bityy-uzor'),
+    'новый набор — в библиотеке с меткой «Новое»; набор с неверным SHA-256 — нет');
+  // день уже спрошен: после перезагрузки каталог не просится, скачанный набор — на месте
+  await nb.p.reload();
+  await nb.p.getByTestId('home-library').waitFor({ timeout: 60_000 });
+  await nb.p.waitForTimeout(800);
+  const tilesB2 = await ornamentTiles(nb.p);
+  check(netHits.filter((h) => h === 'catalog.json').length === 1 && tilesB2.includes('tile-e2e-novyy-uzor'),
+    'каталог — раз в сутки: после перезагрузки не спрашивается, набор остался');
+  await nb.p.getByTestId('home-settings').click();
+  await nb.p.getByTestId('set-about').click();
+  const updated = await nb.p.getByTestId('about-updated').innerText().catch(() => '');
+  check(updated.startsWith('Картинки обновлены'), `«О программе»: ${updated || 'нет строки'}`);
+  await nb.ctx.close();
+
+  // minApp выше версии: строка на главной, ничего не качается
+  publish(makeCatalog({ minApp: '99.0.0', packs: [{ id: baseId, bytes: basePack, builtin: true }, { id: 'e2e-w1', bytes: w1 }] }), E2E_SECRET);
+  const nc = await netTab();
+  await nc.p.getByTestId('home-net').waitFor({ timeout: 10_000 }).catch(() => {});
+  const lineC = await nc.p.getByTestId('home-net').innerText().catch(() => '');
+  check(lineC.startsWith('Новые картинки — в новой версии игры') && !netHits.some((h) => h.startsWith('packs/')),
+    `minApp выше версии — строка на главной: «${lineC}», наборы не качались`);
+  await nc.ctx.close();
 
   // файл работы и повтор
   await page.getByTestId('home-file').click();

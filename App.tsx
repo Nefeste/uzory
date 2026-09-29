@@ -11,6 +11,7 @@ import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
 import { installCrashHandlers } from './src/state/crashlog';
 import { FIRST_PICTURE, patternOf } from './src/state/library';
+import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
@@ -188,6 +189,15 @@ function Root() {
   );
 }
 
+/** Скачанные наборы — в библиотеке до первого экрана (src/state/net.ts). */
+function Gate() {
+  return useNetReady() ? <Root /> : <Splash />;
+}
+
+function Splash() {
+  return <View style={{ flex: 1, backgroundColor: '#ECEDE6', justifyContent: 'center' }}><ActivityIndicator color="#B3162F" /></View>;
+}
+
 export default function App() {
   const [fonts] = useFonts(FONT_FILES);
   return (
@@ -195,7 +205,7 @@ export default function App() {
       <SafeAreaProvider>
         <SettingsProvider>
           <PlayerProvider>
-            {fonts ? <Root /> : <View style={{ flex: 1, backgroundColor: '#ECEDE6', justifyContent: 'center' }}><ActivityIndicator color="#B3162F" /></View>}
+            {fonts ? <Gate /> : <Splash />}
           </PlayerProvider>
         </SettingsProvider>
       </SafeAreaProvider>

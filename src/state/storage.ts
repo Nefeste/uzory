@@ -37,4 +37,6 @@ export const KEYS = {
    * картинки дня, первая картинка, подсказки (src/state/player.tsx)
    */
   player: 'uzory.player.v1',
+  /** раздача картинок: когда спрашивали каталог, скачанные наборы, строка на главной (src/state/net.ts) */
+  net: 'uzory.net.v1',
 };

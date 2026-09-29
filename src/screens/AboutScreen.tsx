@@ -3,14 +3,16 @@
 import { FlatList, Linking, Pressable, StyleSheet, View } from 'react-native';
 import type { PackPicture } from '../engine/pack';
 import { T } from '../i18n';
-import { pictures } from '../state/library';
+import { useLibrary } from '../state/library';
+import { useNet } from '../state/net';
 import { useSettings } from '../state/settings';
 import { Screen, SectionTitle, Txt } from '../ui/components';
 import { APP_BUILD, APP_VERSION } from '../version';
 
 export function AboutScreen({ onBack }: { onBack: () => void }) {
   const { theme } = useSettings();
-  const list = pictures().filter((p) => !p.hidden);
+  const list = useLibrary().filter((p) => !p.hidden);
+  const got = useNet().packs.reduce<string | null>((a, p) => (a && a > p.got ? a : p.got), null);
 
   const header = (
     <View style={styles.head}>
@@ -20,6 +22,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Txt dim style={styles.text}>{T.about.fontsText}</Txt>
       <SectionTitle>{T.about.pictures}</SectionTitle>
       <Txt dim style={styles.text}>{T.about.picturesNote(list.length)}</Txt>
+      {got ? <Txt dim style={styles.text} testID="about-updated">{T.about.updated(got)}</Txt> : null}
     </View>
   );
 

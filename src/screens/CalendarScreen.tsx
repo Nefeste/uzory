@@ -7,7 +7,7 @@ import { monthGrids } from '../engine/dates';
 import type { PackPicture } from '../engine/pack';
 import { T } from '../i18n';
 import { percentOf, useCatalog } from '../state/catalog';
-import { dailyCalendar, pictureById } from '../state/library';
+import { dailyCalendar, pictureById, useLibrary } from '../state/library';
 import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
 import { Screen, Txt } from '../ui/components';
@@ -19,7 +19,8 @@ export function CalendarScreen({ onBack, onOpen }: { onBack: () => void; onOpen:
   const cat = useCatalog();
   const { width } = useWindowDimensions();
   const cell = Math.floor((Math.min(width, 640) - 32 - 6 * 4) / 7);
-  const calendar = useMemo(() => dailyCalendar(player.pinned), [player.pinned]);
+  const all = useLibrary();
+  const calendar = useMemo(() => dailyCalendar(player.pinned, all), [player.pinned, all]);
   const days = useMemo(() => calendar.range(player.installed, today), [calendar, player.installed, today]);
   const list = useMemo(() => monthGrids(player.installed, today), [player.installed, today]);
 

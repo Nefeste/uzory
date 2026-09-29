@@ -175,3 +175,38 @@ export function packError(pack: Pack): string | null {
   }
   return null;
 }
+
+/**
+ * Библиотека из нескольких наборов (docs/04-data-model.md, «Наборы и библиотека»): ключ узора →
+ * картинка и её набор — первый набор с этим ключом, та же картинка той же версии не
+ * дублируется; `latest` — каждая картинка в последней версии, по порядку наборов. Прежние
+ * версии остаются в `byKey`: начатые по ним работы открываются (ADR 0010).
+ */
+export function libraryIndex(packs: readonly Pack[]): { byKey: Map<string, { pic: PackPicture; pack: Pack }>; latest: PackPicture[] } {
+  const byKey = new Map<string, { pic: PackPicture; pack: Pack }>();
+  const last = new Map<string, PackPicture>();
+  for (const pack of packs) {
+    for (const pic of pack.json.pictures) {
+      const key = patternKey(pic);
+      if (byKey.has(key)) continue;
+      byKey.set(key, { pic, pack });
+      const cur = last.get(pic.id);
+      if (!cur || pic.v > cur.v) last.set(pic.id, pic);
+    }
+  }
+  return { byKey, latest: [...last.values()] };
+}
+
+/** Календарь всех наборов: у одного дня — запись позднего набора; по датам. */
+export function mergedCalendar(packs: readonly Pack[]): CalendarDay[] {
+  const days = new Map<string, CalendarDay>();
+  for (const pack of packs) for (const d of pack.json.calendar ?? []) days.set(d.date, d);
+  return [...days.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** Узоры с одним ключом совпадают клетка в клетку: иначе второй набор выложен с ошибкой. */
+export function samePattern(a: Pattern, b: Pattern): boolean {
+  return a.w === b.w && a.h === b.h && a.cells.length === b.cells.length && a.cells.every((c, i) => c === b.cells[i])
+    && a.threads.length === b.threads.length && a.threads.every((t, i) => t.rgb === b.threads[i].rgb);
+}
+
