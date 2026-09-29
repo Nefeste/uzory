@@ -1,0 +1,19 @@
+# Фрагмент картины «Московский дворик» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: polenov-dvorik-kolokolnya
+title: Московский дворик. Колокольня
+collection: painting
+order: 25
+author: { name: Василий Поленов, life: 1844–1927 }
+made: "1878"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: polenov-moskovskiy-dvorik.jpg
+  url: https://commons.wikimedia.org/wiki/File:Moscow_Courtyard_(Polenov,_1878)_-_Google_Art_Project.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1927"
+pattern:
+  crop: [0.37, 0.18, 0.68, 0.50]
+  size: 99   # четыре клетки на сантиметр: кадр 20,6 × 24,8 см холста
+  threads: 32

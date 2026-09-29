@@ -1,0 +1,19 @@
+# Фрагмент картины «Золотая осень. Слободка» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: levitan-slobodka-bereza
+title: Золотая осень. Слободка. Изба и берёза
+collection: painting
+order: 27
+author: { name: Исаак Левитан, life: 1860–1900 }
+made: "1889"
+place: "Государственный Русский музей, Санкт-Петербург"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: levitan-zolotaya-osen-slobodka.jpg
+  url: https://commons.wikimedia.org/wiki/File:Isaac_Levitan_-_Golden_autumn._Slobodka_-_Google_Art_Project.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); автор ум. 1900"
+pattern:
+  crop: [0.00, 0.40, 0.45, 0.85]
+  size: 122   # четыре клетки на сантиметр: кадр 19,3 × 30,4 см холста
+  threads: 32

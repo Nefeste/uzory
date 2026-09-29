@@ -1,0 +1,19 @@
+# Фрагмент картины «Утро в сосновом лесу» (пробный лист фрагментов, 29.09.2026): главное с той же
+# плотностью — четыре клетки на сантиметр холста; исходник — тот же, кадр — доли исходника.
+id: shishkin-utro-medvezhata
+title: Утро в сосновом лесу. Медвежата на сосне
+collection: painting
+order: 20
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: ru
+license: null                    # решение владельца — В12 (docs/09-content.md, §2)
+source:
+  file: shishkin-utro-v-sosnovom-lesu.jpg
+  url: https://commons.wikimedia.org/wiki/File:Shishkin,_Ivan_-_Morning_in_a_Pine_Forest.jpg
+  basis: "Викисклад: Public domain (PD-old-70, PD-Art); Шишкин ум. 1898, медведей писал К. Савицкий, ум. 1905"
+pattern:
+  crop: [0.28, 0.31, 0.55, 0.62]
+  size: 230   # четыре клетки на сантиметр: кадр 43,1 × 57,5 см холста
+  threads: 40
