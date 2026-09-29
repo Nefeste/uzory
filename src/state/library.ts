@@ -3,6 +3,7 @@
 // одинаково читается на телефоне, в вебе и в тестах. Выбор между этим, файлом в APK
 // и базой SQLite — итог П4 (docs/specs/2026-09-spikes.md).
 import { base64Decode } from '../engine/base64';
+import { Daily } from '../engine/calendar';
 import { openPack, type Pack, packPattern, type PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { BASE_PACK } from '../content/generated/pack';
@@ -55,3 +56,17 @@ export function patternByKey(key: string): { pic: PackPicture; pattern: Pattern 
 
 /** Первая картинка (docs/specs/2026-09-first-picture.md). */
 export const FIRST_PICTURE = 'first-picture';
+
+/**
+ * Календарь картинок дня встроенного набора (docs/09-content.md, §9); `pinned` — дни, уже
+ * показанные по запасному правилу (src/state/player.tsx).
+ */
+export function dailyCalendar(pinned: Readonly<Record<string, string>>): Daily {
+  let calendar: Pack['json']['calendar'] = [];
+  try {
+    calendar = basePack().json.calendar ?? [];
+  } catch (e) {
+    logError('pack', e, 'calendar');
+  }
+  return new Daily({ calendar, pictures: pictures(), pinned });
+}

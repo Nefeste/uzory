@@ -611,6 +611,10 @@ export function StitchCanvas(props: Props) {
       const k = s.get();
       tx.set(clampX(tx.get() + e.changeX, k, w, vw));
       ty.set(clampY(ty.get() + e.changeY, k, h, vh));
+    })
+    .onEnd(() => {
+      'worklet';
+      if (onCamera) scheduleOnRN(onCamera, { s: s.get(), tx: tx.get(), ty: ty.get() });
     });
 
   // Мышь в браузере (docs/specs/2026-09-web.md, «Управление»): левая кнопка — как палец,
@@ -630,6 +634,10 @@ export function StitchCanvas(props: Props) {
       const k = s.get();
       tx.set(clampX(tx.get() + e.changeX, k, w, vw));
       ty.set(clampY(ty.get() + e.changeY, k, h, vh));
+    })
+    .onEnd(() => {
+      'worklet';
+      if (onCamera) scheduleOnRN(onCamera, { s: s.get(), tx: tx.get(), ty: ty.get() });
     });
 
   const gesture = WEB
@@ -654,6 +662,7 @@ export function StitchCanvas(props: Props) {
       s.set(c.s);
       tx.set(c.tx);
       ty.set(c.ty);
+      onCamera?.(c);
     };
     const panBy = (dx: number, dy: number) => {
       stop();
@@ -687,7 +696,7 @@ export function StitchCanvas(props: Props) {
       el.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
     };
-  }, [w, h, vw, vh, s, tx, ty, apiRef]);
+  }, [w, h, vw, vh, s, tx, ty, apiRef, onCamera]);
 
   // ---------- замер ----------
 

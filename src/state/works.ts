@@ -153,6 +153,12 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
   return null;
 }
 
+/** Вышитые клетки работы — превью «в её нынешнем виде»; не разобралась — null. */
+export async function workStitched(pattern: Pattern, id: string): Promise<Uint8Array | null> {
+  const s = await openWork(pattern, id);
+  return s ? s.state.stitched : null;
+}
+
 export async function startWork(pattern: Pattern, now: number): Promise<WorkSession> {
   const s = new WorkSession(newWorkId(now), pattern, now, []);
   // пустая работа тоже записывается: «Продолжить» появляется сразу

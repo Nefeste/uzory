@@ -88,11 +88,17 @@ export function Segmented<K extends string>({ value, options, onChange, testID }
   );
 }
 
-export function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+export function ToggleRow({ label, note, value, onChange, testID }: {
+  label: string; note?: string; value: boolean; onChange: (v: boolean) => void; testID?: string;
+}) {
   const { theme } = useSettings();
   return (
-    <Pressable onPress={() => onChange(!value)} style={[styles.toggle, { borderBottomColor: theme.border }]}>
-      <Txt style={styles.toggleLabel}>{label}</Txt>
+    <Pressable onPress={() => onChange(!value)} accessibilityRole="switch" accessibilityState={{ checked: value }} testID={testID}
+      style={[styles.toggle, { borderBottomColor: theme.border }]}>
+      <View style={styles.toggleText}>
+        <Txt style={styles.toggleLabel}>{label}</Txt>
+        {note ? <Txt dim style={styles.toggleNote}>{note}</Txt> : null}
+      </View>
       <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent, false: theme.border }} thumbColor={theme.surface} />
     </Pressable>
   );
@@ -120,7 +126,7 @@ const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 34, lineHeight: 36, marginTop: -4 },
   title: { flex: 1, fontSize: 20, textAlign: 'center' },
-  right: { width: 44, alignItems: 'flex-end' },
+  right: { minWidth: 44, alignItems: 'flex-end' },
   btn: { minHeight: 50, borderRadius: 6, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   btnSmall: { minHeight: 42, paddingHorizontal: 14 },
   btnText: { fontSize: 17 },
@@ -129,7 +135,9 @@ const styles = StyleSheet.create({
   segItem: { paddingVertical: 9, paddingHorizontal: 4, borderRadius: 4, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
   segText: { fontSize: 14 },
   toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  toggleLabel: { fontSize: 16, flex: 1, paddingRight: 12 },
+  toggleText: { flex: 1, paddingRight: 12, gap: 2 },
+  toggleLabel: { fontSize: 16 },
+  toggleNote: { fontSize: 13, lineHeight: 18 },
   card: { borderWidth: 1, borderRadius: 6, padding: 14 },
   section: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 8 },
 });
