@@ -4,7 +4,8 @@
 // Прокудина-Горского (docs/09-content.md, §2).
 //
 //   npm run export:web && bun tools/store/shots.ts
-//     → store/screenshots/ru/NN-*.png (1080 × 1920), store/site/uzory-NN-*.webp (540 × 960)
+//     → store/screenshots/ru/NN-*.png (1080 × 1920); их же берёт сайт студии (store/site/page.*.md,
+//       WebP для сайта он делает сам — ADR студии 0015)
 import { mkdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Page } from 'playwright';
@@ -19,7 +20,6 @@ import { buildAll } from '../content/build';
 const ROOT = join(import.meta.dir, '..', '..');
 const DIST = join(ROOT, 'dist-web');
 const SHOTS = join(ROOT, 'store', 'screenshots', 'ru');
-const SITE = join(ROOT, 'store', 'site');
 mkdirSync(SHOTS, { recursive: true });
 
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.ttf': 'font/ttf' };
@@ -85,10 +85,9 @@ async function open(page: Page, s: Seed, settings: Record<string, unknown>) {
   await page.waitForTimeout(2500);
 }
 
-async function save(page: Page, name: string, site?: string) {
+async function save(page: Page, name: string) {
   const png = await page.screenshot();
   await sharp(png).toFile(join(SHOTS, `${name}.png`));
-  if (site) await sharp(png).resize(540, 960).webp({ quality: 86 }).toFile(join(SITE, `uzory-${site}.webp`));
   console.log(name);
 }
 
@@ -109,19 +108,19 @@ try {
   await shot(async (page) => {
     const p = get('pg-sushka-setey').pattern;
     await open(page, seed('w-shot-1', p, progress(p, 0.46), { x: p.w * 0.42, y: p.h * 0.47 }), { ...base0, style: 'cross' });
-    await save(page, '01-stitch', '01-stitch');
+    await save(page, '01-stitch');
   });
   // 2. Крупные номера: орнамент, выбранная нить подсвечена
   await shot(async (page) => {
     const p = get('zvezda-alatyr').pattern;
     await open(page, seed('w-shot-2', p, progress(p, 0.5, [0]), { x: p.w / 2, y: p.h / 2 }), { ...base0, style: 'cross', bigNumbers: true });
-    await save(page, '02-close', '02-close');
+    await save(page, '02-close');
   });
   // 3. «Мозаика»
   await shot(async (page) => {
     const p = get('pg-torgovets-dynyami').pattern;
     await open(page, seed('w-shot-3', p, progress(p, 0.55), { x: p.w * 0.35, y: p.h * 0.56 }), { ...base0, style: 'mosaic' });
-    await save(page, '03-mosaic', '03-mosaic');
+    await save(page, '03-mosaic');
   });
   // 4–5. Готово и «Как вышивалось»: последняя клетка — в центре экрана
   await shot(async (page) => {
@@ -137,7 +136,7 @@ try {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.getByTestId('replay').waitFor({ timeout: 15_000 });
     await page.waitForTimeout(1500);
-    await save(page, '04-done', '04-done');
+    await save(page, '04-done');
     await page.getByTestId('replay').click();
     await page.waitForTimeout(4500);
     await save(page, '05-replay');
