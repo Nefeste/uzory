@@ -5,7 +5,7 @@ import { Kurale_400Regular } from '@expo-google-fonts/kurale/400Regular';
 import { Onest_500Medium } from '@expo-google-fonts/onest/500Medium';
 import { useFont } from '@shopify/react-native-skia';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { MARGIN_DP, MAX_DP } from '../canvas/camera';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
@@ -29,6 +29,11 @@ import { hasAbout, PicAbout } from '../ui/PicAbout';
 
 /** Рамка вокруг работы на экране, dp. */
 const FRAME_DP = 8;
+/**
+ * «Как вышивалось» и «Поделиться» рядом — только если обе подписи влезают целиком: на экране
+ * уже этого (с поправкой на крупный шрифт телефона) кнопки встают одна под другой.
+ */
+const ROW_MIN_DP = 390;
 
 /** «Как вышивалось»: все стежки по порядку за replayMs — по кадрам, пачками. */
 function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd: () => void): ReturnType<typeof setInterval> {
@@ -62,6 +67,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
 }) {
   const { settings, theme } = useSettings();
   const { player, today } = usePlayer();
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < ROW_MIN_DP * Math.max(1, fontScale);
   const cat = useCatalog();
   const font = useFont(DIGIT_FONT, DIGIT_FONT_SIZE);
   const titleFont = useFont(Kurale_400Regular, 64);
@@ -148,14 +155,32 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
 
   return (
     <Screen title={T.done.title}>
-      <View style={[styles.stage, { backgroundColor: theme.bg }]} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-        {area && font && session && cw > 0 ? (
-          <View style={[styles.frame, { width: cw + 2 * FRAME_DP, height: ch + 2 * FRAME_DP }]} testID="done-frame">
-            <StitchCanvas pattern={pattern} stitched={session.state.stitched} selected={-1}
-              mosaic={settings.style === 'mosaic'} hatch={false} bigNumbers={false} fill={false} font={font}
-              width={cw} height={ch} apiRef={api} viewOnly initial="fit" />
+      <View style={styles.body}>
+        <View style={[styles.stage, { backgroundColor: theme.bg }]} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+          {area && font && session && cw > 0 ? (
+            <View style={[styles.frame, { width: cw + 2 * FRAME_DP, height: ch + 2 * FRAME_DP }]} testID="done-frame">
+              <StitchCanvas pattern={pattern} stitched={session.state.stitched} selected={-1}
+                mosaic={settings.style === 'mosaic'} hatch={false} bigNumbers={false} fill={false} font={font}
+                width={cw} height={ch} apiRef={api} viewOnly initial="fit" />
+            </View>
+          ) : <ActivityIndicator style={styles.wait} color={theme.accent} />}
+        </View>
+        <View style={styles.info}>
+          <Txt title style={styles.title}>{title}</Txt>
+          {caption ? <Txt dim style={styles.caption}>{caption}</Txt> : null}
+          {session ? <Txt dim testID="done-stats">{T.done.stats(order.length, minutes)}</Txt> : null}
+          {note ? <Txt style={{ color: theme.danger }}>{note}</Txt> : null}
+          <View style={[styles.row, stacked && styles.stacked]}>
+            {playing
+              ? <Button kind="secondary" label={T.done.skip} onPress={skip} testID="skip" style={stacked ? undefined : styles.half} />
+              : <Button kind="secondary" label={T.done.replay} onPress={replay} testID="replay" style={stacked ? undefined : styles.half} />}
+            <Button kind="secondary" label={sharing ? T.done.sharing : T.done.share} onPress={() => void share()} disabled={!session || !font || !titleFont || !textFont || sharing}
+              testID="share" style={stacked ? undefined : styles.half} />
           </View>
-        ) : <ActivityIndicator style={styles.wait} color={theme.accent} />}
+          {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
+          <Button label={T.done.next} onPress={() => onNext(next())} testID="next" />
+        </View>
+        {/* «О картине» — поверх всего экрана, а не только работы: на узком телефоне ей там тесно */}
         {about && pic ? (
           <Pressable style={styles.backdrop} onPress={() => setAbout(false)} accessibilityLabel={T.stitch.close}>
             <Pressable style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => undefined} testID="done-about-panel">
@@ -167,26 +192,12 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.info}>
-        <Txt title style={styles.title}>{title}</Txt>
-        {caption ? <Txt dim style={styles.caption}>{caption}</Txt> : null}
-        {session ? <Txt dim testID="done-stats">{T.done.stats(order.length, minutes)}</Txt> : null}
-        {note ? <Txt style={{ color: theme.danger }}>{note}</Txt> : null}
-        <View style={styles.row}>
-          {playing
-            ? <Button kind="secondary" label={T.done.skip} onPress={skip} testID="skip" style={styles.half} />
-            : <Button kind="secondary" label={T.done.replay} onPress={replay} testID="replay" style={styles.half} />}
-          <Button kind="secondary" label={sharing ? T.done.sharing : T.done.share} onPress={() => void share()} disabled={!session || !font || !titleFont || !textFont || sharing}
-            testID="share" style={styles.half} />
-        </View>
-        {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
-        <Button label={T.done.next} onPress={() => onNext(next())} testID="next" />
-      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  body: { flex: 1 },
   stage: { flex: 1, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   frame: { borderWidth: FRAME_DP, borderColor: '#6f5641', borderRadius: 2 },
   wait: { margin: 24 },
@@ -197,5 +208,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 24 },
   caption: { fontSize: 14 },
   row: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  half: { flex: 1 },
+  stacked: { flexDirection: 'column' },
+  half: { flexGrow: 1, flexBasis: 0 },
 });

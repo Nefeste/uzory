@@ -716,7 +716,8 @@ try {
   // «Готово» большой картины — в отдельной вкладке с чистым хранилищем: «Крестьянские девушки»
   // без последней клетки, последний стежок — в центре экрана. «О картине» — автор с годами
   // жизни и источник, «Поделиться» — PNG, «Дальше» — карточка картинки
-  const ctx2 = await browser.newContext({ viewport: { width: 400, height: 860 } });
+  // узкий телефон, 360 × 640: кнопки «Готово» — одна под другой, картина в рамке — целиком
+  const ctx2 = await browser.newContext({ viewport: { width: 360, height: 640 } });
   const page2 = await ctx2.newPage();
   page2.on('pageerror', (e) => errors.push(e.message));
   page2.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -731,6 +732,11 @@ try {
   const gb = (await page2.getByTestId('canvas').boundingBox())!;
   await page2.mouse.click(gb.x + gb.width / 2, gb.y + gb.height / 2);
   await page2.getByTestId('replay').waitFor({ timeout: 15_000 });
+  const replayBox = (await page2.getByTestId('replay').boundingBox())!;
+  const shareBox = (await page2.getByTestId('share').boundingBox())!;
+  const fb = (await page2.getByTestId('done-frame').boundingBox())!;
+  check(shareBox.y >= replayBox.y + replayBox.height - 1 && replayBox.width > 300 && fb.x >= 0 && fb.x + fb.width <= 360,
+    `узкий экран: «Как вышивалось» и «Поделиться» одна под другой, рамка в экране (${Math.round(fb.width)} × ${Math.round(fb.height)})`);
   await page2.getByTestId('done-about').click();
   const aboutText = await page2.getByTestId('done-about-panel').innerText().catch(() => '');
   check(aboutText.includes('Прокудин-Горский (1863–1944), 1909') && aboutText.includes('Источник: www.loc.gov')
@@ -779,7 +785,7 @@ const serious = errors.filter((e) => !/favicon|Download the React DevTools/.test
 if (serious.length) console.log(`ошибки страницы:\n${serious.slice(0, 10).join('\n')}`);
 check(serious.length === 0, 'без ошибок в консоли');
 if (failures.length) {
-  console.log(`\nне прошло: ${failures.length}`);
+  console.log(`\nне прошло: ${failures.length}\n${failures.map((f) => `  ${f}`).join('\n')}`);
   process.exit(1);
 }
 console.log('\nсценарий пройден');

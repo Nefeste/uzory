@@ -19,7 +19,7 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import type { Pattern } from '../engine/pattern';
 import {
   type Camera, clampScale, clampX, clampY, fitScale, inMap, MAP_FRAME, MAP_PAD, mapJump, type MapRect, mapRect, MAX_DP, NUMBERS_DP,
-  OPEN_BIG_DP, OPEN_DP, wheelFactor, zoomAround,
+  OPEN_BIG_DP, OPEN_DP, viewFit, wheelFactor, zoomAround,
 } from './camera';
 import { SKSL, uniformList } from './shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from './textures';
@@ -346,7 +346,8 @@ export function StitchCanvas(props: Props) {
     const fit = fitScale(w, h, vw, vh);
     let cam: Camera;
     const init = props.initial ?? 'open';
-    if (init === 'fit') cam = { s: fit, tx: (vw - w * fit) / 2, ty: (vh - h * fit) / 2 };
+    // «весь узор» для просмотра — без нижнего предела масштаба, у канвы для вышивания он — fitScale
+    if (init === 'fit') cam = viewFit(w, h, vw, vh);
     else if (init === 'open') {
       const s = fit >= NUMBERS_DP ? fit : props.bigNumbers ? OPEN_BIG_DP : OPEN_DP;
       cam = { s, tx: clampX((vw - w * s) / 2, s, w, vw), ty: clampY((vh - h * s) / 2, s, h, vh) };
@@ -383,9 +384,19 @@ export function StitchCanvas(props: Props) {
   useEffect(() => { sel.set(props.selected); }, [props.selected, sel]);
   // размер канвы поменялся — камера остаётся в пределах, центр экрана — на той же клетке
   const lastSize = useSharedValue({ vw, vh });
+  const wholeView = props.initial === 'fit';
   useEffect(() => {
     const prev = lastSize.get();
     if (prev.vw === vw && prev.vh === vh) return;
+    if (wholeView) {
+      // просмотр «весь узор» — весь и после смены размера
+      const c = viewFit(w, h, vw, vh);
+      s.set(c.s);
+      tx.set(c.tx);
+      ty.set(c.ty);
+      lastSize.set({ vw, vh });
+      return;
+    }
     const k = clampScale(s.get(), w, h, vw, vh);
     const cx = (prev.vw / 2 - tx.get()) / s.get();
     const cy = (prev.vh / 2 - ty.get()) / s.get();
@@ -393,7 +404,7 @@ export function StitchCanvas(props: Props) {
     tx.set(clampX(vw / 2 - cx * k, k, w, vw));
     ty.set(clampY(vh / 2 - cy * k, k, h, vh));
     lastSize.set({ vw, vh });
-  }, [vw, vh, w, h, s, tx, ty, lastSize]);
+  }, [vw, vh, w, h, s, tx, ty, lastSize, wholeView]);
   useEffect(() => { mosaic.set(props.mosaic); }, [props.mosaic, mosaic]);
   useEffect(() => { hatch.set(props.hatch); }, [props.hatch, hatch]);
   useEffect(() => { fillOn.set(props.fill); }, [props.fill, fillOn]);
