@@ -31,7 +31,23 @@ export interface Card {
   about?: string;
   about_sources?: string[];
   source: { file?: string; url: string; basis: string };
-  pattern?: { crop?: [number, number, number, number]; size: number; threads: number; canvas?: string; canvas_delta?: number };
+  pattern?: {
+    crop?: [number, number, number, number]; size: number; threads: number; canvas?: string; canvas_delta?: number;
+    /**
+     * Старинная схема (chart.ts): рамка чуть шире сетки в долях кадра — линии сборка находит
+     * сама, поле без сетки отрезает; сколько клеток должно выйти; доля клетки с краёв без
+     * линий сетки. Фон — бумага: цвет не дальше canvas_delta от бумаги рядом и сетка видна
+     * хотя бы на canvas_lines (ChartCells.lines).
+     */
+    chart?: [number, number, number, number]; cells?: [number, number]; inset?: number; canvas_lines?: number;
+    /** схема на белой бумаге, скан пожелтел: цвета — относительно бумаги рядом (chart.ts, whiten) */
+    white_paper?: boolean;
+    /**
+     * печатная схема ровными красками: одиночные клетки и шахматка — замысел, чистка их не
+     * трогает, а проверка одиночных и мелких пятен — предупреждение (docs/09-content.md, §6)
+     */
+    exact?: boolean;
+  };
   drawn?: {
     legend: Record<string, [string, string]>;
     grid?: string;
@@ -89,6 +105,21 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (!Number.isInteger(p.threads) || p.threads < 2 || p.threads > top.threads[1]) errors.push(`pattern.threads ${p.threads} вне 2…${top.threads[1]}`);
     if (p.crop && (p.crop.length !== 4 || p.crop[0] >= p.crop[2] || p.crop[1] >= p.crop[3] || p.crop.some((x) => x < 0 || x > 1))) errors.push(`pattern.crop ${JSON.stringify(p.crop)}`);
     if (p.canvas !== undefined && parseHex(p.canvas) === null) errors.push(`pattern.canvas «${p.canvas}» не #rrggbb`);
+    if (p.cells !== undefined && (!Array.isArray(p.cells) || p.cells.length !== 2 || p.cells.some((c) => !Number.isInteger(c) || c < 4) || Math.max(...p.cells) !== p.size)) {
+      errors.push(`pattern.cells ${JSON.stringify(p.cells)}: два целых не меньше 4, большее — равно size`);
+    }
+    if (p.inset !== undefined && (typeof p.inset !== 'number' || p.inset < 0 || p.inset > 0.45)) errors.push(`pattern.inset ${String(p.inset)} вне 0…0,45`);
+    if ((p.cells !== undefined || p.inset !== undefined) && !p.chart) errors.push('pattern.cells и inset — только у схемы (chart)');
+    if (p.chart !== undefined) {
+      if (p.chart.length !== 4 || p.chart[0] >= p.chart[2] || p.chart[1] >= p.chart[3] || p.chart.some((x) => x < 0 || x > 1)) errors.push(`pattern.chart ${JSON.stringify(p.chart)}`);
+      if (!p.cells) errors.push('pattern.chart без cells: сколько клеток должно выйти');
+      if (p.crop) errors.push('pattern.chart и crop вместе: у схемы кадр — рамка сетки');
+    }
+    if (p.canvas_lines !== undefined && (typeof p.canvas_lines !== 'number' || p.canvas_lines <= 0 || p.canvas_lines > 0.5 || !p.chart || !p.canvas)) {
+      errors.push(`pattern.canvas_lines ${String(p.canvas_lines)}: 0…0,5 и только у схемы с canvas`);
+    }
+    if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
+    if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
   }
   if (card.drawn) {
     const d = card.drawn;

@@ -39,19 +39,24 @@ describe('карточки', () => {
 });
 
 describe('сборка', () => {
+  // полная сборка идёт около минуты (картины в четыре клетки на сантиметр, старинные схемы):
+  // первая общая для обоих тестов
+  let first: ReturnType<typeof buildAll> | null = null;
+  const once = () => (first ??= buildAll());
+
   test('две сборки подряд — один и тот же набор до байта', async () => {
-    const a = await buildAll();
+    const a = await once();
     const b = await buildAll();
     expect(a.failed).toEqual([]);
     expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
-  }, 120_000);
+  }, 300_000);
 
   test('выпущенные узоры не изменились (tools/test/fixtures/released.json)', async () => {
     const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;
-    const { built } = await buildAll();
+    const { built } = await once();
     for (const [key, sha] of Object.entries(released)) {
       const b = built.find((x) => x.pattern.key === key);
       expect(b ? digest(b.pattern) : `узора ${key} нет`).toBe(sha);
     }
-  }, 120_000);
+  }, 300_000);
 });

@@ -2,11 +2,14 @@
 import type { SizeClass } from './pattern';
 
 export type CollectionId = 'ornaments' | 'painting' | 'tales' | 'russia'
-  | 'flowers' | 'nature' | 'cities' | 'kids';
+  | 'flowers' | 'nature' | 'cities' | 'kids' | 'schemes';
 
-/** Порядок коллекций в библиотеке — как в docs/09-content.md, §1. */
+/**
+ * Порядок коллекций в библиотеке — как в docs/09-content.md, §1. «Старинные схемы» —
+ * проба 29.09.2026: быть ли коллекции и где — решает владелец.
+ */
 export const COLLECTIONS: readonly CollectionId[] = [
-  'ornaments', 'painting', 'tales', 'russia', 'flowers', 'nature', 'cities', 'kids',
+  'ornaments', 'painting', 'tales', 'russia', 'flowers', 'nature', 'cities', 'kids', 'schemes',
 ];
 
 /** Размеры узоров (docs/08-game-design.md, «Размеры узоров»). */

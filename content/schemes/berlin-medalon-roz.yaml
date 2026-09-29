@@ -1,0 +1,20 @@
+# Старинная схема для вышивки (разведка альбомов, 29.09.2026), раскрашенная по клеткам;
+# приложение к журналу «The Young Ladies’ Journal», Лондон, 1 февраля 1874; кадр — овал с розами.
+id: berlin-medalon-roz
+title: Розы в овале
+collection: schemes
+order: 5
+author: { name: "неизвестный художник" }
+made: "1874"
+place: "Купер-Хьюитт, Смитсоновский музей дизайна, Нью-Йорк (18436111)"
+museum: abroad
+source:
+  file: berlin-medalon-roz.jpg
+  url: https://commons.wikimedia.org/wiki/File:Print,_Design_in_Berlin_Wool_Work,_1874_(CH_18436111).jpg
+  basis: "Викисклад: Public domain; музей Купер-Хьюитт (Смитсоновский институт), открытый доступ CC0; работа 1874 года — общественное достояние по сроку"
+pattern:
+  chart: [0.26, 0.17, 0.72, 0.64]   # рамка чуть шире сетки; линии сборка находит сама, поле отрезает
+  cells: [107, 157]
+  size: 157
+  inset: 0.25      # цвет — середина клетки без линий сетки
+  threads: 32
