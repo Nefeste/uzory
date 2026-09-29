@@ -6,3 +6,6 @@ const here = typeof location === 'undefined' ? null : location;
 export const NET_BASE = here ? `${here.origin}/uzory/v1/` : 'https://gornitsa.games/uzory/v1/';
 
 export const LOCAL_TEST = !!here && (here.hostname === '127.0.0.1' || here.hostname === 'localhost');
+
+/** Для счётчиков: закрытая веб-версия. */
+export const STORE = 'web' as const;

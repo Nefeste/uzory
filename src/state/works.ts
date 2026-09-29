@@ -5,6 +5,7 @@ import type { Pattern } from '../engine/pattern';
 import { replay, Stitching, type Stroke } from '../engine/work';
 import { decodeWork, encodeWork, WorkFileError, workFileMisfit } from '../engine/workfile';
 import { utf8Decode, utf8Encode } from '../engine/utf8';
+import { noteFinished, noteStitch } from './counters';
 import { logError } from './crashlog';
 import { readFile, removeFile, writeFile } from './files';
 
@@ -80,7 +81,11 @@ export class WorkSession {
     if (!ok.length) return ok;
     if (cont) last.cells.push(...ok);
     else this.strokes.push({ thread, cells: ok });
-    if (this.state.finished && this.finished === undefined) this.finished = now;
+    noteStitch(now);
+    if (this.state.finished && this.finished === undefined) {
+      this.finished = now;
+      noteFinished(now);
+    }
     this.dirty = true;
     this.schedule(now);
     return ok;

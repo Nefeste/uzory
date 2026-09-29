@@ -5,5 +5,5 @@
     "resolveJsonModule": true
   },
   "include": ["**/*.ts", "**/*.tsx", "expo-env.d.ts"],
-  "exclude": ["node_modules", "tools", "dist-web", "plugins", "research"]
+  "exclude": ["node_modules", "tools", "server", "dist-web", "plugins", "research"]
 }

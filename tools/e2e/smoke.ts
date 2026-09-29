@@ -12,11 +12,12 @@ import { chromium, type Download, type Page } from 'playwright';
 import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { BASE_PACK } from '../../src/content/generated/pack';
 import { base64Decode } from '../../src/engine/base64';
-import { addDays } from '../../src/engine/dates';
+import { addDays, mondayOf } from '../../src/engine/dates';
 import { openPack } from '../../src/engine/pack';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { fillRegion } from '../../src/engine/regions';
 import { newKeyPair } from '../../src/engine/sign';
+import { APP_VERSION } from '../../src/version';
 import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
 import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
@@ -42,7 +43,7 @@ const requests: string[] = [];
  * она вне папки игры; каталог подписан ключом сценария — сборка верит ему только на 127.0.0.1.
  */
 let net = new Map<string, Uint8Array>();
-/** что просили из раздачи, по порядку */
+/** что просили из раздачи, по порядку, со строкой запроса */
 const netHits: string[] = [];
 function publish(c: BuiltCatalog, secret: string) {
   net = new Map(c.files);
@@ -63,7 +64,7 @@ const server = Bun.serve({
     let path = decodeURIComponent(new URL(req.url).pathname);
     if (path.startsWith('/uzory/v1/')) {
       const rel = path.slice('/uzory/v1/'.length);
-      netHits.push(rel);
+      netHits.push(rel + new URL(req.url).search);
       const body = net.get(rel);
       return body ? new Response(body.slice().buffer as ArrayBuffer, { headers: { 'content-type': rel.endsWith('.json') ? 'application/json' : 'application/octet-stream' } })
         : new Response('not found', { status: 404 });
@@ -591,11 +592,14 @@ try {
   const installedNet = addDays(todayStr, -3);
   const w1 = e2ePack('e2e-w1', [{ id: 'e2e-novyy-uzor', title: 'Новый узор' }], todayStr);
   const w2 = e2ePack('e2e-w2', [{ id: 'e2e-bityy-uzor', title: 'Битый узор' }], todayStr);
+  // вчера — день игры: 4 картинки и 20 минут со стежками (корзины f = 3, m = 3)
+  const counters = JSON.stringify({ cur: { day: addDays(todayStr, -1), finished: 4, minutes: 20, lastMinute: 1 }, prev: null, sentOn: null });
   const netTab = async () => {
     const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
-    await ctx.addInitScript((pl) => {
+    await ctx.addInitScript(([pl, cn]) => {
       if (!localStorage.getItem('uzory.player.v1')) localStorage.setItem('uzory.player.v1', pl);
-    }, JSON.stringify({ installed: installedNet, seen: todayStr, pinned: {}, firstDone: true, hints: [] }));
+      if (!localStorage.getItem('uzory.counters.v1')) localStorage.setItem('uzory.counters.v1', cn);
+    }, [JSON.stringify({ installed: installedNet, seen: todayStr, pinned: {}, firstDone: true, hints: [] }), counters] as const);
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(e.message));
     p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -651,12 +655,17 @@ try {
   await nb.p.getByTestId('back').click();
   check(gotPacks && tilesB.includes('tile-e2e-novyy-uzor') && newTile.includes('Новое') && !tilesB.includes('tile-e2e-bityy-uzor'),
     'новый набор — в библиотеке с меткой «Новое»; набор с неверным SHA-256 — нет');
+  // счётчики (docs/03-server-api.md, «Счётчики»): ровно параметры таблицы, в её порядке
+  const asked = netHits.find((h) => h.startsWith('catalog.json')) ?? '';
+  const wantQuery = `catalog.json?v=${APP_VERSION}&s=web&c=${mondayOf(installedNet)}&d=3&p=0&f=3&m=3`;
+  check(asked === wantQuery && !netHits.some((h) => !h.startsWith('catalog.json') && h.includes('?')),
+    `строка запроса каталога — счётчики по таблице: ${asked}`);
   // день уже спрошен: после перезагрузки каталог не просится, скачанный набор — на месте
   await nb.p.reload();
   await nb.p.getByTestId('home-library').waitFor({ timeout: 60_000 });
   await nb.p.waitForTimeout(800);
   const tilesB2 = await ornamentTiles(nb.p);
-  check(netHits.filter((h) => h === 'catalog.json').length === 1 && tilesB2.includes('tile-e2e-novyy-uzor'),
+  check(netHits.filter((h) => h.startsWith('catalog.json')).length === 1 && tilesB2.includes('tile-e2e-novyy-uzor'),
     'каталог — раз в сутки: после перезагрузки не спрашивается, набор остался');
   await nb.p.getByTestId('home-settings').click();
   await nb.p.getByTestId('set-about').click();
