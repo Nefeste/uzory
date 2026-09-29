@@ -2,7 +2,7 @@
 // автор и год, «Средняя · 12 нитей · ≈ 25 мин», «О картине» раскрывается на месте, кнопка по
 // состоянию: «Вышивать», «Продолжить (38 %)», «Вышить ещё раз».
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
 import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
@@ -12,6 +12,7 @@ import { patternOf } from '../state/library';
 import { useSettings } from '../state/settings';
 import { workStitched } from '../state/works';
 import { Button, Screen, Txt } from '../ui/components';
+import { hasAbout, PicAbout, whoMade } from '../ui/PicAbout';
 
 export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onBack: () => void; onStitch: (pic: PackPicture, workId?: string) => void }) {
   const { theme } = useSettings();
@@ -38,7 +39,7 @@ export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onB
     };
   }, [cat, pattern, started, done, key]);
 
-  const who = [pic.author?.name, pic.made].filter(Boolean).join(', ');
+  const who = whoMade(pic);
   const label = started ? T.picture.continue(percentOf(started)) : done ? T.picture.again : T.picture.stitch;
 
   return (
@@ -60,21 +61,10 @@ export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onB
         {!cat ? <ActivityIndicator color={theme.accent} /> : (
           <Button label={label} onPress={() => onStitch(pic, started?.id)} style={styles.go} testID="picture-stitch" />
         )}
-        {pic.about || pic.place ? (
+        {hasAbout(pic) ? (
           <>
             <Button kind="ghost" small label={about ? T.picture.hide : T.picture.about} onPress={() => setAbout(!about)} testID="picture-about" />
-            {about ? (
-              <View style={styles.aboutBox}>
-                {pic.place ? <Txt dim>{pic.place}</Txt> : null}
-                {pic.about ? <Txt style={styles.aboutText}>{pic.about}</Txt> : null}
-                <Txt dim style={styles.small}>{pic.source.basis}</Txt>
-                {pic.source.url ? (
-                  <Pressable onPress={() => void Linking.openURL(pic.source.url).catch(() => undefined)} accessibilityRole="link">
-                    <Txt style={[styles.small, { color: theme.accent }]} numberOfLines={1}>{`${T.picture.source}: ${pic.source.url.replace(/^https?:\/\//, '')}`}</Txt>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
+            {about ? <PicAbout pic={pic} head={false} /> : null}
           </>
         ) : null}
       </ScrollView>
@@ -90,6 +80,4 @@ const styles = StyleSheet.create({
   small: { fontSize: 13, lineHeight: 18 },
   plus: { borderWidth: 1, borderRadius: 6, padding: 10, gap: 2, marginTop: 4 },
   go: { marginTop: 10 },
-  aboutBox: { gap: 6 },
-  aboutText: { fontSize: 16, lineHeight: 23 },
 });

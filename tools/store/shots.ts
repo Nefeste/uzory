@@ -10,12 +10,10 @@ import { mkdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Page } from 'playwright';
 import sharp from 'sharp';
-import { base64Encode } from '../../src/engine/base64';
-import { CANVAS, type Pattern } from '../../src/engine/pattern';
-import { utf8Encode } from '../../src/engine/utf8';
+import type { Pattern } from '../../src/engine/pattern';
 import type { Stroke } from '../../src/engine/work';
-import { encodeWork } from '../../src/engine/workfile';
 import { buildAll } from '../content/build';
+import { allButLast, type Seed, seed, seedWork } from '../e2e/seed';
 
 const ROOT = join(import.meta.dir, '..', '..');
 const DIST = join(ROOT, 'dist-web');
@@ -59,46 +57,9 @@ function progress(p: Pattern, share: number, fullThreads: number[] = []): Stroke
   return out;
 }
 
-interface Seed { id: string; key: string; strokes: Stroke[]; at: { x: number; y: number }; done: number; total: number }
-
-function seed(id: string, p: Pattern, strokes: Stroke[], at: { x: number; y: number }): Seed {
-  const done = strokes.reduce((n, s) => n + s.cells.length, 0);
-  const total = p.cells.filter((c) => c !== CANVAS).length;
-  return { id, key: p.key, strokes, at, done, total };
-}
-
 async function open(page: Page, s: Seed, settings: Record<string, unknown>) {
-  // начали 42 минуты назад — «Готово» покажет правдоподобное время
-  const started = Date.now() - 42 * 60_000;
-  const bytes = encodeWork(s.key, started, s.strokes);
-  const index = [{ id: s.id, pattern: s.key, started, done: s.done, total: s.total, opened: started + 40 * 60_000, at: s.at }];
-  // работы веб-сборки — в IndexedDB (src/state/files.web.ts), настройки — в localStorage:
-  // страница открывается, файлы кладутся в её базу, и она открывается заново уже с работой
   await page.goto(base);
-  await page.evaluate(async ([id, work, idx, set]) => {
-    localStorage.clear();
-    localStorage.setItem('uzory.settings.v1', set);
-    const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    await new Promise<void>((resolve, reject) => {
-      const r = indexedDB.open('uzory', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('files');
-      r.onerror = () => reject(r.error);
-      r.onsuccess = () => {
-        const db = r.result;
-        const t = db.transaction('files', 'readwrite');
-        const files = t.objectStore('files');
-        files.clear();
-        files.put(bytesOf(work), `${id}.log`);
-        files.put(bytesOf(idx), 'index.json');
-        t.oncomplete = () => {
-          db.close();
-          resolve();
-        };
-        t.onerror = () => reject(t.error);
-      };
-    });
-  }, [s.id, base64Encode(bytes), base64Encode(utf8Encode(JSON.stringify(index))), JSON.stringify(settings)] as const);
-  await page.reload();
+  await seedWork(page, s, { 'uzory.settings.v1': JSON.stringify(settings) });
   // строка о мыши и колёсике — только в браузере: на телефоне, для которого эти снимки, её нет
   await page.addStyleTag({ content: '[data-testid="hint"] { display: none !important; }' });
   await page.getByTestId('continue').waitFor({ timeout: 60_000 });
@@ -167,13 +128,10 @@ try {
   // 5–6. Готово и «Как вышивалось»: последняя клетка — в центре экрана
   await shot(async (page) => {
     const p = get('pg-krestyanskie-devushki').pattern;
-    const all = progress(p, 1);
-    const last = all[all.length - 1];
-    const cell = last.cells.pop()!;
-    if (!last.cells.length) all.pop();
-    const x = cell % p.w;
-    const y = (cell - x) / p.w;
-    await open(page, seed('w-shot-5', p, all, { x: x + 0.5, y: y + 0.5 }), { ...base0, style: 'cross' });
+    const { strokes, last } = allButLast(p);
+    const x = last % p.w;
+    const y = (last - x) / p.w;
+    await open(page, seed('w-shot-5', p, strokes, { x: x + 0.5, y: y + 0.5 }), { ...base0, style: 'cross' });
     const box = (await page.getByTestId('canvas').boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.getByTestId('replay').waitFor({ timeout: 15_000 });

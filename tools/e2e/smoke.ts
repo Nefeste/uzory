@@ -6,13 +6,14 @@
 // Сборку для сайта (docs/specs/2026-09-web.md) сценарий открывает из её папки:
 //   UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
 //   E2E_DIST=dist-site E2E_BASE=/uzory/test bun tools/e2e/smoke.ts
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Download, type Page } from 'playwright';
 import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { fillRegion } from '../../src/engine/regions';
 import { buildAll } from '../content/build';
+import { allButLast, seed, seedWork } from './seed';
 
 const ROOT = join(import.meta.dir, '../..');
 const DIST = join(ROOT, process.env.E2E_DIST ?? 'dist-web');
@@ -341,8 +342,16 @@ try {
   }
   check(whereHint.includes('Где ещё?'), 'у нити меньше десяти клеток — подсказка про «Где ещё?»');
   await page.getByTestId('replay').waitFor({ timeout: 15_000 });
-  check(true, 'последний стежок — экран «Готово»');
+  check(await page.getByTestId('done-frame').isVisible(), 'последний стежок — экран «Готово», работа в рамке');
   await page.screenshot({ path: join(OUT, '03-done.png') });
+  // «Поделиться» в вебе — файл PNG: работа в рамке, под ней подпись
+  const shared = page.waitForEvent('download', { timeout: 15_000 });
+  await page.getByTestId('share').click();
+  const png = await shared.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
+  const dims = png && png.bytes.subarray(1, 4).toString() === 'PNG' ? [png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)] : [0, 0];
+  check(png?.name === 'uzory-first-picture.png' && dims.every((n) => n >= 1100 && n <= 2000) && dims[1] > dims[0],
+    `«Поделиться»: ${png?.name ?? 'файл не скачался'} ${dims.join(' × ')}`);
+  if (png) writeFileSync(join(OUT, '03-share.png'), png.bytes);
   await page.getByTestId('replay').click();
   await page.waitForTimeout(3000);
   await page.screenshot({ path: join(OUT, '04-replay.png') });
@@ -386,6 +395,41 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
+
+  // «Дальше» после картинки из библиотеки — карточка картинки дня (или следующей в коллекции,
+  // если картинка дня — эта же). «Ромбы кольцами» 23 × 23 в широком окне открываются целиком:
+  // пять областей — пять двойных касаний
+  const koltsa = built.find((b) => b.card.id === 'romb-koltsa')!.pattern;
+  await page.setViewportSize({ width: 720, height: 860 });
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('lib-all-ornaments').click();
+  await page.getByTestId('tile-romb-koltsa').click();
+  await page.getByTestId('picture-stitch').click();
+  await page.getByTestId('canvas').waitFor();
+  await page.waitForTimeout(1500);
+  const filled = new Uint8Array(koltsa.cells.length);
+  for (let t = 0; t < koltsa.threads.length; t++) {
+    await page.getByTestId(`thread-${t + 1}`).click();
+    for (let i = 0; i < koltsa.cells.length; i++) {
+      if (koltsa.cells[i] !== t || filled[i]) continue;
+      for (const c of fillRegion(koltsa, filled, i)) filled[c] = 1;
+      const pt = await cellPoint(page, koltsa, i);
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(80);
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(400);
+    }
+  }
+  await page.getByTestId('replay').waitFor({ timeout: 15_000 });
+  check((await page.getByTestId('done-about').count()) === 0, '«Готово» своего орнамента — без «О картине»: рассказывать нечего');
+  await page.getByTestId('next').click();
+  await page.getByTestId('picture').waitFor({ timeout: 5000 }).catch(() => {});
+  const nextTitle = (await page.getByTestId('picture').innerText().catch(() => '')).split('\n').find((l) => l.trim()) ?? '';
+  check(!!nextTitle && nextTitle !== 'Ромбы кольцами' && (dailyTitle.includes('Ромбы кольцами') || dailyTitle.includes(nextTitle)),
+    `«Дальше» — карточка картинки дня: «${nextTitle}»`);
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-daily').waitFor();
+  await page.setViewportSize({ width: 400, height: 860 });
 
   // лист
   await page.getByTestId('home-sheet').click();
@@ -471,6 +515,42 @@ try {
   await page.getByTestId('replay').waitFor();
   await page.getByTestId('next').click();
   await page.getByTestId('home-daily').waitFor();
+
+  // «Готово» большой картины — в отдельной вкладке с чистым хранилищем: «Крестьянские девушки»
+  // без последней клетки, последний стежок — в центре экрана. «О картине» — автор с годами
+  // жизни и источник, «Поделиться» — PNG, «Дальше» — карточка картинки
+  const ctx2 = await browser.newContext({ viewport: { width: 400, height: 860 } });
+  const page2 = await ctx2.newPage();
+  page2.on('pageerror', (e) => errors.push(e.message));
+  page2.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  const girls = built.find((b) => b.card.id === 'pg-krestyanskie-devushki')!.pattern;
+  const tail = allButLast(girls);
+  const gx = tail.last % girls.w;
+  await page2.goto(base);
+  await seedWork(page2, seed('w-e2e-girls', girls, tail.strokes, { x: gx + 0.5, y: (tail.last - gx) / girls.w + 0.5 }), {});
+  await page2.getByTestId('continue').click();
+  await page2.getByTestId('canvas').waitFor({ timeout: 30_000 });
+  await page2.waitForTimeout(2000);
+  const gb = (await page2.getByTestId('canvas').boundingBox())!;
+  await page2.mouse.click(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await page2.getByTestId('replay').waitFor({ timeout: 15_000 });
+  await page2.getByTestId('done-about').click();
+  const aboutText = await page2.getByTestId('done-about-panel').innerText().catch(() => '');
+  check(aboutText.includes('Прокудин-Горский (1863–1944), 1909') && aboutText.includes('Источник: www.loc.gov')
+    && aboutText.includes('Сергей Прокудин-Горский. Крестьянские девушки, 1909. Схема для вышивки по мотивам снимка'),
+    '«Готово» картины: «О картине» — автор с годами жизни, год, подпись и источник');
+  await page2.screenshot({ path: join(OUT, '03-done-about.png') });
+  await page2.getByTestId('done-about-close').click();
+  const shared2 = page2.waitForEvent('download', { timeout: 20_000 });
+  await page2.getByTestId('share').click();
+  const png2 = await shared2.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
+  const dims2 = png2 ? [png2.bytes.readUInt32BE(16), png2.bytes.readUInt32BE(20)] : [0, 0];
+  check(png2?.name === 'uzory-pg-krestyanskie-devushki.png' && dims2.every((n) => n >= 1100 && n <= 2000),
+    `«Поделиться» большой картины: ${png2?.name ?? 'файл не скачался'} ${dims2.join(' × ')}`);
+  await page2.getByTestId('next').click();
+  await page2.getByTestId('picture').waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page2.getByTestId('picture').count()) === 1, '«Дальше» после картины — карточка следующей картинки');
+  await ctx2.close();
 
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
