@@ -12,6 +12,7 @@ import { openPack, type Pack, packError } from '../engine/pack';
 import { sha256Hex, verifyCatalog } from '../engine/sign';
 import { utf8Decode } from '../engine/utf8';
 import { APP_VERSION } from '../version';
+import { counterQuery } from './counters';
 import { logError } from './crashlog';
 import { trustedKeys } from './keys';
 import { addPacks, packIds } from './library';
@@ -130,10 +131,13 @@ function init(today: string): Promise<void> {
 
 let running: Promise<void> | null = null;
 
-/** Спросить каталог, если сегодня ещё не спрашивали; одновременно — один раз. */
-export function syncNet(today: string, now = Date.now()): Promise<void> {
+/**
+ * Спросить каталог, если сегодня ещё не спрашивали; одновременно — один раз. `installed` —
+ * день первого запуска: из него счётчики берут неделю установки и сколько дней прошло.
+ */
+export function syncNet(today: string, installed: string, now = Date.now()): Promise<void> {
   running ??= init(today)
-    .then(() => sync(today, now))
+    .then(() => sync(today, installed, now))
     .catch((e) => logError('pack', e, 'net'))
     .finally(() => {
       running = null;
@@ -141,17 +145,19 @@ export function syncNet(today: string, now = Date.now()): Promise<void> {
   return running;
 }
 
-async function sync(today: string, now: number): Promise<void> {
+async function sync(today: string, installed: string, now: number): Promise<void> {
   await activate(today);
   // ключей подписи ещё нет — проверить каталог нечем, и спрашивать его незачем
   if (!trustedKeys().length) return;
   if (state.okDay === today) return;
   if (state.triedAt !== undefined && now >= state.triedAt && now - state.triedAt < HOUR) return;
   await save({ ...state, triedAt: now });
+  // счётчики — только в первой попытке дня (docs/03-server-api.md, «Счётчики»); подписки ещё нет
+  const q = await counterQuery(today, installed, false);
   let text: Uint8Array;
   let sig: string;
   try {
-    text = await get('catalog.json');
+    text = await get(q ? `catalog.json?${q}` : 'catalog.json');
     sig = utf8Decode(await get('catalog.sig'));
   } catch {
     return; // нет сети, таймаут, не 200 — тихо: повтор не раньше чем через час
@@ -221,7 +227,8 @@ export function useNet(): NetState {
  * показалась бы исчезнувшей). Потом — каталог сейчас и при каждом возвращении в игру.
  */
 export function useNetReady(): boolean {
-  const { loaded, today } = usePlayer();
+  const { player, loaded, today } = usePlayer();
+  const installed = player.installed;
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!loaded) return;
@@ -235,11 +242,11 @@ export function useNetReady(): boolean {
   }, [loaded, today]);
   useEffect(() => {
     if (!ready) return;
-    void syncNet(today);
+    void syncNet(today, installed);
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') void syncNet(todayLocal());
+      if (s === 'active') void syncNet(todayLocal(), installed);
     });
     return () => sub.remove();
-  }, [ready, today]);
+  }, [ready, today, installed]);
   return ready;
 }

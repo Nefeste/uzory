@@ -39,4 +39,6 @@ export const KEYS = {
   player: 'uzory.player.v1',
   /** раздача картинок: когда спрашивали каталог, скачанные наборы, строка на главной (src/state/net.ts) */
   net: 'uzory.net.v1',
+  /** счётчики суток: итоги дня игры для первого за день запроса каталога (src/state/counters.ts) */
+  counters: 'uzory.counters.v1',
 };
