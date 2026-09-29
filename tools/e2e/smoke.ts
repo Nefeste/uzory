@@ -9,7 +9,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Download, type Page } from 'playwright';
-import { type Camera, clampX, clampY, fitScale, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
+import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { fillRegion } from '../../src/engine/regions';
 import { buildAll } from '../content/build';
@@ -216,6 +216,8 @@ try {
         const x = good.tx + ((i % first.w) + 0.5) * good.s;
         const y = good.ty + (Math.floor(i / first.w) + 0.5) * good.s;
         if (x < 20 || y < 20 || x > W - 20 || y > H - 20) continue;
+        // в углу приближённой канвы — мини-карта: щелчок по ней двигает камеру, а не вышивает
+        if (inMap(mapRect(first.w, first.h, W, H, good.s), x, y) || inMap(mapRect(first.w, first.h, W, H, bad.s), x, y)) continue;
         const j = cellAt(bad, x, y);
         if (j >= 0 && first.cells[j] === t) continue;
         used.add(i);
@@ -273,6 +275,15 @@ try {
     const closer = zoom(moved, W / 2, H / 2, 1.25);
     await page.waitForTimeout(200);
     check(await stitchAt(target(closer, moved)), `«+» приблизил: ${moved.s.toFixed(1)} → ${closer.s.toFixed(1)}`);
+
+    // мини-карта (docs/specs/2026-09-canvas.md): узор уже не весь на экране — щелчок по мини-карте
+    // у правого нижнего угла узора переносит камеру туда
+    const map = mapRect(first.w, first.h, W, H, closer.s);
+    const mp = map ? { x: map.x + map.w * 0.8, y: map.y + map.h * 0.85 } : null;
+    const jumped = map && mp ? mapJump(map, mp.x, mp.y, closer.s, first.w, first.h, W, H) : closer;
+    if (mp) await page.mouse.click(box.x + mp.x, box.y + mp.y);
+    await page.waitForTimeout(300);
+    check(!!map && await stitchAt(target(jumped, closer)), 'мини-карта: щелчок перенёс камеру к этому месту узора');
 
     // «0» — весь узор, как при открытии: дальше сценарий снова считает клетки от него
     await page.keyboard.press('0');

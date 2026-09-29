@@ -10,16 +10,19 @@ import { useSettings } from '../state/settings';
 
 const ITEM = 58;
 
-export function ThreadBar({ threads, left, selected, onSelect, onLong }: {
+export function ThreadBar({ threads, left, selected, stay, onSelect, onLong }: {
   threads: Thread[];
   left: ArrayLike<number>;
   selected: number;
+  /** только что законченная нить: секунду стоит на месте с ✓, потом уезжает в конец */
+  stay?: number | null;
   onSelect: (t: number) => void;
   onLong: (t: number) => void;
 }) {
   const { theme } = useSettings();
   const scroll = useRef<ScrollView>(null);
-  const order = threads.map((_, i) => i).sort((a, b) => Number(left[a] === 0) - Number(left[b] === 0) || a - b);
+  const gone = (t: number) => left[t] === 0 && t !== stay;
+  const order = threads.map((_, i) => i).sort((a, b) => Number(gone(a)) - Number(gone(b)) || a - b);
   const pos = order.indexOf(selected);
 
   useEffect(() => {

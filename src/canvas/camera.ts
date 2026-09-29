@@ -56,6 +56,49 @@ export function wheelFactor(deltaY: number, deltaMode: number, ctrl: boolean, vh
   return Math.exp(-px * (ctrl ? 0.01 : 0.002));
 }
 
+/** Мини-карта (docs/08-game-design.md, «Экран вышивания»): длинная сторона картинки в ней, dp. */
+export const MAP_DP = 96;
+/** Отступ мини-карты от края канвы и поля вокруг картинки в ней, dp. */
+export const MAP_MARGIN = 8;
+export const MAP_PAD = 3;
+/** Рамка «где я» на мини-карте — не меньше стольких dp: у большой картины она иначе в точку. */
+export const MAP_FRAME = 7;
+
+/** Картинка мини-карты на канве (без полей) и сколько dp в ней на клетку. */
+export interface MapRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  k: number;
+}
+
+/**
+ * Мини-карта — в правом верхнем углу канвы: внизу строка подсказок и полоса нитей. Её нет,
+ * когда весь узор и так на экране.
+ */
+export function mapRect(w: number, h: number, vw: number, vh: number, s: number): MapRect | null {
+  'worklet';
+  if (w * s <= vw && h * s <= vh) return null;
+  const side = Math.min(MAP_DP, vw * 0.3, vh * 0.3);
+  const k = side / Math.max(w, h);
+  return { x: vw - MAP_MARGIN - MAP_PAD - w * k, y: MAP_MARGIN + MAP_PAD, w: w * k, h: h * k, k };
+}
+
+/** Касание (px, py) пришлось на мини-карту, вместе с её полями. */
+export function inMap(m: MapRect | null, px: number, py: number): boolean {
+  'worklet';
+  return !!m && px >= m.x - MAP_PAD && px <= m.x + m.w + MAP_PAD && py >= m.y - MAP_PAD && py <= m.y + m.h + MAP_PAD;
+}
+
+/** Касание мини-карты — камера, у которой это место узора в центре экрана. */
+export function mapJump(m: MapRect, px: number, py: number, s: number, w: number, h: number, vw: number, vh: number): Camera {
+  'worklet';
+  const cx = Math.min(w, Math.max(0, (px - m.x) / m.k));
+  const cy = Math.min(h, Math.max(0, (py - m.y) / m.k));
+  return { s, tx: clampX(vw / 2 - cx * s, s, w, vw), ty: clampY(vh / 2 - cy * s, s, h, vh) };
+}
+
 /** Камера, при которой клетка (cx, cy) — в центре экрана при масштабе s. */
 export function centerOn(cx: number, cy: number, s: number, vw: number, vh: number): Camera {
   'worklet';

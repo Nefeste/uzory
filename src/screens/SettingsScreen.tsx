@@ -1,6 +1,6 @@
 // Настройки (docs/08-game-design.md, «Настройки»; docs/specs/2026-09-first-picture.md, «Основа
-// приложения»): всё, что уже есть в игре. Чего ещё нет — музыки и звуков, «Узоры+», переноса
-// работ, — здесь не видно: скрыто, а не выключено.
+// приложения»): всё, что уже есть в игре. Чего ещё нет — музыки, «Узоры+», переноса работ, —
+// здесь не видно: скрыто, а не выключено.
 import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { T } from '../i18n';
 import { usePlayer } from '../state/player';
@@ -42,13 +42,13 @@ export function SettingsScreen({ onBack, onReport, onAbout }: { onBack: () => vo
             update({ hints: v });
             if (v) player.update({ hints: [] });
           }} />
+        <SectionTitle>{T.settings.feel}</SectionTitle>
+        <ToggleRow label={T.settings.sound} note={T.settings.soundNote} value={settings.sound}
+          onChange={(v) => update({ sound: v })} testID="set-sound" />
         {/* вибрации в браузере нет */}
         {Platform.OS !== 'web' ? (
-          <>
-            <SectionTitle>{T.settings.feel}</SectionTitle>
-            <ToggleRow label={T.settings.haptics} note={T.settings.hapticsNote} value={settings.haptics}
-              onChange={(v) => update({ haptics: v })} testID="set-haptics" />
-          </>
+          <ToggleRow label={T.settings.haptics} note={T.settings.hapticsNote} value={settings.haptics}
+            onChange={(v) => update({ haptics: v })} testID="set-haptics" />
         ) : null}
         <SectionTitle>{T.settings.help}</SectionTitle>
         <View style={styles.buttons}>

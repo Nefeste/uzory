@@ -15,6 +15,7 @@ import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
+import { play } from '../state/sound';
 import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
@@ -59,6 +60,8 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [panel, setPanel] = useState<'menu' | 'about' | null>(null);
   const [taps, setTaps] = useState(0);
+  // законченная нить секунду стоит на месте с ✓ (docs/specs/2026-09-canvas.md, «Полоса нитей»)
+  const [justDone, setJustDone] = useState<number | null>(null);
   // работа экрана — та, с которой он открылся: новую корень запомнит (onStarted), а экран её не пересоздаст
   const [openId] = useState(workId);
   const sizeRef = useRef<{ w: number; h: number } | null>(null);
@@ -120,12 +123,20 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
     updatePlayer((p) => ({ hints: hintsAfter(p.hints, a) }));
   };
 
+  // стежок: шорох и щелчок вибрации — канва зовёт не чаще 20 раз в секунду
   const tick = () => {
+    if (settings.sound) play('stitch');
     if (settings.haptics && Platform.OS !== 'web') void Haptics.selectionAsync();
   };
 
   const after = (s: WorkSession, thread: number) => {
     setVersion((v) => v + 1);
+    if (s.state.left[thread] === 0 && justDone !== thread) {
+      setJustDone(thread);
+      setTimeout(() => setJustDone((j) => (j === thread ? null : j)), 1000);
+      // нить готова — тихий звон; картинка готова — свой звук
+      if (settings.sound) play(s.state.finished ? 'done' : 'thread');
+    }
     if (s.state.finished) {
       api.current?.fit(800);
       void s.flush(true).then(() => setTimeout(() => onDone(s.id), 1200));
@@ -168,6 +179,7 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
     const region = fillRegion(pattern, session.state.stitched, cell);
     const ok = session.stitch(t, region, Date.now(), true);
     api.current?.stitch(ok);
+    if (ok.length) tick();
     after(session, t);
   };
 
@@ -256,7 +268,7 @@ export function StitchScreen({ pattern, title, workId, info, onBack, onDone, onS
       <View style={styles.bar}>
         <Button small kind="secondary" label={`${T.stitch.where} ${left}`} onPress={where} testID="where" style={styles.where} />
         {session ? (
-          <ThreadBar threads={pattern.threads} left={session.state.left} selected={selected}
+          <ThreadBar threads={pattern.threads} left={session.state.left} selected={selected} stay={justDone}
             onSelect={(t) => { setSelected(t); setLine(null); }}
             onLong={(t) => setLine({ text: T.stitch.threadName(t + 1, pattern.threads[t].name) })} />
         ) : null}
