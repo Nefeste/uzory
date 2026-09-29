@@ -1,0 +1,21 @@
+# Старинная схема для вышивки (разведка альбомов, 29.09.2026), раскрашенная по клеткам;
+# на листе — «Th: Wilh Meister vom A. Todt in Berlin».
+id: berlin-olen
+title: Олень
+collection: schemes
+order: 0
+author: { name: "неизвестный художник, Берлин" }
+made: "около 1850"
+place: "Купер-Хьюитт, Смитсоновский музей дизайна, Нью-Йорк (18434273)"
+museum: abroad
+source:
+  file: berlin-olen.jpg
+  url: https://commons.wikimedia.org/wiki/File:Drawing,_Design_for_Berlin_Wool_Work,_Stag,_ca._1850_(CH_18434273-2).jpg
+  basis: "Викисклад: Public domain; музей Купер-Хьюитт (Смитсоновский институт), открытый доступ CC0; работа около 1850 года — общественное достояние по сроку"
+pattern:
+  chart: [0.21, 0.225, 0.74, 0.748]   # рамка чуть шире сетки; линии сборка находит сама, поле отрезает
+  cells: [80, 107]
+  size: 107
+  inset: 0.25      # цвет — середина клетки без линий сетки
+  threads: 20
+  canvas: "#a6b3bc"      # бумага схемы — фон, не вышивается

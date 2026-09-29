@@ -17,7 +17,8 @@ import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex } from '../../src/engine/pattern';
 import { type Card, CONTENT, listCards, readCard, releasable, ROOT } from './cards';
 import { type Checked, checkPattern } from './checks';
-import { decode, toGrid } from './image';
+import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
+import { decode, type Grid, toGrid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { type BuildLog, buildPattern } from './palette';
 
@@ -51,9 +52,22 @@ export async function buildCard(card: Card): Promise<{ pattern: Pattern; log?: B
   const file = join(card.dir, card.source.file!);
   if (!existsSync(file)) throw new Error(`исходника ${card.source.file} нет рядом с карточкой`);
   const raster = await decode(file);
-  const grid = toGrid(raster, card.pattern!.crop ?? [0, 0, 1, 1], card.pattern!.size);
-  const canvas = card.pattern!.canvas ? parseHex(card.pattern!.canvas)! : undefined;
-  return buildPattern(grid, { id: card.id, v: card.v, threads: card.pattern!.threads, canvas, canvasDelta: card.pattern!.canvas_delta });
+  const p = card.pattern!;
+  const canvas = p.canvas ? parseHex(p.canvas)! : undefined;
+  let grid: Grid;
+  if (p.chart) {
+    // старинная схема: линии сетки — по скану, число клеток — сверка с карточкой
+    let cells = sampleChart(raster, detectChart(raster, p.chart), p.inset ?? 0.25);
+    if (cells.w !== p.cells![0] || cells.h !== p.cells![1]) throw new Error(`схема: вышло ${cells.w} × ${cells.h} клеток, в карточке ${p.cells!.join(' × ')}`);
+    const delta = p.canvas_delta ?? PAPER_DELTA;
+    if (canvas === undefined) grid = cells;
+    else if (p.white_paper) {
+      // пожелтевший лист: цвета — как на белой бумаге, и бумага теперь белая
+      cells = whiten(cells);
+      grid = { ...cells, paper: whitePaperCells(cells, delta) };
+    } else grid = { ...cells, paper: paperCells(cells, canvas, delta, p.canvas_lines ?? PAPER_LINES) };
+  } else grid = toGrid(raster, p.crop ?? [0, 0, 1, 1], p.size);
+  return buildPattern(grid, { id: card.id, v: card.v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact });
 }
 
 export function toPicture(card: Card, size: Picture['size'], created: string, trial: string | null): Picture {

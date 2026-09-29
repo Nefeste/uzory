@@ -61,7 +61,8 @@ async function sourceTile(b: Built): Promise<Buffer | null> {
   const h0 = meta.height ?? 1;
   const h = H;
   const w = Math.round((w0 * h) / h0);
-  const [l, t, r, bt] = b.card.pattern?.crop ?? [0, 0, 1, 1];
+  // рамка кадра, у старинной схемы — рамка сетки
+  const [l, t, r, bt] = b.card.pattern?.chart ?? b.card.pattern?.crop ?? [0, 0, 1, 1];
   const frame = Buffer.from(`<svg width="${w}" height="${h}"><rect x="${l * w}" y="${t * h}" width="${(r - l) * w}" height="${(bt - t) * h}" fill="none" stroke="#b3162f" stroke-width="3"/></svg>`);
   return img.resize({ height: h }).composite([{ input: frame }]).png().toBuffer();
 }

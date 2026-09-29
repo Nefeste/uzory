@@ -33,7 +33,17 @@ export interface BuildOptions {
   canvasDelta?: number;
   /** порог различимости вместо MIN_DELTA — для листа вариантов П3 */
   minDelta?: number;
+  /**
+   * Печатная схема ровными красками (pattern.exact): одиночная клетка и мелкое пятно —
+   * замысел художника (шахматка, точка в середине ромба), а не шум съёмки. Чистка
+   * перекрашивает их только в почти тот же цвет (ближе EXACT_CLOSE): уходит лишь спорная
+   * граница между двумя похожими красками.
+   */
+  exact?: boolean;
 }
+
+/** Точная схема: мелкое пятно перекрашивается в соседнюю нить, только если цвета ближе этого. */
+export const EXACT_CLOSE = 0.1;
 
 export interface BuildLog {
   asked: number;
@@ -159,8 +169,9 @@ export function regions(cells: Int32Array, w: number, h: number): { comp: Int32A
 /**
  * Чистка: область меньше SMALL_REGION клеток перекрашивается в соседнюю нить с самой
  * длинной общей границей; до CLEAN_PASSES проходов. −1 в клетках — канва, её не трогаем.
+ * `may(from, to)` — можно ли так перекрасить (у схемы — только в почти тот же цвет).
  */
-export function cleanup(cells: Int32Array, w: number, h: number): boolean {
+export function cleanup(cells: Int32Array, w: number, h: number, may?: (from: number, to: number) => boolean): boolean {
   let changed = false;
   for (let pass = 0; pass < CLEAN_PASSES; pass++) {
     const { comp, sizes } = regions(cells, w, h);
@@ -171,7 +182,7 @@ export function cleanup(cells: Int32Array, w: number, h: number): boolean {
       const x = i % w;
       const y = (i - x) / w;
       for (const k of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
-        if (k < 0 || cells[k] < 0 || cells[k] === cells[i]) continue;
+        if (k < 0 || cells[k] < 0 || cells[k] === cells[i] || (may && !may(cells[i], cells[k]))) continue;
         const m = border.get(c) ?? new Map<number, number>();
         m.set(cells[k], (m.get(cells[k]) ?? 0) + 1);
         border.set(c, m);
@@ -211,12 +222,12 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   const n = g.w * g.h;
   const labs: Lab[] = new Array(n);
   for (let i = 0; i < n; i++) labs[i] = linearToLab(g.rgb[i * 3], g.rgb[i * 3 + 1], g.rgb[i * 3 + 2]);
-  // канва: клетки близко к объявленному фону остаются невышитыми
+  // канва: клетки близко к объявленному фону остаются невышитыми; у схемы фон найден заранее
   const cells = new Int32Array(n);
   const bg = o.canvas !== undefined ? rgbToLab(o.canvas) : null;
   const stitchIdx: number[] = [];
   for (let i = 0; i < n; i++) {
-    if (bg && deltaOK(labs[i], bg) < (o.canvasDelta ?? 0.06)) cells[i] = -1;
+    if (g.paper ? g.paper[i] === 1 : bg && deltaOK(labs[i], bg) < (o.canvasDelta ?? 0.06)) cells[i] = -1;
     else stitchIdx.push(i);
   }
   const size = sizeOf(stitchIdx.length);
@@ -254,7 +265,8 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // Чистка, слияние маленьких нитей, пересчёт цветов и различимость — пока что-то меняется.
   // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
   for (let round = 0; round < 8; round++) {
-    let changed = cleanup(cells, g.w, g.h);
+    const may = o.exact ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE : undefined;
+    let changed = cleanup(cells, g.w, g.h, may);
     let wt = weights();
     for (;;) {
       let worst = -1;
