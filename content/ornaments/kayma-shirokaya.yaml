@@ -1,0 +1,15 @@
+# Кайма рушника пошире: ромбы в две клетки между еловыми полосами. Своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-shirokaya
+title: Широкая кайма
+collection: ornaments
+order: 10
+source:
+  url: ""
+  basis: своя работа студии (генератор border)
+drawn:
+  generator: border
+  params: { width: 39, height: 15, step: 13 }
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#d9a441", медовая]

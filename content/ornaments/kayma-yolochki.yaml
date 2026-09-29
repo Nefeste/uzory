@@ -1,0 +1,30 @@
+# Кайма с ёлочками: четыре ёлочки и медовые ромбики между кумачовыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-yolochki
+title: Кайма с ёлочками
+collection: ornaments
+order: 16
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#2f6b3a", хвойная]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    .......................................
+    .......................................
+    ....e.........e.........e.........e....
+    ....e.........e.........e.........e....
+    ...eee.......eee.......eee.......eee...
+    ...eee...l...eee...l...eee...l...eee...
+    ..eeeee.lll.eeeee.lll.eeeee.lll.eeeee..
+    ..eeeee..l..eeeee..l..eeeee..l..eeeee..
+    .eeeeeee...eeeeeee...eeeeeee...eeeeeee.
+    .eeeeeee...eeeeeee...eeeeeee...eeeeeee.
+    ...lll.......lll.......lll.......lll...
+    ...lll.......lll.......lll.......lll...
+    .......................................
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk

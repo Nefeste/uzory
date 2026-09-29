@@ -1,0 +1,52 @@
+# Ромбовая сетка — поле рушника: косые линии ромбами, в ячейках — ромбы-кольца, в перекрестьях — крестики.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: rombovaya-setka
+title: Ромбовая сетка
+collection: ornaments
+order: 17
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    ll..vlllv..lll..vlllv..lll..vlllv..ll
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ..k...v...k...k...v...k...k...v...k..
+    ...k.....k.....k.....k.....k.....k...
+    v...k...k...v...k...k...v...k...k...v
+    lv...klk...vlv...klk...vlv...klk...vl
+    llv..lll..vlllv..lll..vlllv..lll..vll
+    lv...klk...vlv...klk...vlv...klk...vl
+    v...k...k...v...k...k...v...k...k...v
+    ...k.....k.....k.....k.....k.....k...
+    ..k...v...k...k...v...k...k...v...k..
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ll..vlllv..lll..vlllv..lll..vlllv..ll
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ..k...v...k...k...v...k...k...v...k..
+    ...k.....k.....k.....k.....k.....k...
+    v...k...k...v...k...k...v...k...k...v
+    lv...klk...vlv...klk...vlv...klk...vl
+    llv..lll..vlllv..lll..vlllv..lll..vll
+    lv...klk...vlv...klk...vlv...klk...vl
+    v...k...k...v...k...k...v...k...k...v
+    ...k.....k.....k.....k.....k.....k...
+    ..k...v...k...k...v...k...k...v...k..
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ll..vlllv..lll..vlllv..lll..vlllv..ll
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ..k...v...k...k...v...k...k...v...k..
+    ...k.....k.....k.....k.....k.....k...
+    v...k...k...v...k...k...v...k...k...v
+    lv...klk...vlv...klk...vlv...klk...vl
+    llv..lll..vlllv..lll..vlllv..lll..vll
+    lv...klk...vlv...klk...vlv...klk...vl
+    v...k...k...v...k...k...v...k...k...v
+    ...k.....k.....k.....k.....k.....k...
+    ..k...v...k...k...v...k...k...v...k..
+    lk...vlv...klk...vlv...klk...vlv...kl
+    ll..vlllv..lll..vlllv..lll..vlllv..ll
