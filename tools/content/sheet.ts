@@ -15,7 +15,7 @@ import { renderFrame } from '../canvas/ck';
 import { ROOT, readCard, listCards } from './cards';
 import { type Built, buildAll } from './build';
 import { decode, toGrid } from './image';
-import { buildPattern } from './palette';
+import { buildPattern } from '../../src/engine/build/palette';
 import { checkPattern } from './checks';
 
 const OUT = join(ROOT, 'dist', 'sheet');

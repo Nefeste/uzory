@@ -1,14 +1,14 @@
 // из anamnez: tools/e2e/smoke.ts @ 3d76cf5 (сервер веб-сборки)
 // npm run e2e — сценарий Playwright по веб-сборке (docs/06-testing.md, §5): главная,
 // первая картинка от первого стежка до «Готово» и «Как вышивалось», мышь и клавиши, лист,
-// замер, файл работы. Сначала `npm run export:web`. Снимки экранов — в tools/e2e/out/.
+// свой узор, замер, файл работы. Сначала `npm run export:web`. Снимки экранов — в tools/e2e/out/.
 //
 // Сборку для сайта (docs/specs/2026-09-web.md) сценарий открывает из её папки:
 //   UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
 //   E2E_DIST=dist-site E2E_BASE=/uzory/test bun tools/e2e/smoke.ts
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { chromium, type Page } from 'playwright';
+import { chromium, type Download, type Page } from 'playwright';
 import { type Camera, clampX, clampY, fitScale, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { fillRegion } from '../../src/engine/regions';
@@ -26,10 +26,15 @@ mkdirSync(OUT, { recursive: true });
 const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.ttf': 'font/ttf', '.ico': 'image/x-icon' };
+/** что просила страница, кроме чтения файлов самой сборки: свой снимок не должен уходить в сеть */
+const requests: string[] = [];
 const server = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
   async fetch(req) {
+    const asked = new URL(req.url).pathname;
+    const own = req.method === 'GET' && (await Bun.file(join(DIST, decodeURIComponent(asked).slice(BASE.length))).exists());
+    if (!own) requests.push(`${req.method} ${asked}`);
     let path = decodeURIComponent(new URL(req.url).pathname);
     if (BASE) {
       // вне папки игры на сайте — чужие страницы: сборка не должна туда ходить
@@ -267,6 +272,67 @@ try {
   check((await page.locator('[data-testid^="sheet-"]').count()) >= Math.min(built.length, 5), `лист: ${built.length} картинок в наборе`);
   await page.screenshot({ path: join(OUT, '05-sheet.png') });
   await page.getByTestId('back').click();
+
+  // свой узор (docs/specs/2026-09-custom.md): снимок → кадр → размер → приговор → «Вышивать»
+  await page.getByTestId('home-mine').click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('mine-pick').click();
+  const sent = requests.length;
+  await (await chooser).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
+  await page.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
+  const meta0 = await page.getByTestId('mine-meta').innerText();
+  check(/^70 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
+  // колёсико над снимком — рамка ближе, узор другой
+  const photoBox = (await page.getByTestId('mine-photo').boundingBox())!;
+  await page.mouse.move(photoBox.x + photoBox.width / 2, photoBox.y + photoBox.height / 2);
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -120);
+  const frame = (await page.getByTestId('mine-frame').boundingBox())!;
+  check(frame.width < photoBox.width * 0.8, 'колёсико приблизило рамку');
+  // малая: лес на 40 клетках рассыпается на мелкие пятна — приговор с советом
+  const metaOf = () => page.getByTestId('mine-meta').innerText();
+  await page.getByTestId('mine-size-S').click();
+  await page.waitForFunction(() => /^40 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
+  const verdictS = await page.getByTestId('mine-verdict').innerText();
+  check(/Подходит|Не подходит/.test(verdictS), `приговор малой: ${verdictS.replace(/\n/g, ' — ')}`);
+  // весь снимок, средняя; «не подходит» — меньше нитей, как советует приговор
+  await page.getByTestId('mine-whole').click();
+  await page.getByTestId('mine-size-M').click();
+  await page.waitForFunction(() => /^70 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
+  for (let i = 0; i < 4 && /Не подходит/.test(await page.getByTestId('mine-verdict').innerText()); i++) {
+    const before = await metaOf();
+    await page.getByTestId('mine-threads-minus').click();
+    await page.waitForFunction((m) => document.querySelector('[data-testid="mine-meta"]')?.textContent !== m, before, { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(600);
+  }
+  const verdict = await page.getByTestId('mine-verdict').innerText();
+  check(!/Не подходит/.test(verdict), `приговор средней: ${verdict.split('\n')[0]}`);
+  await page.screenshot({ path: join(OUT, '09-mine.png') });
+  // карточка для библиотеки: YAML с кадром и снимок без метаданных
+  const downloads: Download[] = [];
+  page.on('download', (d) => downloads.push(d));
+  await page.getByTestId('mine-card').click();
+  await page.waitForTimeout(1500);
+  const yamlFile = downloads.find((d) => d.suggestedFilename().endsWith('.yaml'));
+  const jpgFile = downloads.find((d) => d.suggestedFilename().endsWith('.jpg'));
+  const yamlText = yamlFile ? readFileSync((await yamlFile.path())!, 'utf8') : '';
+  check(!!jpgFile && /\npattern:\n {2}crop: \[/.test(yamlText) && /\n {2}size: 70\n/.test(yamlText), `карточка для библиотеки: ${downloads.map((d) => d.suggestedFilename()).join(', ')}`);
+  await page.getByTestId('mine-stitch').click();
+  await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
+  check(true, 'свой узор открылся на канве');
+  await page.getByTestId('back').click();
+  await page.locator('[data-testid^="mine-item-"]').first().waitFor();
+  // от выбора снимка до сих пор страница не просила у сервера ничего: снимок никуда не ушёл
+  const leaked = requests.slice(sent);
+  check(leaked.length === 0, `снимок не ушёл в сеть${leaked.length ? `: ${leaked.join(', ')}` : ''}`);
+  // после перезагрузки узор на месте: он в хранилище браузера, а снимок — нет
+  await page.reload();
+  await page.getByTestId('home-mine').click();
+  await page.locator('[data-testid^="mine-open-"]').first().click();
+  await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
+  check(true, 'после перезагрузки свой узор продолжается');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('first-stitch').waitFor();
 
   // файл работы и повтор
   await page.getByTestId('home-file').click();

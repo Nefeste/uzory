@@ -15,6 +15,7 @@ import { BenchScreen } from './src/screens/BenchScreen';
 import { DoneScreen } from './src/screens/DoneScreen';
 import { FileScreen } from './src/screens/FileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { MineScreen } from './src/screens/MineScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
@@ -26,6 +27,8 @@ installCrashHandlers();
 type Route =
   | { name: 'home' }
   | { name: 'stitch'; pic: PackPicture; workId?: string }
+  | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
+  | { name: 'mine' }
   | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string }
   | { name: 'sheet' }
   | { name: 'bench' }
@@ -60,7 +63,20 @@ function Root() {
           onSheet={() => go({ name: 'sheet' })}
           onBench={() => go({ name: 'bench' })}
           onFile={() => go({ name: 'file' })}
+          onMine={() => go({ name: 'mine' })}
           onReport={() => go({ name: 'report', from: 'home' })}
+        />
+      );
+      break;
+    case 'mine':
+      screen = <MineScreen onBack={back} owner onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })} />;
+      break;
+    case 'stitchMine':
+      screen = (
+        <StitchScreen
+          key={`${route.pattern.key}-${route.workId ?? 'new'}`}
+          pattern={route.pattern} title={route.title} workId={route.workId} onBack={back}
+          onDone={(workId) => setStack((s) => [...s.slice(0, -1), { name: 'done', pattern: route.pattern, title: route.title, workId }])}
         />
       );
       break;

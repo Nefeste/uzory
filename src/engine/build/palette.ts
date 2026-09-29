@@ -1,10 +1,10 @@
 // Сетка цветов → узор (docs/specs/2026-09-content-pipeline.md, шаги 5–11): палитра
 // k-средних в OKLab, слияние похожих нитей, назначение без дизеринга, чистка мелких
 // пятен, порядок «как нитки в коробке». Детерминированно: случайность — из зерна id.
-import { deltaOK, labToLch, labToRgb, type Lab, linearToLab, rgbToLab } from '../../src/engine/color';
-import { CANVAS, type Pattern, type SizeClass } from '../../src/engine/pattern';
-import { hash32, rng } from '../../src/engine/seed';
-import type { Grid } from './image';
+import { deltaOK, labToLch, labToRgb, type Lab, linearToLab, rgbToLab } from '../color';
+import { CANVAS, type Pattern, type SizeClass } from '../pattern';
+import { hash32, rng } from '../seed';
+import type { Grid } from './grid';
 import { nameThreads } from './names';
 
 /**

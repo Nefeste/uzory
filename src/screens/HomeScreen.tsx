@@ -1,7 +1,8 @@
-// Главная сборки прототипов 0.0.x (docs/specs/2026-09-spikes.md): первая картинка
-// и три проверки — «Лист», «Замер», «Файл работы». Экраны игры — с 0.1.
+// Главная сборки для проверки (0.x, docs/07-roadmap.md): первая картинка, «Свой узор» (в вебе)
+// и три проверки — «Лист», «Замер», «Файл работы». Экраны игры — к концу 0.1.
 import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { PHOTO_PICK } from '../state/photo';
 import type { PackPicture } from '../engine/pack';
 import { T } from '../i18n';
 import { estimateMinutes } from '../engine/pattern';
@@ -12,11 +13,13 @@ import { APP_BUILD, APP_VERSION } from '../version';
 import { Button, Card, Screen, Txt } from '../ui/components';
 import { useSettings } from '../state/settings';
 
-export function HomeScreen({ onStitch, onSheet, onBench, onFile, onReport }: {
+export function HomeScreen({ onStitch, onSheet, onBench, onFile, onMine, onReport }: {
   onStitch: (pic: PackPicture, workId?: string) => void;
   onSheet: () => void;
   onBench: () => void;
   onFile: () => void;
+  /** «Свой узор» — пока только в веб-версии (docs/specs/2026-09-custom.md) */
+  onMine: () => void;
   onReport: () => void;
 }) {
   const { theme } = useSettings();
@@ -57,6 +60,12 @@ export function HomeScreen({ onStitch, onSheet, onBench, onFile, onReport }: {
         {last && lastPic && lastPic.id !== first?.id ? (
           <Button kind="secondary" label={`${lastPic.title} · ${T.home.continue(Math.floor((last.done * 100) / Math.max(1, last.total)))}`}
             onPress={() => onStitch(lastPic, last.id)} testID="continue" />
+        ) : null}
+        {PHOTO_PICK ? (
+          <Card onPress={onMine} testID="home-mine">
+            <Txt bold style={styles.h3}>{T.home.mine}</Txt>
+            <Txt dim>{T.home.mineNote}</Txt>
+          </Card>
         ) : null}
         <Card onPress={onSheet} testID="home-sheet">
           <Txt bold style={styles.h3}>{T.home.sheet}</Txt>
