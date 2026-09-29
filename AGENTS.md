@@ -126,6 +126,10 @@ and are not repeated here. This project's own rules:
   Every picture card has a source and a legal basis. Paintings whose originals are held by
   Russian museums need the owner's recorded decision (museum law, `docs/09-content.md` §2)
   before release. The owner approves every picture.
+- **Music only from recordings the performer released** into the public domain, CC0 or CC BY
+  (`assets/music/music.yaml`, `docs/09-content.md` §10) — never NC, ND or SA, never a recording
+  "found on the internet". The owner approves every piece (`approved`, like pictures); release
+  builds take only approved ones. Files are made by `bun tools/audio/music.ts`, never by hand.
 - **No ads, no currency, no boosters for money, no energy, timers, streaks or nagging**
   (ADR 0008, 0011). The subscription is offered only in the three places listed in
   `docs/08-game-design.md`; no auto-converting trial (ADR 0009). Started works stay finishable

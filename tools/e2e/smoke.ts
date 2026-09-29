@@ -109,6 +109,36 @@ const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
+// музыка (src/state/music.ts): что и когда просили у проигрывателей страницы — play, pause, громкость
+type MediaEvent = { src: string; what: 'play' | 'pause' | 'volume'; v: number; t: number };
+await page.addInitScript(() => {
+  const w = window as unknown as { media: MediaEvent[]; els: Set<HTMLMediaElement> };
+  w.media = [];
+  w.els = new Set();
+  const P = HTMLMediaElement.prototype;
+  const { play, pause } = P;
+  const vol = Object.getOwnPropertyDescriptor(P, 'volume')!;
+  const log = (el: HTMLMediaElement, what: MediaEvent['what'], v: number) => w.media.push({ src: el.src, what, v, t: performance.now() });
+  P.play = function (this: HTMLMediaElement) {
+    w.els.add(this);
+    log(this, 'play', vol.get!.call(this) as number);
+    return play.call(this);
+  };
+  P.pause = function (this: HTMLMediaElement) {
+    log(this, 'pause', vol.get!.call(this) as number);
+    return pause.call(this);
+  };
+  Object.defineProperty(P, 'volume', {
+    get() { return vol.get!.call(this); },
+    set(v: number) { vol.set!.call(this, v); log(this, 'volume', v); },
+  });
+});
+/** События музыки — файлов пьес .webm; звуки стежка — .wav — не в счёт. */
+const music = async (): Promise<MediaEvent[]> =>
+  (await page.evaluate(() => (window as unknown as { media: MediaEvent[] }).media)).filter((e) => /\.webm/.test(e.src));
+const musicPlays = () => page.waitForFunction(() => [...(window as unknown as { els: Set<HTMLMediaElement> }).els]
+  .some((el) => /\.webm/.test(el.currentSrc) && !el.paused && el.currentTime > 0), null, { timeout: 8000 }).then(() => true, () => false);
+
 try {
   await page.goto(base);
   await page.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
@@ -130,6 +160,7 @@ try {
   await page.waitForTimeout(1200);
   await page.getByTestId('back').click();
   await page.getByTestId('picture-stitch').waitFor();
+  check((await music()).length === 0, 'музыка: открыли канву и ушли без стежка — не звучала');
   await page.waitForFunction(() => document.querySelector('[data-testid="picture-stitch"]')?.textContent?.startsWith('Продолжить'), null, { timeout: 5000 }).catch(() => {});
   check((await page.getByTestId('picture-stitch').innerText()).startsWith('Продолжить'), 'начатая картинка: на карточке — «Продолжить»');
   await page.getByTestId('back').click();
@@ -145,8 +176,11 @@ try {
   check(stored.includes('"bigNumbers":true'), 'настройки: «Крупные номера» включились и запомнились');
   await page.getByTestId('set-big').click();
   await page.waitForTimeout(200);
+  check((await page.getByTestId('set-music').count()) === 1, 'настройки: переключатель «Музыка»');
   await page.getByTestId('set-about').click();
   check((await page.getByTestId('about-version').innerText().catch(() => '')).includes('Узоры'), '«О программе»: версия и источники картинок');
+  const aboutMusic = await page.locator('[data-testid^="about-music-"]').allInnerTexts();
+  check(aboutMusic.length >= 5 && aboutMusic.every((t) => /общественное достояние|CC BY/.test(t)), `«О программе»: ${aboutMusic.length} пьес, у каждой — исполнитель и лицензия записи`);
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
   await page.getByTestId('first-stitch').waitFor();
@@ -207,6 +241,28 @@ try {
   check(leftFill === left0 - region.length, `двойное касание залило область: ${left0 - leftFill} из ${region.length} клеток`);
   await page.waitForTimeout(300); // следующее касание — уже не третье подряд
   check((await page.getByTestId('hint-start').count()) === 0, 'подсказка про клетку ушла после стежка');
+
+  // музыка начинается с первого стежка — тихо, и нарастает (docs/08-game-design.md, «Звук и музыка»)
+  {
+    const m = await music();
+    const vols = m.filter((e) => e.what === 'volume').map((e) => e.v);
+    const plays = m.filter((e) => e.what === 'play');
+    check(plays.length === 1 && vols.length > 0 && vols[0] <= 0.01 && Math.max(...vols) < 0.3,
+      `музыка: первый стежок — пьеса началась тихо (${decodeURIComponent(plays[0]?.src.split('/').pop() ?? '—').replace(/\.[0-9a-f]+\.webm$/, '')}, громкость до ${Math.max(0, ...vols).toFixed(2)})`);
+    check(await musicPlays(), 'музыка звучит в браузере: WebM с Opus');
+    // меню ⋮: выключили — затихла и встала на паузу; включили — сразу снова
+    await page.getByTestId('menu').click();
+    await page.getByTestId('menu-music').click();
+    await page.waitForTimeout(1300);
+    const off = await music();
+    const stored = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+    check(off[off.length - 1]?.what === 'pause' && off[off.length - 2]?.v === 0 && stored.includes('"music":false'), 'меню ⋮: «Музыка» выключилась — пьеса затихла и на паузе');
+    await page.getByTestId('menu-music').click();
+    await page.waitForTimeout(300);
+    const on = await music();
+    check(on.slice(off.length).some((e) => e.what === 'play'), 'меню ⋮: «Музыка» включилась — пьеса зазвучала снова');
+    await page.getByTestId('panel-close').click({ position: { x: 20, y: 400 } });
+  }
 
   // ещё четыре стежка касаниями — нитью 2, не в строке кисти: у нити 1 вне заливки клеток
   // почти нет, — и подсказка про кисть
@@ -341,7 +397,16 @@ try {
 
   // начатая картинка из листа открывается с того же места, а не заново
   const pct = await page.getByTestId('percent').innerText();
+  await page.waitForFunction(() => (window as unknown as { media: MediaEvent[] }).media.some((e) => /\.webm/.test(e.src) && e.what === 'volume' && e.v === 0.5),
+    null, { timeout: 7000 }).catch(() => {});
+  const heard = await music();
+  const rise = heard.filter((e) => e.what === 'volume' && e.t >= heard.filter((x) => x.what === 'play').pop()!.t);
+  const top = rise.find((e) => e.v === 0.5);
+  check(!!top && top.t - rise[0].t >= 4500 && top.t - rise[0].t < 7000, `музыка дошла до своей громкости — половины — за ${top ? ((top.t - rise[0].t) / 1000).toFixed(1) : '—'} с`);
   await page.getByTestId('back').click();
+  await page.waitForTimeout(1200);
+  const gone = (await music()).slice(heard.length);
+  check(gone.some((e) => e.what === 'pause') && !gone.some((e) => e.what === 'play'), 'ушли с экрана вышивания — музыка затихла и встала на паузу');
   await page.getByTestId('home-sheet').click();
   await page.getByTestId('sheet-work-first-picture').waitFor({ timeout: 5000 }).catch(() => {});
   const started = await page.getByTestId('sheet-work-first-picture').innerText().catch(() => '');

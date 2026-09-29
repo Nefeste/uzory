@@ -1,6 +1,6 @@
 // Экран вышивания (docs/08-game-design.md, «Экран вышивания»; docs/specs/2026-09-canvas.md).
 // Подсказки первой картинки — строкой внизу канвы (docs/specs/2026-09-first-picture.md), меню ⋮ —
-// «О картине», «Стиль», «Настройки».
+// «О картине», «Стиль», «Музыка», «Настройки». Музыка звучит только здесь и с первого стежка.
 import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
@@ -14,11 +14,12 @@ import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
+import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
 import { play } from '../state/sound';
 import { openWork, startWork, type WorkSession } from '../state/works';
-import { Button, Screen, Segmented, Txt } from '../ui/components';
+import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
 import { DIGIT_FONT } from '../ui/fonts';
 
@@ -98,6 +99,13 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
     };
   }, [session]);
 
+  // музыка — только на этом экране: ждёт первого стежка, уходит вместе с экраном (src/state/music.ts)
+  useEffect(() => {
+    musicEnter();
+    return musicLeave;
+  }, []);
+  useEffect(() => musicEnabled(settings.music), [settings.music]);
+
   // подсказки: одной строкой, пока их не выключили и пока на канве нет другой строки
   const percent = session ? session.state.percent : 0;
   const left = session ? session.state.left[selected] : 0;
@@ -146,6 +154,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   const onStroke = (thread: number, cells: number[], final: boolean) => {
     if (!session) return;
     session.stitch(thread, cells, Date.now(), final);
+    if (cells.length) musicStitch();
     strokeCells.current += cells.length;
     if (final) {
       const a = strokeAction(strokeCells.current);
@@ -174,7 +183,10 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
     const region = fillRegion(pattern, session.state.stitched, cell);
     const ok = session.stitch(t, region, Date.now(), true);
     api.current?.stitch(ok);
-    if (ok.length) tick();
+    if (ok.length) {
+      tick();
+      musicStitch();
+    }
     after(session, t);
   };
 
@@ -245,6 +257,10 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
                   <Txt dim style={styles.panelLabel}>{T.stitch.style}</Txt>
                   <Segmented<StitchStyle> value={settings.style} onChange={(v) => update({ style: v })} testID="menu-style"
                     options={[{ id: 'cross', label: T.stitch.styles.cross }, { id: 'mosaic', label: T.stitch.styles.mosaic }]} />
+                  {hasMusic ? (
+                    <ToggleRow label={T.stitch.music} value={settings.music} testID="menu-music"
+                      onChange={(v) => { update({ music: v }); if (v) musicStart(); else musicEnabled(false); }} />
+                  ) : null}
                   {onSettings ? <Button kind="ghost" label={T.stitch.settings} onPress={() => { setPanel(null); onSettings(); }} testID="menu-settings" /> : null}
                 </>
               ) : (

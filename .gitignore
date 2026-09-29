@@ -11,3 +11,4 @@ public/canvaskit.wasm
 android/
 ios/
 tools/e2e/out/
+tools/audio/.cache/
