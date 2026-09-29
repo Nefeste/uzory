@@ -79,8 +79,29 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 try {
   await page.goto(base);
   await page.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
-  check(true, 'главная открылась');
+  check(true, 'главная открылась: на месте картинки дня — первая картинка');
   await page.screenshot({ path: join(OUT, '01-home.png') });
+
+  // «Библиотека», «Мои работы», «Календарь» — до этапа библиотеки заглушка «Скоро»
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('soon').waitFor({ timeout: 5000 });
+  check(true, '«Библиотека» — «Скоро»');
+  await page.getByTestId('back').click();
+
+  // настройки: переключатель запоминается
+  await page.getByTestId('home-settings').click();
+  await page.getByTestId('settings').waitFor({ timeout: 5000 });
+  await page.getByTestId('set-big').click();
+  await page.waitForTimeout(200);
+  const stored = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+  check(stored.includes('"bigNumbers":true'), 'настройки: «Крупные номера» включились и запомнились');
+  await page.getByTestId('set-big').click();
+  await page.waitForTimeout(200);
+  await page.getByTestId('set-about').click();
+  check((await page.getByTestId('about-version').innerText().catch(() => '')).includes('Узоры'), '«О программе»: версия и источники картинок');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('first-stitch').waitFor();
 
   // первая картинка: касаниями по клеткам каждой нити, нить за нитью
   await page.getByTestId('first-stitch').click();
@@ -90,8 +111,18 @@ try {
   check(probe.s >= NUMBERS_DP, `первая картинка открылась целиком и с номерами (${probe.s.toFixed(1)} dp на клетку)`);
   await page.screenshot({ path: join(OUT, '02-stitch-start.png') });
 
-  // с компьютера — строка о мыши; её сменяет строка о чужой клетке
-  check((await page.getByTestId('hint').innerText().catch(() => '')).includes('Колёсико'), 'строка о мыши и колёсике');
+  // первая подсказка — про клетку выбранной нити (с компьютера — «щёлкните»)
+  check((await page.getByTestId('hint-start').innerText().catch(() => '')).includes('Щёлкните клетку'), 'подсказка: «Щёлкните клетку с номером выбранной нити»');
+
+  // меню ⋮: стиль меняется сразу и запоминается, работа не перезагружается
+  await page.getByTestId('menu').click();
+  await page.getByTestId('menu-panel').waitFor({ timeout: 5000 });
+  await page.getByTestId('menu-style-mosaic').click();
+  await page.waitForTimeout(200);
+  const mosaic = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+  await page.getByTestId('menu-style-cross').click();
+  await page.getByTestId('panel-close').click({ position: { x: 20, y: 400 } });
+  check(mosaic.includes('"style":"mosaic"') && (await page.getByTestId('menu-panel').count()) === 0, 'меню ⋮: «Мозаика» и обратно «Крестик»');
 
   // чужая клетка — строка «Эта клетка — нить …»
   const foreign = first.cells.findIndex((c) => c === 1);
@@ -124,9 +155,24 @@ try {
     return !!m && Number(m[1]) <= k;
   }, n, { timeout: 5000 }).catch(() => {});
   await leftBelow(left0 - region.length);
-  const left1 = await whereLeft();
-  check(left1 === left0 - region.length, `двойное касание залило область: ${left0 - left1} из ${region.length} клеток`);
+  const leftFill = await whereLeft();
+  check(leftFill === left0 - region.length, `двойное касание залило область: ${left0 - leftFill} из ${region.length} клеток`);
   await page.waitForTimeout(300); // следующее касание — уже не третье подряд
+  check((await page.getByTestId('hint-start').count()) === 0, 'подсказка про клетку ушла после стежка');
+
+  // ещё четыре стежка касаниями — нитью 2, не в строке кисти: у нити 1 вне заливки клеток
+  // почти нет, — и подсказка про кисть
+  await page.getByTestId('thread-2').click();
+  const taps = Array.from({ length: first.cells.length }, (_, i) => i).filter((i) => first.cells[i] === 1 && Math.floor(i / first.w) !== row).slice(0, 4);
+  for (const i of taps) {
+    const pt = await cellPoint(page, first, i);
+    await page.mouse.click(pt.x, pt.y);
+    await page.waitForTimeout(280);
+  }
+  await page.getByTestId('hint-brush').waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page.getByTestId('hint-brush').innerText().catch(() => '')).includes('Проведите мышью'), 'после пяти касаний — подсказка про кисть');
+  await page.getByTestId('thread-1').click();
+  const left1 = await whereLeft();
 
   // кисть: провести по строке с клетками выбранной нити
   const a = await cellPoint(page, first, row * first.w);
@@ -144,6 +190,7 @@ try {
   await page.screenshot({ path: join(OUT, '02b-brush.png') });
   const left2 = await whereLeft();
   check(left2 < left1, `кисть вышила строку: ${left1 - left2} клеток, ${await page.getByTestId('percent').innerText()}`);
+  check((await page.getByTestId('hint-brush').count()) === 0, 'подсказка про кисть ушла после кисти');
 
   // мышь и клавиши (docs/specs/2026-09-web.md, «Управление»): колёсико приближает к курсору,
   // правая кнопка двигает канву, «+» приближает, «0» — снова весь узор. Щелчок каждый раз —
@@ -245,6 +292,9 @@ try {
   await page.waitForTimeout(1500);
   check((await page.getByTestId('percent').innerText()) === pct, `из листа открылась та же работа: ${pct}`);
 
+  // колёсико уже приближало — подсказки про два пальца не будет; у нити меньше десяти
+  // клеток — подсказка про «Где ещё?», а после «Где ещё?» — камера к клеткам и «0» обратно
+  let whereHint = '';
   for (let t = 0; t < first.threads.length; t++) {
     await page.getByTestId(`thread-${t + 1}`).click();
     for (let i = 0; i < first.cells.length; i++) {
@@ -252,8 +302,18 @@ try {
       const pt = await cellPoint(page, first, i);
       await page.mouse.click(pt.x, pt.y);
       await page.waitForTimeout(260); // не двойное касание
+      if (!whereHint && (await page.getByTestId('hint-where').count())) {
+        whereHint = await page.getByTestId('hint-where').innerText();
+        check((await page.getByTestId('hint-zoom').count()) === 0, 'подсказки про два пальца нет: колёсико уже приближало');
+        await page.getByTestId('where').click();
+        await page.waitForTimeout(700);
+        check((await page.getByTestId('hint-where').count()) === 0, `подсказка «${whereHint}» ушла после «Где ещё?»`);
+        await page.keyboard.press('0');
+        await page.waitForTimeout(700);
+      }
     }
   }
+  check(whereHint.includes('Где ещё?'), 'у нити меньше десяти клеток — подсказка про «Где ещё?»');
   await page.getByTestId('replay').waitFor({ timeout: 15_000 });
   check(true, 'последний стежок — экран «Готово»');
   await page.screenshot({ path: join(OUT, '03-done.png') });
@@ -262,8 +322,9 @@ try {
   await page.screenshot({ path: join(OUT, '04-replay.png') });
   await page.getByTestId('skip').click().catch(() => {});
   await page.getByTestId('next').click();
-  await page.getByTestId('first-stitch').waitFor();
-  check((await page.getByTestId('first-stitch').innerText()).includes('ещё раз'), 'на главной — «Вышить ещё раз»');
+  await page.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});
+  check((await page.getByTestId('daily-stitch').innerText().catch(() => '')).includes('Вышивать') && (await page.getByTestId('first-stitch').count()) === 0,
+    'первая картинка вышита — на главной картинка дня');
 
   // лист
   await page.getByTestId('home-sheet').click();
@@ -336,7 +397,7 @@ try {
   check(true, 'после перезагрузки свой узор продолжается');
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
-  await page.getByTestId('first-stitch').waitFor();
+  await page.getByTestId('home-daily').waitFor();
 
   // файл работы и повтор
   await page.getByTestId('home-file').click();
@@ -348,7 +409,7 @@ try {
   await page.getByTestId('file-replay').click();
   await page.getByTestId('replay').waitFor();
   await page.getByTestId('next').click();
-  await page.getByTestId('first-stitch').waitFor();
+  await page.getByTestId('home-daily').waitFor();
 
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();

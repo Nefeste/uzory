@@ -7,8 +7,11 @@ import { CANVAS, type Pattern } from '../engine/pattern';
 
 const CLOTH = 0xf3f0e6;
 
-/** «done» — готовая работа; «scheme» — ещё не начатая: бледные тона без цвета. */
-export function previewUri(p: Pattern, mode: 'done' | 'scheme', side = 360): string | null {
+/**
+ * «done» — готовая работа; «scheme» — ещё не начатая: бледные тона без цвета
+ * (docs/08-game-design.md, «Превью»); со `stitched` — начатая: цветом там, где вышито.
+ */
+export function previewUri(p: Pattern, mode: 'done' | 'scheme', side = 360, stitched?: Uint8Array): string | null {
   const k = Math.max(1, Math.floor(side / Math.max(p.w, p.h)));
   const W = p.w * k;
   const H = p.h * k;
@@ -23,8 +26,9 @@ export function previewUri(p: Pattern, mode: 'done' | 'scheme', side = 360): str
   });
   for (let y = 0; y < p.h; y++) {
     for (let x = 0; x < p.w; x++) {
-      const t = p.cells[y * p.w + x];
-      const c = t === CANVAS ? CLOTH : colors[t];
+      const i = y * p.w + x;
+      const t = p.cells[i];
+      const c = t === CANVAS ? CLOTH : stitched?.[i] ? p.threads[t].rgb : colors[t];
       for (let dy = 0; dy < k; dy++) {
         let o = ((y * k + dy) * W + x * k) * 4;
         for (let dx = 0; dx < k; dx++) {

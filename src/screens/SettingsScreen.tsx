@@ -1,0 +1,70 @@
+// Настройки (docs/08-game-design.md, «Настройки»; docs/specs/2026-09-first-picture.md, «Основа
+// приложения»): всё, что уже есть в игре. Чего ещё нет — музыки и звуков, «Узоры+», переноса
+// работ, — здесь не видно: скрыто, а не выключено.
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { T } from '../i18n';
+import { usePlayer } from '../state/player';
+import { type StitchStyle, useSettings } from '../state/settings';
+import { Button, Screen, SectionTitle, Segmented, ToggleRow, Txt } from '../ui/components';
+
+/** Раздел «Узоры» политики студии (store/forms.md). */
+export const PRIVACY_URL = 'https://gornitsa.games/privacy.html#uzory';
+
+export function SettingsScreen({ onBack, onReport, onAbout }: { onBack: () => void; onReport: () => void; onAbout: () => void }) {
+  const { settings, update } = useSettings();
+  const player = usePlayer();
+
+  return (
+    <Screen title={T.settings.title} onBack={onBack}>
+      <ScrollView contentContainerStyle={styles.wrap} testID="settings">
+        <SectionTitle>{T.settings.stitching}</SectionTitle>
+        <View style={styles.block}>
+          <Txt style={styles.label}>{T.settings.style}</Txt>
+          <Segmented<StitchStyle> value={settings.style} onChange={(v) => update({ style: v })} testID="set-style"
+            options={[{ id: 'cross', label: T.stitch.styles.cross }, { id: 'mosaic', label: T.stitch.styles.mosaic }]} />
+          <Txt dim style={styles.note}>{T.settings.styleNote}</Txt>
+        </View>
+        <ToggleRow label={T.settings.bigNumbers} note={T.settings.bigNumbersNote} value={settings.bigNumbers}
+          onChange={(v) => update({ bigNumbers: v })} testID="set-big" />
+        <View style={styles.block}>
+          <Txt style={styles.label}>{T.settings.highlight}</Txt>
+          <Segmented value={settings.highlight} onChange={(v) => update({ highlight: v })} testID="set-highlight"
+            options={[{ id: 'tint', label: T.settings.highlights.tint }, { id: 'hatch', label: T.settings.highlights.hatch }]} />
+          <Txt dim style={styles.note}>{T.settings.highlightNote}</Txt>
+        </View>
+        <ToggleRow label={T.settings.fill} note={T.settings.fillNote} value={settings.fill}
+          onChange={(v) => update({ fill: v })} testID="set-fill" />
+        <ToggleRow label={T.settings.autoNext} note={T.settings.autoNextNote} value={settings.autoNext}
+          onChange={(v) => update({ autoNext: v })} testID="set-next" />
+        {/* включили снова — подсказки начинаются сначала: кто их включил, тот хочет их увидеть */}
+        <ToggleRow label={T.settings.hints} note={T.settings.hintsNote} value={settings.hints} testID="set-hints"
+          onChange={(v) => {
+            update({ hints: v });
+            if (v) player.update({ hints: [] });
+          }} />
+        {/* вибрации в браузере нет */}
+        {Platform.OS !== 'web' ? (
+          <>
+            <SectionTitle>{T.settings.feel}</SectionTitle>
+            <ToggleRow label={T.settings.haptics} note={T.settings.hapticsNote} value={settings.haptics}
+              onChange={(v) => update({ haptics: v })} testID="set-haptics" />
+          </>
+        ) : null}
+        <SectionTitle>{T.settings.help}</SectionTitle>
+        <View style={styles.buttons}>
+          <Button kind="secondary" label={T.report.button} onPress={onReport} testID="set-report" />
+          <Button kind="secondary" label={T.settings.privacy} onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => undefined)} testID="set-privacy" />
+          <Button kind="secondary" label={T.settings.about} onPress={onAbout} testID="set-about" />
+        </View>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { padding: 16, paddingBottom: 40 },
+  block: { paddingVertical: 10, gap: 8 },
+  label: { fontSize: 16 },
+  note: { fontSize: 13, lineHeight: 18 },
+  buttons: { gap: 10 },
+});
