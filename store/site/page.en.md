@@ -33,6 +33,13 @@ card:
     - A free picture of the day — every day, forever
     - Offline, no sign-up and no ads
     - Uzory+ subscription — no trial week that auto-renews
+facts:
+  platform: Android
+  price: free, optional Uzory+ subscription
+  age: 0+
+  players: one
+  internet: not needed
+  languages: Russian
 ---
 
 Uzory is color by number made to feel like cross-stitch. Every picture is a chart on linen canvas
