@@ -2,8 +2,8 @@
 // на глаз, открытые таблицы названий цветов — только ориентир. Название — прилагательное
 // к слову «нить». Нити узора получают ближайшее по цвету название; повторы различаются
 // приставками «светло-», «тёмно-», «бледно-», «ярко-».
-import { deltaOK, labToLch, type Lab, rgbToLab } from '../../src/engine/color';
-import { parseHex } from '../../src/engine/pattern';
+import { deltaOK, labToLch, type Lab, rgbToLab } from '../color';
+import { parseHex } from '../pattern';
 
 export const NAMES: [string, string][] = [
   // белые, серые, чёрные

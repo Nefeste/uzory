@@ -4,7 +4,7 @@
 // целиком и отправляет своими руками.
 import { KEYS, loadJson, saveJson } from './storage';
 
-export type CrashKind = 'crash' | 'error' | 'render' | 'work' | 'pack' | 'web';
+export type CrashKind = 'crash' | 'error' | 'render' | 'work' | 'pack' | 'web' | 'mine';
 export interface CrashEntry { at: number; kind: CrashKind; message: string }
 
 export const CRASH_MAX = 30;

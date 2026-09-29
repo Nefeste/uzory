@@ -20,7 +20,7 @@ import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid, toGrid } from './image';
 import { fromGrid, generate } from './ornaments';
-import { type BuildLog, buildPattern } from './palette';
+import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 
 export interface Built {
   card: Card;
