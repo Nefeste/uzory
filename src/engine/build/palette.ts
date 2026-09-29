@@ -40,7 +40,23 @@ export interface BuildOptions {
    * граница между двумя похожими красками.
    */
   exact?: boolean;
+  /** чистка «конфетти»: без упрощения — CLEAN, с упрощением — SIMPLIFY_CLEAN (simplify.ts) */
+  clean?: Clean;
 }
+
+/** Чистка «конфетти»: какие области мелкие и как они сливаются. */
+export interface Clean {
+  /** область меньше стольких клеток — мелкая */
+  minRegion: number;
+  /**
+   * Мелкие области сливаются по одной, от меньших к большим, и следующая видит уже новый
+   * цвет соседа. Все сразу — шашечка двух нитей меняется цветами, а не сливается.
+   */
+  oneByOne: boolean;
+}
+
+/** Чистка библиотеки и узора без упрощения. */
+export const CLEAN: Clean = { minRegion: SMALL_REGION, oneByOne: false };
 
 /** Точная схема: мелкое пятно перекрашивается в соседнюю нить, только если цвета ближе этого. */
 export const EXACT_CLOSE = 0.1;
@@ -167,18 +183,20 @@ export function regions(cells: Int32Array, w: number, h: number): { comp: Int32A
 }
 
 /**
- * Чистка: область меньше SMALL_REGION клеток перекрашивается в соседнюю нить с самой
+ * Чистка: область меньше `clean.minRegion` клеток перекрашивается в соседнюю нить с самой
  * длинной общей границей; до CLEAN_PASSES проходов. −1 в клетках — канва, её не трогаем.
  * `may(from, to)` — можно ли так перекрасить (у схемы — только в почти тот же цвет).
  */
-export function cleanup(cells: Int32Array, w: number, h: number, may?: (from: number, to: number) => boolean): boolean {
+export function cleanup(cells: Int32Array, w: number, h: number, may?: (from: number, to: number) => boolean, clean: Clean = CLEAN): boolean {
+  if (clean.oneByOne) return cleanupOneByOne(cells, w, h, may, clean.minRegion);
+  const { minRegion } = clean;
   let changed = false;
   for (let pass = 0; pass < CLEAN_PASSES; pass++) {
     const { comp, sizes } = regions(cells, w, h);
     const border = new Map<number, Map<number, number>>();
     for (let i = 0; i < cells.length; i++) {
       const c = comp[i];
-      if (c < 0 || sizes[c] >= SMALL_REGION) continue;
+      if (c < 0 || sizes[c] >= minRegion) continue;
       const x = i % w;
       const y = (i - x) / w;
       for (const k of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
@@ -202,6 +220,48 @@ export function cleanup(cells: Int32Array, w: number, h: number, may?: (from: nu
       const t = target.get(comp[i]);
       if (t !== undefined) cells[i] = t;
     }
+  }
+  return changed;
+}
+
+/** Чистка по одной области (Clean.oneByOne): от меньших к большим, при равных — по порядку обхода. */
+function cleanupOneByOne(cells: Int32Array, w: number, h: number, may: ((from: number, to: number) => boolean) | undefined, minRegion: number): boolean {
+  let changed = false;
+  for (let pass = 0; pass < CLEAN_PASSES; pass++) {
+    const { comp, sizes } = regions(cells, w, h);
+    const members = new Map<number, number[]>();
+    for (let i = 0; i < cells.length; i++) {
+      const c = comp[i];
+      if (c < 0 || sizes[c] >= minRegion) continue;
+      const m = members.get(c);
+      if (m) m.push(i);
+      else members.set(c, [i]);
+    }
+    let any = false;
+    for (const c of [...members.keys()].sort((a, b) => sizes[a] - sizes[b] || a - b)) {
+      const own = members.get(c)!;
+      const t0 = cells[own[0]];
+      const border = new Map<number, number>();
+      let grown = false;
+      for (const i of own) {
+        const x = i % w;
+        const y = (i - x) / w;
+        for (const k of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+          if (k < 0 || cells[k] < 0) continue;
+          // сосед уже перекрасился в наш цвет — область выросла, её судьба решится на следующем проходе
+          if (cells[k] === t0) grown ||= comp[k] !== c;
+          else if (!may || may(t0, cells[k])) border.set(cells[k], (border.get(cells[k]) ?? 0) + 1);
+        }
+      }
+      if (grown || !border.size) continue;
+      let best = -1;
+      let bn = -1;
+      for (const [t, n] of [...border].sort((a, b) => a[0] - b[0])) if (n > bn) { bn = n; best = t; }
+      for (const i of own) cells[i] = best;
+      any = true;
+    }
+    if (!any) break;
+    changed = true;
   }
   return changed;
 }
@@ -266,7 +326,7 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
   for (let round = 0; round < 8; round++) {
     const may = o.exact ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE : undefined;
-    let changed = cleanup(cells, g.w, g.h, may);
+    let changed = cleanup(cells, g.w, g.h, may, o.clean);
     let wt = weights();
     for (;;) {
       let worst = -1;

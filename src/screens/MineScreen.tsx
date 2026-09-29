@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, type MineBuild } from '../engine/build/mine';
+import type { Simplify } from '../engine/build/simplify';
 import { estimateMinutes, type Pattern } from '../engine/pattern';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
@@ -17,12 +18,13 @@ import { CropBox } from '../ui/CropBox';
 import { FONTS } from '../ui/theme';
 
 type SizeKey = keyof typeof MINE_SIZES;
+const SIMPLIFY: Simplify[] = [0, 1, 2];
 
 /**
  * Черновик на время открытой вкладки: после «Вышивать» и возврата с канвы кадр на месте.
  * Снимок — только в памяти, на диск не пишется (docs/specs/2026-09-custom.md, «Данные»).
  */
-interface Draft { photo: Photo; crop: Crop; side: number; threads: number; title: string }
+interface Draft { photo: Photo; crop: Crop; side: number; threads: number; simplify: Simplify; title: string }
 let draft: Draft | null = null;
 /** Сборка — через столько после последней правки: рамку тянут, а узор не пересобирается на каждый сдвиг. */
 const DEBOUNCE_MS = 250;
@@ -42,10 +44,12 @@ export function MineScreen({ onBack, onStitch, owner }: {
   const [crop, setCrop] = useState<Crop>(() => draft?.crop ?? [0, 0, 1, 1]);
   const [side, setSide] = useState<number>(() => draft?.side ?? MINE_SIZES.M);
   const [threads, setThreads] = useState(() => draft?.threads ?? defaultThreads(MINE_SIZES.M));
+  // упрощение: снимок — не картина, «немного» почти всегда спокойнее (docs/specs/2026-09-custom.md)
+  const [simplify, setSimplify] = useState<Simplify>(() => draft?.simplify ?? 1);
   const [title, setTitle] = useState(() => draft?.title ?? T.mine.defaultName(new Date()));
   useEffect(() => {
-    draft = photo ? { photo, crop, side, threads, title } : null;
-  }, [photo, crop, side, threads, title]);
+    draft = photo ? { photo, crop, side, threads, simplify, title } : null;
+  }, [photo, crop, side, threads, simplify, title]);
   const [result, setResult] = useState<{ key: string; build: MineBuild } | null>(null);
   const [saving, setSaving] = useState(false);
   const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry }[]>([]);
@@ -70,20 +74,20 @@ export function MineScreen({ onBack, onStitch, owner }: {
   }, []);
 
   // сборка узора — после паузы в правках; пока узор не для этих правок, идёт «Собираю…»
-  const inputKey = photo ? `${photo.uri} ${crop.join(',')} ${side} ${threads}` : '';
+  const inputKey = photo ? `${photo.uri} ${crop.join(',')} ${side} ${threads} ${simplify}` : '';
   const building = !!photo && result?.key !== inputKey;
   useEffect(() => {
     if (!photo) return;
     const t = setTimeout(() => {
       try {
-        const build = buildMine(photo.raster, { crop, side, threads });
+        const build = buildMine(photo.raster, { crop, side, threads, simplify });
         if (alive.current) setResult({ key: inputKey, build });
       } catch (e) {
         logError('mine', e, 'build');
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [photo, crop, side, threads, inputKey]);
+  }, [photo, crop, side, threads, simplify, inputKey]);
 
   const built = result?.build ?? null;
   const preview = useMemo(() => (built ? previewUri(built.pattern, 'done', 520) : null), [built]);
@@ -129,7 +133,7 @@ export function MineScreen({ onBack, onStitch, owner }: {
 
   const exportCard = () => {
     if (!photo || !built) return;
-    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, now: new Date() });
+    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, now: new Date() });
     downloadFiles([{ name: `${card.id}.yaml`, data: textBlob(card.yaml) }, { name: `${card.id}.jpg`, data: photo.jpeg }]);
   };
 
@@ -172,7 +176,7 @@ export function MineScreen({ onBack, onStitch, owner }: {
               <View style={[styles.preview, { backgroundColor: theme.surfaceAlt }]}>
                 {preview ? <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-preview" /> : null}
                 {building ? (
-                  <View style={styles.building}>
+                  <View style={styles.building} testID="mine-building">
                     <ActivityIndicator color={theme.accent} />
                     <Txt dim>{T.mine.building}</Txt>
                   </View>
@@ -201,6 +205,10 @@ export function MineScreen({ onBack, onStitch, owner }: {
                 <Txt style={styles.grow}>{T.mine.asked(threads)}</Txt>
                 <Button small kind="secondary" label={T.mine.more} onPress={() => setThreads((n) => Math.min(45, n + 2))} testID="mine-threads-plus" />
               </View>
+              <SectionTitle>{T.mine.simplify}</SectionTitle>
+              <Segmented value={String(simplify)} onChange={(id) => setSimplify(Number(id) as Simplify)} testID="mine-simplify"
+                options={SIMPLIFY.map((l) => ({ id: String(l), label: T.mine.simplifyLevels[l] }))} />
+              <Txt dim style={styles.small}>{T.mine.simplifyNote}</Txt>
               <SectionTitle>{T.mine.name}</SectionTitle>
               <TextInput value={title} onChangeText={setTitle} maxLength={60} maxFontSizeMultiplier={FONT_MAX} testID="mine-name"
                 style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface, fontFamily: FONTS.body }]} />

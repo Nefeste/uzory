@@ -21,6 +21,7 @@ import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePa
 import { decode, type Grid, toGrid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
+import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
 
 export interface Built {
   card: Card;
@@ -66,8 +67,11 @@ export async function buildCard(card: Card): Promise<{ pattern: Pattern; log?: B
       cells = whiten(cells);
       grid = { ...cells, paper: whitePaperCells(cells, delta) };
     } else grid = { ...cells, paper: paperCells(cells, canvas, delta, p.canvas_lines ?? PAPER_LINES) };
-  } else grid = toGrid(raster, p.crop ?? [0, 0, 1, 1], p.size);
-  return buildPattern(grid, { id: card.id, v: card.v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact });
+  } else grid = simplifyGrid(toGrid(raster, p.crop ?? [0, 0, 1, 1], p.size), p.simplify ?? 0);
+  return buildPattern(grid, {
+    id: card.id, v: card.v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
+    clean: SIMPLIFY_CLEAN[p.simplify ?? 0],
+  });
 }
 
 export function toPicture(card: Card, size: Picture['size'], created: string, trial: string | null): Picture {
