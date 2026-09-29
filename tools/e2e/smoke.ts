@@ -430,7 +430,9 @@ try {
 
   // «Дальше» после картинки из библиотеки — карточка картинки дня (или следующей в коллекции,
   // если картинка дня — эта же). «Ромбы кольцами» 23 × 23 в широком окне открываются целиком:
-  // пять областей — пять двойных касаний
+  // пять областей — пять двойных касаний. До первого стежка окно становится ниже — узор
+  // открывается заново по новому размеру и остаётся целым: так канву уменьшает полоса нитей,
+  // если она появилась уже после разметки канвы (в CI узор оставался обрезанным)
   const koltsa = built.find((b) => b.card.id === 'romb-koltsa')!.pattern;
   await page.setViewportSize({ width: 720, height: 860 });
   await page.getByTestId('home-library').click();
@@ -439,6 +441,8 @@ try {
   await page.getByTestId('picture-stitch').click();
   await page.getByTestId('canvas').waitFor();
   await page.waitForTimeout(1500);
+  await page.setViewportSize({ width: 720, height: 760 });
+  await page.waitForTimeout(600);
   const filled = new Uint8Array(koltsa.cells.length);
   for (let t = 0; t < koltsa.threads.length; t++) {
     await page.getByTestId(`thread-${t + 1}`).click();
@@ -452,7 +456,8 @@ try {
       await page.waitForTimeout(400);
     }
   }
-  await page.getByTestId('replay').waitFor({ timeout: 15_000 });
+  check(await page.getByTestId('replay').waitFor({ timeout: 15_000 }).then(() => true, () => false),
+    'окно стало ниже до первого стежка — узор остался целым: пять заливок его закончили');
   check((await page.getByTestId('done-about').count()) === 0, '«Готово» своего орнамента — без «О картине»: рассказывать нечего');
   await page.getByTestId('next').click();
   await page.getByTestId('picture').waitFor({ timeout: 5000 }).catch(() => {});
