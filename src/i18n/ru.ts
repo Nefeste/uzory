@@ -218,6 +218,16 @@ export const ru = {
     notForRelease: 'Только для проверки: в выпуск — после «да» владельца и решения о правах',
     progress: (p: number) => `Вышито ${p} % — откроется с того же места`,
     stats: (singles: string, small: string, minDist: string) => `одиночных ${singles} % · в мелких пятнах ${small} % · различимость ${minDist}`,
+    picksNote: 'Отбор: «Да» — в выпуск, «Нет» — убрать, «Позже» — вернуться к ней. Отметки хранятся здесь; «Скопировать решения» даёт текст для ассистента — он поставит «да» в карточки.',
+    picks: { yes: 'Да', no: 'Нет', later: 'Позже' } as Record<'yes' | 'no' | 'later', string>,
+    picked: (n: number, total: number, yes: number, no: number, later: number) =>
+      `Отмечено ${n} из ${total}: да — ${yes}, нет — ${no}, позже — ${later}`,
+    filter: { all: 'Все', unmarked: 'Без отметки' } as Record<'all' | 'unmarked', string>,
+    copy: 'Скопировать решения',
+    copied: 'Скопировано — вставьте в сообщение ассистенту. Текст ниже можно выделить.',
+    notCopied: 'Не скопировалось — выделите текст ниже.',
+    picksText: (version: string, date: string, groups: [string, string[]][]) =>
+      [`Узоры ${version} — отбор картинок, ${date}`, ...groups.filter(([, l]) => l.length).map(([k, l]) => `${k} (${l.length}): ${l.join(', ')}`)].join('\n'),
   },
   mine: {
     title: 'Свой узор',
