@@ -82,10 +82,25 @@ try {
   check(true, 'главная открылась: на месте картинки дня — первая картинка');
   await page.screenshot({ path: join(OUT, '01-home.png') });
 
-  // «Библиотека», «Мои работы», «Календарь» — до этапа библиотеки заглушка «Скоро»
+  // библиотека (docs/specs/2026-09-library.md): коллекции рядами → «Все» → карточка картинки →
+  // «Вышивать»; начатая работа — «Продолжить» на карточке и в «Моих работах»
   await page.getByTestId('home-library').click();
-  await page.getByTestId('soon').waitFor({ timeout: 5000 });
-  check(true, '«Библиотека» — «Скоро»');
+  await page.getByTestId('lib-ornaments').waitFor({ timeout: 10_000 });
+  check((await page.locator('[data-testid^="lib-"]').count()) >= 3, 'библиотека: коллекции рядами');
+  await page.getByTestId('lib-all-ornaments').click();
+  await page.getByTestId('tile-rozetka').waitFor({ timeout: 10_000 });
+  await page.getByTestId('tile-rozetka').click();
+  const picMeta = await page.getByTestId('picture-meta').innerText();
+  check(/^Малая · \d+ нит/.test(picMeta) && (await page.getByTestId('picture-stitch').innerText()) === 'Вышивать', `«Все» → карточка картинки: ${picMeta}`);
+  await page.getByTestId('picture-stitch').click();
+  await page.getByTestId('canvas').waitFor();
+  await page.waitForTimeout(1200);
+  await page.getByTestId('back').click();
+  await page.getByTestId('picture-stitch').waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-testid="picture-stitch"]')?.textContent?.startsWith('Продолжить'), null, { timeout: 5000 }).catch(() => {});
+  check((await page.getByTestId('picture-stitch').innerText()).startsWith('Продолжить'), 'начатая картинка: на карточке — «Продолжить»');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
   await page.getByTestId('back').click();
 
   // настройки: переключатель запоминается
@@ -336,6 +351,41 @@ try {
   await page.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});
   check((await page.getByTestId('daily-stitch').innerText().catch(() => '')).includes('Вышивать') && (await page.getByTestId('first-stitch').count()) === 0,
     'первая картинка вышита — на главной картинка дня');
+
+  // мои работы: готовая первая картинка; начатую «Розетку» — долгим касанием удалить
+  await page.getByTestId('home-works').click();
+  await page.getByTestId('works').waitFor({ timeout: 10_000 });
+  const startedRows = page.locator('[data-testid^="work-w-"]');
+  await startedRows.first().waitFor({ timeout: 5000 }).catch(() => {});
+  const nStarted = await startedRows.count();
+  const rb = (await startedRows.first().boundingBox())!;
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + 20);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await page.locator('[data-testid^="work-remove-"]').first().click();
+  await page.waitForTimeout(600);
+  check(nStarted === 1 && (await startedRows.count()) === 0, 'Мои работы: начатая работа удалилась долгим касанием');
+  await page.getByTestId('works-tab-finished').click();
+  await page.waitForTimeout(600);
+  check((await page.locator('[data-testid^="work-w-"]').count()) === 1, 'Мои работы: готовая — первая картинка');
+  await page.getByTestId('back').click();
+
+  // календарь: у сегодняшнего дня — картинка дня, касание — её карточка
+  const dailyTitle = await page.locator('[data-testid="home-daily"]').innerText();
+  await page.getByTestId('home-calendar').click();
+  await page.getByTestId('calendar').waitFor({ timeout: 10_000 });
+  const todayStr = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  await page.getByTestId(`day-pic-${todayStr}`).click();
+  await page.getByTestId('picture').waitFor({ timeout: 5000 });
+  const calTitle = await page.locator('[data-testid="picture"]').innerText();
+  check(dailyTitle.split('\n').some((l) => l.length > 3 && calTitle.includes(l)), 'календарь: сегодняшний день — та же картинка дня');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-daily').waitFor();
 
   // лист
   await page.getByTestId('home-sheet').click();

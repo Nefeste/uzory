@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import type { CollectionId } from './src/engine/library';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
 import { installCrashHandlers } from './src/state/crashlog';
@@ -14,15 +15,19 @@ import { PlayerProvider, usePlayer } from './src/state/player';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
+import { CalendarScreen } from './src/screens/CalendarScreen';
+import { CollectionScreen } from './src/screens/CollectionScreen';
 import { DoneScreen } from './src/screens/DoneScreen';
 import { FileScreen } from './src/screens/FileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { LibraryScreen } from './src/screens/LibraryScreen';
 import { MineScreen } from './src/screens/MineScreen';
+import { PictureScreen } from './src/screens/PictureScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
-import { SoonScreen } from './src/screens/SoonScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
+import { WorksScreen } from './src/screens/WorksScreen';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
 import { FONT_FILES } from './src/ui/fonts';
 
@@ -39,7 +44,11 @@ type Route =
   | { name: 'file' }
   | { name: 'settings' }
   | { name: 'about' }
-  | { name: 'soon'; title: string }
+  | { name: 'library' }
+  | { name: 'collection'; id: CollectionId }
+  | { name: 'picture'; pic: PackPicture }
+  | { name: 'works' }
+  | { name: 'calendar' }
   | { name: 'report'; from: string };
 
 /** Экран в стеке: `k` — свой ключ, чтобы два одинаковых экрана подряд не делили состояние. */
@@ -77,7 +86,9 @@ function Root() {
         <HomeScreen
           onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })}
           onSettings={() => go({ name: 'settings' })}
-          onSoon={(title) => go({ name: 'soon', title })}
+          onLibrary={() => go({ name: 'library' })}
+          onWorks={() => go({ name: 'works' })}
+          onCalendar={() => go({ name: 'calendar' })}
           onSheet={() => go({ name: 'sheet' })}
           onBench={() => go({ name: 'bench' })}
           onFile={() => go({ name: 'file' })}
@@ -134,8 +145,20 @@ function Root() {
     case 'about':
       screen = <AboutScreen onBack={back} />;
       break;
-    case 'soon':
-      screen = <SoonScreen title={route.title} onBack={back} onSheet={() => go({ name: 'sheet' })} />;
+    case 'library':
+      screen = <LibraryScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} onCollection={(id) => go({ name: 'collection', id })} />;
+      break;
+    case 'collection':
+      screen = <CollectionScreen id={route.id} onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
+      break;
+    case 'picture':
+      screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })} />;
+      break;
+    case 'works':
+      screen = <WorksScreen onBack={back} onOpen={(pic, workId) => go(workId ? { name: 'stitch', pic, workId } : { name: 'picture', pic })} />;
+      break;
+    case 'calendar':
+      screen = <CalendarScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
       break;
     case 'report':
       screen = <ReportScreen from={route.from} onBack={back} />;

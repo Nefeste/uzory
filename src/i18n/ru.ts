@@ -4,7 +4,11 @@ import { pluralRu } from './plural';
 
 const threads = (n: number) => `${n} ${pluralRu(n, 'нить', 'нити', 'нитей')}`;
 const minutes = (n: number) => `${n} ${pluralRu(n, 'минута', 'минуты', 'минут')}`;
+/** Примерное время вышивки: до полутора часов — минуты, дальше — часы (с получасом до 10 ч). */
+const duration = (min: number) => (min < 90 ? `${min} мин`
+  : min < 600 ? `${String(Math.round(min / 30) / 2).replace('.', ',')} ч` : `${Math.round(min / 60)} ч`);
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 export const ru = {
   common: {
@@ -17,10 +21,11 @@ export const ru = {
     threads,
     minutes,
     sizes: { S: 'Малая', M: 'Средняя', L: 'Большая', XL: 'Огромная' } as Record<'S' | 'M' | 'L' | 'XL', string>,
-    meta: (w: number, h: number, n: number, min: number) => `${w} × ${h} · ${threads(n)} · ≈ ${min} мин`,
+    meta: (w: number, h: number, n: number, min: number) => `${w} × ${h} · ${threads(n)} · ≈ ${duration(min)}`,
+    duration,
     /** «Средняя · 12 нитей · ≈ 25 мин» — карточка картинки (docs/specs/2026-09-library.md) */
     picMeta: (size: 'S' | 'M' | 'L' | 'XL', n: number, min: number) =>
-      `${({ S: 'Малая', M: 'Средняя', L: 'Большая', XL: 'Огромная' })[size]} · ${threads(n)} · ≈ ${min} мин`,
+      `${({ S: 'Малая', M: 'Средняя', L: 'Большая', XL: 'Огромная' })[size]} · ${threads(n)} · ≈ ${duration(min)}`,
     percent: (p: number) => `${p} %`,
   },
   home: {
@@ -37,7 +42,7 @@ export const ru = {
     calendar: 'Календарь',
     settings: 'Настройки',
     check: 'Для проверки',
-    checkNote: 'Сборка 0.x: библиотека, календарь и «Мои работы» — в следующих сборках, а все картинки набора пока — в «Листе узоров».',
+    checkNote: 'Сборка 0.x для проверки: «Лист узоров» — все картинки набора с числами проверок и пометкой, какие пока не для выпуска.',
     sheet: 'Лист узоров',
     sheetNote: 'П3 · узоры из картин и орнаменты, как их увидит игрок',
     bench: 'Замер канвы',
@@ -48,8 +53,51 @@ export const ru = {
     mineNote: 'Узор из своего снимка: кадр, размер и проверка — прямо в браузере',
     report: 'Сообщить об ошибке',
   },
-  soon: {
-    text: 'Появится в следующих сборках. Пока все картинки набора — в «Листе узоров».',
+  library: {
+    title: 'Библиотека',
+    all: 'Все',
+    collections: {
+      ornaments: 'Орнаменты', painting: 'Живопись', tales: 'Сказки', russia: 'Россия в цвете', flowers: 'Цветы',
+      nature: 'Природа', cities: 'Города', kids: 'Детям', schemes: 'Старинные схемы',
+    } as Record<'ornaments' | 'painting' | 'tales' | 'russia' | 'flowers' | 'nature' | 'cities' | 'kids' | 'schemes', string>,
+    count: (n: number) => `${n} ${pluralRu(n, 'картинка', 'картинки', 'картинок')}`,
+    sizes: { all: 'Все', S: 'Малые', M: 'Средние', L: 'Большие', XL: 'Огромные' } as Record<'all' | 'S' | 'M' | 'L' | 'XL', string>,
+    hideDone: 'Скрыть готовые',
+    none: 'Здесь пока ничего нет.',
+    newMark: 'Новое',
+    plusMark: 'Узоры+',
+  },
+  picture: {
+    stitch: 'Вышивать',
+    continue: (p: number) => `Продолжить (${p} %)`,
+    again: 'Вышить ещё раз',
+    about: 'О картине',
+    hide: 'Свернуть',
+    source: 'Источник',
+    plusNote: 'В 1.0 эта картинка — в «Узоры+». В сборке для проверки открыто всё.',
+    done: 'Вышита',
+  },
+  works: {
+    title: 'Мои работы',
+    started: 'Начатые',
+    finished: 'Готовые',
+    emptyStarted: 'Начатых работ нет. Выберите картинку в библиотеке или картинку дня.',
+    emptyFinished: 'Готовых работ пока нет.',
+    finishedOn: (d: Date) => `вышита ${d.getDate()} ${MONTHS[d.getMonth()]}`,
+    removeSure: 'Удалить работу?',
+    removeNote: 'Работа удалится с телефона. Вернуть её будет нельзя.',
+    remove: 'Удалить',
+    cancel: 'Отмена',
+    broken: 'Работа повреждена',
+    gone: 'Картинка недоступна',
+    hold: 'Долгое касание — удалить работу',
+  },
+  calendar: {
+    title: 'Календарь',
+    month: (m: number, y: number) => `${MONTHS_NOM[m]} ${y}`,
+    weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+    note: 'Картинка дня бесплатна навсегда. Календарь начинается с первого запуска игры: пропущенные дни ждут здесь.',
+    empty: 'Календарь начнётся с завтрашней картинки дня.',
   },
   settings: {
     title: 'Настройки',
