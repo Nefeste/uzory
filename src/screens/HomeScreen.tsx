@@ -22,11 +22,12 @@ export const CHECKS = APP_VERSION.startsWith('0.');
 const keyOf = (p: PackPicture) => `${p.id}@${p.v}`;
 const percentOf = (w: WorkEntry) => Math.floor((w.done * 100) / Math.max(1, w.total));
 
-export function HomeScreen({ onStitch, onSettings, onSoon, onSheet, onBench, onFile, onMine }: {
+export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onFile, onMine }: {
   onStitch: (pic: PackPicture, workId?: string) => void;
   onSettings: () => void;
-  /** «Библиотека», «Мои работы», «Календарь» — до этапа библиотеки заглушка «Скоро» */
-  onSoon: (title: string) => void;
+  onLibrary: () => void;
+  onWorks: () => void;
+  onCalendar: () => void;
   onSheet: () => void;
   onBench: () => void;
   onFile: () => void;
@@ -106,7 +107,7 @@ export function HomeScreen({ onStitch, onSettings, onSoon, onSheet, onBench, onF
               {work?.finished && !isFirst ? (
                 <View style={styles.row}>
                   <Txt dim style={styles.grow}>{T.home.tomorrow}</Txt>
-                  <Button small kind="ghost" label={T.home.calendar} onPress={() => onSoon(T.home.calendar)} />
+                  <Button small kind="ghost" label={T.home.calendar} onPress={onCalendar} testID="home-tomorrow-calendar" />
                 </View>
               ) : null}
             </View>
@@ -117,9 +118,9 @@ export function HomeScreen({ onStitch, onSettings, onSoon, onSheet, onBench, onF
             onPress={() => onStitch(lastPic, last.id)} testID="continue" />
         ) : null}
         <View style={styles.nav}>
-          <Button kind="secondary" label={T.home.library} onPress={() => onSoon(T.home.library)} testID="home-library" />
-          <Button kind="secondary" label={T.home.works} onPress={() => onSoon(T.home.works)} testID="home-works" />
-          <Button kind="secondary" label={T.home.calendar} onPress={() => onSoon(T.home.calendar)} testID="home-calendar" />
+          <Button kind="secondary" label={T.home.library} onPress={onLibrary} testID="home-library" />
+          <Button kind="secondary" label={T.home.works} onPress={onWorks} testID="home-works" />
+          <Button kind="secondary" label={T.home.calendar} onPress={onCalendar} testID="home-calendar" />
         </View>
         {CHECKS ? (
           <View style={styles.checks}>

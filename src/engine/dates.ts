@@ -34,3 +34,34 @@ export function mondayOf(date: string): string {
 export const localDate = (ms: number, offsetMin: number) => toDate(ms + offsetMin * 60000);
 
 export const maxDate = (a: string, b: string) => (a > b ? a : b);
+
+/** Месяц календаря: неделя с понедельника, пустые клетки до первого числа и после последнего — null. */
+export interface MonthGrid {
+  y: number;
+  /** 0 — январь */
+  m: number;
+  days: (string | null)[];
+}
+
+/** Месяцы от месяца даты `to` назад до месяца даты `from` (docs/specs/2026-09-library.md, «Календарь»). */
+export function monthGrids(from: string, to: string): MonthGrid[] {
+  const out: MonthGrid[] = [];
+  let y = +to.slice(0, 4);
+  let m = +to.slice(5, 7) - 1;
+  const fy = +from.slice(0, 4);
+  const fm = +from.slice(5, 7) - 1;
+  while (y > fy || (y === fy && m >= fm)) {
+    const first = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const lead = (new Date(toTime(first)).getUTCDay() + 6) % 7;
+    const days: (string | null)[] = Array<string | null>(lead).fill(null);
+    for (let d = first; d.slice(5, 7) === first.slice(5, 7); d = addDays(d, 1)) days.push(d);
+    while (days.length % 7) days.push(null);
+    out.push({ y, m, days });
+    m -= 1;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    }
+  }
+  return out;
+}

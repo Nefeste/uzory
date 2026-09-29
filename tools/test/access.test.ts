@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import { access, type AccessContext } from '../../src/engine/access';
 import { Daily } from '../../src/engine/calendar';
-import { addDays, daysBetween, isDate, localDate, mondayOf } from '../../src/engine/dates';
+import { addDays, daysBetween, isDate, localDate, mondayOf, monthGrids } from '../../src/engine/dates';
 import type { Picture } from '../../src/engine/library';
 
 const pic = (id: string, over: Partial<Picture> = {}): Picture => ({
@@ -21,6 +21,19 @@ describe('даты', () => {
     expect(isDate('2026-02-28')).toBe(true);
     // 21:30 UTC 4 октября — уже 5-е в Москве (UTC+3)
     expect(localDate(Date.UTC(2026, 9, 4, 21, 30), 180)).toBe('2026-10-05');
+  });
+});
+
+describe('календарь по месяцам', () => {
+  test('от текущего месяца назад до месяца первого запуска, неделя с понедельника', () => {
+    const g = monthGrids('2026-09-20', '2026-11-03');
+    expect(g.map((x) => `${x.y}-${x.m + 1}`)).toEqual(['2026-11', '2026-10', '2026-9']);
+    // 1 ноября 2026 — воскресенье: шесть пустых клеток перед ним
+    expect(g[0].days.slice(0, 7)).toEqual([null, null, null, null, null, null, '2026-11-01']);
+    expect(g[0].days.length % 7).toBe(0);
+    expect(g[2].days.filter(Boolean)).toHaveLength(30);
+    // через Новый год
+    expect(monthGrids('2026-12-31', '2027-01-01').map((x) => `${x.y}-${x.m + 1}`)).toEqual(['2027-1', '2026-12']);
   });
 });
 
