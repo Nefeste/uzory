@@ -72,22 +72,54 @@ async function open(page: Page, s: Seed, settings: Record<string, unknown>) {
   const started = Date.now() - 42 * 60_000;
   const bytes = encodeWork(s.key, started, s.strokes);
   const index = [{ id: s.id, pattern: s.key, started, done: s.done, total: s.total, opened: started + 40 * 60_000, at: s.at }];
-  await page.addInitScript(([id, work, idx, set]) => {
-    localStorage.clear();
-    localStorage.setItem(`uzory.files.${id}.log`, work);
-    localStorage.setItem('uzory.files.index.json', idx);
-    localStorage.setItem('uzory.settings.v1', set);
-  }, [s.id, base64Encode(bytes), base64Encode(utf8Encode(JSON.stringify(index))), JSON.stringify(settings)] as const);
+  // работы веб-сборки — в IndexedDB (src/state/files.web.ts), настройки — в localStorage:
+  // страница открывается, файлы кладутся в её базу, и она открывается заново уже с работой
   await page.goto(base);
+  await page.evaluate(async ([id, work, idx, set]) => {
+    localStorage.clear();
+    localStorage.setItem('uzory.settings.v1', set);
+    const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    await new Promise<void>((resolve, reject) => {
+      const r = indexedDB.open('uzory', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onerror = () => reject(r.error);
+      r.onsuccess = () => {
+        const db = r.result;
+        const t = db.transaction('files', 'readwrite');
+        const files = t.objectStore('files');
+        files.clear();
+        files.put(bytesOf(work), `${id}.log`);
+        files.put(bytesOf(idx), 'index.json');
+        t.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        t.onerror = () => reject(t.error);
+      };
+    });
+  }, [s.id, base64Encode(bytes), base64Encode(utf8Encode(JSON.stringify(index))), JSON.stringify(settings)] as const);
+  await page.reload();
+  // строка о мыши и колёсике — только в браузере: на телефоне, для которого эти снимки, её нет
+  await page.addStyleTag({ content: '[data-testid="hint"] { display: none !important; }' });
   await page.getByTestId('continue').waitFor({ timeout: 60_000 });
   await page.getByTestId('continue').click();
   await page.getByTestId('canvas').waitFor();
   await page.waitForTimeout(2500);
 }
 
+/** Клавиши канвы в браузере (docs/specs/2026-09-web.md): «−» — дальше, «0» — весь узор. */
+async function keys(page: Page, ...list: string[]) {
+  for (const k of list) {
+    await page.keyboard.press(k);
+    await page.waitForTimeout(400);
+  }
+  await page.waitForTimeout(800);
+}
+
 async function save(page: Page, name: string) {
   const png = await page.screenshot();
-  await sharp(png).toFile(join(SHOTS, `${name}.png`));
+  // без потерь, но плотнее: сайт делает из них WebP сам, а RuStore берёт как есть
+  await sharp(png).png({ compressionLevel: 9, adaptiveFiltering: true }).toFile(join(SHOTS, `${name}.png`));
   console.log(name);
 }
 
@@ -104,25 +136,35 @@ const shot = async (f: (page: Page) => Promise<void>) => {
 const base0 = { hints: false, haptics: false, sound: false, music: false };
 
 try {
-  // 1. Вышивание: снимок Прокудина-Горского, верх вышит, дальше — номера
+  // 1. Вышивание: «Крестьянские девушки» Прокудина-Горского — красная кофта и тарелка с ягодами
+  // вышиты, ниже номера; чуть дальше масштаба открытия, чтобы в кадр вошли и крестики, и картина
   await shot(async (page) => {
-    const p = get('pg-sushka-setey').pattern;
-    await open(page, seed('w-shot-1', p, progress(p, 0.46), { x: p.w * 0.42, y: p.h * 0.47 }), { ...base0, style: 'cross' });
+    const p = get('pg-krestyanskie-devushki').pattern;
+    await open(page, seed('w-shot-1', p, progress(p, 0.41), { x: p.w * 0.76, y: p.h * 0.4 }), { ...base0, style: 'cross' });
+    await keys(page, '-');
     await save(page, '01-stitch');
   });
-  // 2. Крупные номера: орнамент, выбранная нить подсвечена
+  // 2. Большая работа издалека: вышитое — цветом, остальное — бледной схемой
+  await shot(async (page) => {
+    const p = get('pg-pinkhus-karlinskiy').pattern;
+    await open(page, seed('w-shot-2', p, progress(p, 0.55), { x: p.w / 2, y: p.h / 2 }), { ...base0, style: 'cross' });
+    await keys(page, '0');
+    await save(page, '02-far');
+  });
+  // 3. Крупные номера: орнамент, выбранная нить подсвечена
   await shot(async (page) => {
     const p = get('zvezda-alatyr').pattern;
-    await open(page, seed('w-shot-2', p, progress(p, 0.5, [0]), { x: p.w / 2, y: p.h / 2 }), { ...base0, style: 'cross', bigNumbers: true });
-    await save(page, '02-close');
+    await open(page, seed('w-shot-3', p, progress(p, 0.5, [0]), { x: p.w / 2, y: p.h / 2 }), { ...base0, style: 'cross', bigNumbers: true });
+    await save(page, '03-close');
   });
-  // 3. «Мозаика»
+  // 4. «Мозаика»: дыни «Торговца дынями» ровными квадратами
   await shot(async (page) => {
     const p = get('pg-torgovets-dynyami').pattern;
-    await open(page, seed('w-shot-3', p, progress(p, 0.55), { x: p.w * 0.35, y: p.h * 0.56 }), { ...base0, style: 'mosaic' });
-    await save(page, '03-mosaic');
+    await open(page, seed('w-shot-4', p, progress(p, 0.5), { x: p.w * 0.62, y: p.h * 0.5 }), { ...base0, style: 'mosaic' });
+    await keys(page, '-');
+    await save(page, '04-mosaic');
   });
-  // 4–5. Готово и «Как вышивалось»: последняя клетка — в центре экрана
+  // 5–6. Готово и «Как вышивалось»: последняя клетка — в центре экрана
   await shot(async (page) => {
     const p = get('pg-krestyanskie-devushki').pattern;
     const all = progress(p, 1);
@@ -131,15 +173,15 @@ try {
     if (!last.cells.length) all.pop();
     const x = cell % p.w;
     const y = (cell - x) / p.w;
-    await open(page, seed('w-shot-4', p, all, { x: x + 0.5, y: y + 0.5 }), { ...base0, style: 'cross' });
+    await open(page, seed('w-shot-5', p, all, { x: x + 0.5, y: y + 0.5 }), { ...base0, style: 'cross' });
     const box = (await page.getByTestId('canvas').boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.getByTestId('replay').waitFor({ timeout: 15_000 });
     await page.waitForTimeout(1500);
-    await save(page, '04-done');
+    await save(page, '05-done');
     await page.getByTestId('replay').click();
-    await page.waitForTimeout(4500);
-    await save(page, '05-replay');
+    await page.waitForTimeout(5500);
+    await save(page, '06-replay');
   });
 } finally {
   await browser.close();

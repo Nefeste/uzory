@@ -1,7 +1,7 @@
 ---
 name: Uzory
 title: Uzory — cross-stitch by numbers
-description: "Color by number as cross-stitch: folk ornaments, paintings and old Russia in colour. A new picture every day, offline and without ads."
+description: "Color by number as cross-stitch: folk ornaments, paintings and old Russia in colour — from five-minute patterns to paintings for several evenings. Offline, without ads."
 kind: Color by number
 status: dev
 lead: "Cross-stitch by numbers: pick a thread and stitch — tap a cell or brush your finger across the canvas."
@@ -10,19 +10,26 @@ feature: graphics/feature-en.png
 shots:
   - file: screenshots/ru/01-stitch.png
     caption: Stitching
-    alt: "Stitching: linen canvas, crosses and thread numbers in cells, thread bar at the bottom"
-  - file: screenshots/ru/02-close.png
+    alt: "Stitching a Prokudin-Gorsky photograph: crosses on linen canvas, thread numbers in cells, thread bar at the bottom"
+  - file: screenshots/ru/02-far.png
+    caption: A large work from afar
+    alt: "A large work from afar: stitched cells in thread colours, the rest as a pale chart"
+  - file: screenshots/ru/03-close.png
     caption: Large numbers
-    alt: "Crosses up close: the selected thread is highlighted"
-  - file: screenshots/ru/03-mosaic.png
+    alt: "An ornament up close: the selected thread is highlighted, numbers on unstitched cells"
+  - file: screenshots/ru/04-mosaic.png
     caption: Mosaic style
-    alt: "Mosaic style: even squares with a thin gap"
-  - file: screenshots/ru/04-done.png
+    alt: "Mosaic style: even squares with a thin gap instead of crosses"
+  - file: screenshots/ru/05-done.png
     caption: Finished
-    alt: A finished work in a frame with the replay button
+    alt: "A finished work: Prokudin-Gorsky's Peasant Girls, 116,640 stitches, with the replay button"
+  - file: screenshots/ru/06-replay.png
+    caption: Replay
+    alt: "Replay: the work fills in stitch by stitch in the order it was stitched"
 card:
   text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day, calm music and no rush."
   points:
+    - From a five-minute pattern to a large painting for several evenings
     - A free picture of the day — every day, forever
     - Offline, no sign-up and no ads
     - Uzory+ subscription — no trial week that auto-renews
@@ -41,6 +48,11 @@ game replays how it was stitched.
 - Fairy tales, flowers, nature, cities and simple pictures for kids.
 - A new picture every day — free, forever.
 
+Sizes range from small five-minute patterns to large paintings and old photographs for several
+evenings. The larger the pattern, the finer the detail: Prokudin-Gorsky's Peasant Girls has more
+than a hundred thousand stitches, and you can see faces and fabric patterns. Your work saves
+itself — carry on whenever you like.
+
 ## Calm and honest
 
 No timers, no energy, no streaks. No wrong stitches, and "Where else?" finds the cells you have
@@ -50,7 +62,7 @@ started can be finished after it ends.
 
 ## When
 
-The game is in development; the screenshots are from the prototype, which is in Russian, though the
+The game is in development; the screenshots are from a test build, which is in Russian, though the
 canvas and the finished screen already look as they will in 1.0. Uzory is being prepared for
 release in RuStore for Android; when pre-orders open, a button will appear here. Questions:
 hello@gornitsa.games.

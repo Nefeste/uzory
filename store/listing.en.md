@@ -21,6 +21,7 @@ WHAT TO STITCH
 • Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago.
 • Fairy tales, flowers, nature, cities and simple pictures for kids.
 • A new picture every day — free, forever. Missed a week? Past daily pictures wait in the calendar.
+• From small five-minute patterns to large paintings and old photographs for several evenings. The larger the pattern, the finer the detail: the largest have more than a hundred thousand stitches, with faces and fabric patterns you can make out.
 
 CALM
 • No timers, no energy, no streaks.
