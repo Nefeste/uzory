@@ -288,24 +288,27 @@ try {
   for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -120);
   const frame = (await page.getByTestId('mine-frame').boundingBox())!;
   check(frame.width < photoBox.width * 0.8, 'колёсико приблизило рамку');
-  // малая: лес на 40 клетках рассыпается на мелкие пятна — приговор с советом
-  const metaOf = () => page.getByTestId('mine-meta').innerText();
+  // малая: узор пересобирается, приговор — и для неё
   await page.getByTestId('mine-size-S').click();
   await page.waitForFunction(() => /^40 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
   const verdictS = await page.getByTestId('mine-verdict').innerText();
   check(/Подходит|Не подходит/.test(verdictS), `приговор малой: ${verdictS.replace(/\n/g, ' — ')}`);
-  // весь снимок, средняя; «не подходит» — меньше нитей, как советует приговор
+  // весь снимок, средняя: без упрощения лес рассыпается на мелкие пятна — «не подходит»,
+  // «сильно» выравнивает пятна — подходит (по умолчанию — «немного»)
   await page.getByTestId('mine-whole').click();
   await page.getByTestId('mine-size-M').click();
   await page.waitForFunction(() => /^70 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
-  for (let i = 0; i < 4 && /Не подходит/.test(await page.getByTestId('mine-verdict').innerText()); i++) {
-    const before = await metaOf();
-    await page.getByTestId('mine-threads-minus').click();
-    await page.waitForFunction((m) => document.querySelector('[data-testid="mine-meta"]')?.textContent !== m, before, { timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(600);
-  }
-  const verdict = await page.getByTestId('mine-verdict').innerText();
-  check(!/Не подходит/.test(verdict), `приговор средней: ${verdict.split('\n')[0]}`);
+  const simplify = async (level: number) => {
+    await page.getByTestId(`mine-simplify-${level}`).click();
+    // «Собираю узор…» появляется сразу после правки и уходит с новым узором
+    await page.getByTestId('mine-building').waitFor({ state: 'attached', timeout: 2000 }).catch(() => {});
+    await page.getByTestId('mine-building').waitFor({ state: 'detached', timeout: 30_000 });
+    return page.getByTestId('mine-verdict').innerText();
+  };
+  const plain = await simplify(0);
+  check(/Не подходит/.test(plain) && await page.getByTestId('mine-stitch').isDisabled(), `без упрощения: ${plain.split('\n')[0]}, «Вышивать» неактивна`);
+  const verdict = await simplify(2);
+  check(!/Не подходит/.test(verdict) && !(await page.getByTestId('mine-stitch').isDisabled()), `упрощение «сильно»: ${verdict.split('\n')[0]}`);
   await page.screenshot({ path: join(OUT, '09-mine.png') });
   // карточка для библиотеки: YAML с кадром и снимок без метаданных
   const downloads: Download[] = [];
@@ -315,7 +318,8 @@ try {
   const yamlFile = downloads.find((d) => d.suggestedFilename().endsWith('.yaml'));
   const jpgFile = downloads.find((d) => d.suggestedFilename().endsWith('.jpg'));
   const yamlText = yamlFile ? readFileSync((await yamlFile.path())!, 'utf8') : '';
-  check(!!jpgFile && /\npattern:\n {2}crop: \[/.test(yamlText) && /\n {2}size: 70\n/.test(yamlText), `карточка для библиотеки: ${downloads.map((d) => d.suggestedFilename()).join(', ')}`);
+  check(!!jpgFile && /\npattern:\n {2}crop: \[/.test(yamlText) && /\n {2}size: 70\n/.test(yamlText) && /\n {2}simplify: 2 /.test(yamlText),
+    `карточка для библиотеки: ${downloads.map((d) => d.suggestedFilename()).join(', ')}`);
   await page.getByTestId('mine-stitch').click();
   await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
   check(true, 'свой узор открылся на канве');

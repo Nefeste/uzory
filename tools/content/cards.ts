@@ -47,6 +47,8 @@ export interface Card {
      * трогает, а проверка одиночных и мелких пятен — предупреждение (docs/09-content.md, §6)
      */
     exact?: boolean;
+    /** упрощение перед палитрой: 1 — немного, 2 — сильно (src/engine/build/simplify.ts) */
+    simplify?: 1 | 2;
   };
   drawn?: {
     legend: Record<string, [string, string]>;
@@ -120,6 +122,7 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     }
     if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
     if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
+    if (p.simplify !== undefined && ((p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 1 или 2, и не у схемы — её клетки и так замысел`);
   }
   if (card.drawn) {
     const d = card.drawn;

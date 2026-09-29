@@ -8,6 +8,8 @@ import { toGrid, type Raster } from '../../src/engine/build/grid';
 import { checkPatternWith } from '../../src/engine/build/checks';
 import { buildMine, defaultThreads, libraryCard, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
 import { buildPattern } from '../../src/engine/build/palette';
+import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
+import { hash32 } from '../../src/engine/seed';
 import { readCard } from '../content/cards';
 
 /** Снимок из функции цвета точки: (x, y) в долях → 0xRRGGBB. */
@@ -30,6 +32,17 @@ const scene = (x: number, y: number) => {
   if (y > 0.6 + 0.1 * Math.sin(x * 6)) return (lerp(60, 30, y) << 16) | (lerp(140, 90, y) << 8) | 50;
   return (lerp(120, 200, y) << 16) | (lerp(170, 220, y) << 8) | 240;
 };
+
+/** Пёстрая листва: пятна пяти зелёных чуть больше клетки — без упрощения рассыпается. */
+const leaves = (x: number, y: number) => [0x2e5e3a, 0x4f8a3c, 0x7fb35a, 0x1d3b24, 0xa8c46a][hash32(`${Math.floor(x * 40)},${Math.floor(y * 30)}`) % 5];
+
+/** Карточка во временной папке коллекции — так её читает tools/content. */
+function cardFile(id: string, yaml: string): string {
+  const dir = join(mkdtempSync(join(tmpdir(), 'uzory-card-')), 'nature');
+  mkdirSync(dir);
+  writeFileSync(join(dir, `${id}.yaml`), yaml);
+  return join(dir, `${id}.yaml`);
+}
 
 describe('свой узор', () => {
   test('спокойный снимок подходит; размер по длинной стороне', () => {
@@ -78,12 +91,33 @@ describe('свой узор', () => {
     expect(slugOf('Зонтики в парке!')).toBe('zontiki-v-parke');
     const { id, yaml } = libraryCard({ title: 'Сирень у крыльца', crop: [0.1, 0.05, 0.9, 0.95], side: 120, threads: 24, now: new Date(2026, 8, 29) });
     expect(id).toBe('siren-u-kryltsa');
-    const dir = join(mkdtempSync(join(tmpdir(), 'uzory-card-')), 'nature');
-    mkdirSync(dir);
-    writeFileSync(join(dir, `${id}.yaml`), yaml);
-    const { card, errors } = readCard(join(dir, `${id}.yaml`));
+    const { card, errors } = readCard(cardFile(id, yaml));
     expect(errors).toEqual([]);
     expect(card?.pattern).toEqual({ crop: [0.1, 0.05, 0.9, 0.95], size: 120, threads: 24 });
     expect(card?.source.basis).toContain('снимок автора игры');
+    // упрощение переходит в карточку, «нет» — поля нет вовсе
+    expect(libraryCard({ title: 'Сирень', crop: [0, 0, 1, 1], side: 70, threads: 16, simplify: 0, now: new Date(2026, 8, 29) }).yaml).not.toContain('simplify');
+    const strong = libraryCard({ title: 'Сирень', crop: [0, 0, 1, 1], side: 70, threads: 16, simplify: 2, now: new Date(2026, 8, 29) });
+    const read = readCard(cardFile(strong.id, strong.yaml));
+    expect(read.errors).toEqual([]);
+    expect(read.card?.pattern?.simplify).toBe(2);
+    expect(readCard(cardFile('bad', strong.yaml.replace('simplify: 2', 'simplify: 3'))).errors.join()).toContain('pattern.simplify');
+  });
+
+  test('упрощение: пёстрая листва без него рассыпается, с ним — ровные пятна', () => {
+    const r = photo(700, 525, leaves);
+    const plain = buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16 });
+    expect(plain.checked.stats.small).toBeGreaterThan(2);
+    // «нет» — та же сборка, что и без настройки
+    expect(Buffer.from(buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16, simplify: 0 }).pattern.cells).equals(Buffer.from(plain.pattern.cells))).toBe(true);
+    for (const simplify of [1, 2] as const) {
+      const m = buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16, simplify });
+      expect(m.checked.stats.singles).toBe(0);
+      expect(m.checked.stats.small).toBe(0);
+      expect(m.verdict.level).toBe('ok');
+      // и с упрощением — тот же узор, что соберёт tools/content по карточке с pattern.simplify
+      const lib = buildPattern(simplifyGrid(toGrid(r, [0, 0, 1, 1], 70), simplify), { id: MINE_SEED, v: 1, threads: 16, clean: SIMPLIFY_CLEAN[simplify] }).pattern;
+      expect(Buffer.from(m.pattern.cells).equals(Buffer.from(lib.cells))).toBe(true);
+    }
   });
 });
