@@ -13,7 +13,7 @@
 | `graphics/icon-512.png` | иконка 512 × 512 | `bun tools/store/icons.ts` |
 | `graphics/feature-ru.png`, `feature-en.png` | баннер 1024 × 500 | `bun tools/store/graphics.ts` |
 | `screenshots/ru/*.png` | снимки экрана телефона 1080 × 1920 | `npm run export:web && bun tools/store/shots.ts` |
-| [`site/`](site/) | то же для gornitsa.games: WebP, страница игры, карточка на главной, раздел политики | скрипты выше + [`site/README.md`](site/README.md) |
+| [`site/`](site/) | страница игры на gornitsa.games и карточка на главной (`page.ru.md`, `page.en.md` — формат устава студии, ADR студии 0015; картинки — те же, что выше, WebP сайт делает сам), черновик раздела политики | вручную, [`site/README.md`](site/README.md); формат проверяет `tools/test/site.test.ts` |
 
 **На снимках и баннере — только то, что можно выпускать**: свои орнаменты и снимки
 Прокудина-Горского. Картины из российских музеев — нет, пока не решён В12

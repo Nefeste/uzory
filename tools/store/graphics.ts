@@ -3,7 +3,8 @@
 // шрифтами студии (Kurale, Onest). Только картинки, которые можно выпускать: свои орнаменты
 // и снимки Прокудина-Горского — не картины из российских музеев (docs/09-content.md, §2).
 //
-//   bun tools/store/graphics.ts   → store/graphics/feature-<ru|en>.png, store/site/*.webp
+//   bun tools/store/graphics.ts   → store/graphics/feature-<ru|en>.png (их же берёт сайт студии —
+//   store/site/page.*.md; WebP для сайта он делает сам, ADR студии 0015)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -97,8 +98,6 @@ if (import.meta.main) {
   for (const lang of ['ru', 'en'] as const) {
     const png = await feature(lang, built);
     await sharp(png).toFile(join(ROOT, 'store', 'graphics', `feature-${lang}.png`));
-    await sharp(png).webp({ quality: 88 }).toFile(join(ROOT, 'store', 'site', `uzory-feature${lang === 'en' ? '-en' : ''}.webp`));
   }
-  await sharp(join(ROOT, 'store', 'graphics', 'icon-512.png')).resize(256).webp({ quality: 90 }).toFile(join(ROOT, 'store', 'site', 'uzory-icon.webp'));
   console.log('графика готова');
 }

@@ -1,6 +1,6 @@
 // Карточка магазина (store/README.md): длины полей RuStore, чужие названия, файлы графики.
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
@@ -33,7 +33,7 @@ const FORBIDDEN = [
   /шишкин/i, /левитан/i, /айвазовск/i, /саврасов/i, /куинджи/i, /поленов/i, /кустодиев/i, /васнецов/i,
   /третьяков/i, /русский музей/i,
 ];
-const TEXTS = ['listing.ru.md', 'listing.en.md', 'faq.ru.md', 'site/uzory.html', 'site/uzory.en.html', 'site/cards.html'];
+const TEXTS = ['listing.ru.md', 'listing.en.md', 'faq.ru.md', 'site/page.ru.md', 'site/page.en.md'];
 
 describe('карточка RuStore', () => {
   for (const [file, name, short] of [['listing.ru.md', 'Название', 'Краткое'], ['listing.en.md', 'Title', 'Short']] as const) {
@@ -73,7 +73,7 @@ describe('графика', () => {
     }
   });
 
-  test('снимки экрана 1080 × 1920, не меньше четырёх; на сайте — те, что названы в странице', async () => {
+  test('снимки экрана 1080 × 1920, не меньше четырёх; на сайте — те, что названы в store/site/page.*.md', async () => {
     const dir = join(STORE, 'screenshots', 'ru');
     const shots = readdirSync(dir).filter((f) => f.endsWith('.png'));
     expect(shots.length).toBeGreaterThanOrEqual(4);
@@ -81,9 +81,8 @@ describe('графика', () => {
       const m = await sharp(join(dir, f)).metadata();
       expect([f, m.width, m.height]).toEqual([f, 1080, 1920]);
     }
-    const page = read('site/uzory.html');
-    for (const m of page.matchAll(/\/assets\/games\/(uzory-[a-z0-9-]+\.webp)/g)) {
-      expect(existsSync(join(STORE, 'site', m[1]))).toBe(true);
+    for (const f of ['site/page.ru.md', 'site/page.en.md']) {
+      for (const m of read(f).matchAll(/file: screenshots\/ru\/(\S+\.png)/g)) expect([f, shots]).toEqual([f, expect.arrayContaining([m[1]])]);
     }
   });
 });
