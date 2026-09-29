@@ -504,6 +504,57 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
 
+  // «Перенос» (docs/specs/2026-09-plus.md): «Сохранить работы в файл» — файл .uzw; «Загрузить из
+  // файла» в чистой вкладке — работы и свой узор на месте; тот же файл второй раз — ничего нового
+  await page.getByTestId('home-settings').click();
+  const saved = page.waitForEvent('download', { timeout: 15_000 });
+  await page.getByTestId('set-save').click();
+  const uzw = await saved.then(async (d) => ({ name: d.suggestedFilename(), path: (await d.path())! })).catch(() => null);
+  const backup = uzw ? JSON.parse(readFileSync(uzw.path, 'utf8')) as { format: string; works: unknown[]; mine: unknown[] } : null;
+  const nWorks = backup?.works.length ?? 0;
+  check(!!uzw && /^uzory-\d{4}-\d{2}-\d{2}\.uzw$/.test(uzw.name) && backup?.format === 'uzory-works' && nWorks === 3 && backup.mine.length === 1,
+    `«Сохранить работы в файл»: ${uzw?.name ?? 'файл не скачался'}, работ ${nWorks}, своих узоров ${backup?.mine.length ?? 0}`);
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-daily').waitFor();
+  if (uzw) writeFileSync(join(OUT, 'transfer.uzw'), readFileSync(uzw.path));
+  if (uzw) {
+    const ctx3 = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const page3 = await ctx3.newPage();
+    page3.on('pageerror', (e) => errors.push(e.message));
+    page3.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    await page3.goto(base);
+    await page3.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
+    await page3.getByTestId('home-settings').click();
+    const load = async () => {
+      const chooser = page3.waitForEvent('filechooser');
+      await page3.getByTestId('set-load').click();
+      await (await chooser).setFiles(uzw.path);
+      await page3.waitForFunction(() => document.querySelector('[data-testid="set-load"]')?.textContent === 'Загрузить из файла'
+        && !!document.querySelector('[data-testid="set-transfer-said"]'), null, { timeout: 15_000 }).catch(() => {});
+      return page3.getByTestId('set-transfer-said').innerText().catch(() => '');
+    };
+    const loaded = await load();
+    check(loaded === `Добавлено: ${nWorks} работы, своих узоров: 1.`, `«Загрузить из файла» в чистой вкладке: ${loaded}`);
+    const again = await load();
+    check(again === `Новых работ в файле нет, уже были: ${nWorks}.`, `тот же файл второй раз: ${again}`);
+    await page3.getByTestId('set-transfer-said').scrollIntoViewIfNeeded().catch(() => {});
+    await page3.screenshot({ path: join(OUT, '10-transfer.png') });
+    await page3.getByTestId('back').click();
+    await page3.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});
+    check((await page3.getByTestId('first-stitch').count()) === 0, 'после загрузки первая картинка вышита — на главной картинка дня');
+    await page3.getByTestId('home-works').click();
+    await page3.getByTestId('works-tab-finished').click();
+    await page3.waitForTimeout(600);
+    const finishedN = await page3.locator('[data-testid^="work-w-"]').count();
+    check(finishedN === 2, `в чистой вкладке «Готовые»: ${finishedN} — первая картинка и «Ромбы кольцами»`);
+    await page3.getByTestId('back').click();
+    await page3.getByTestId('home-mine').click();
+    await page3.locator('[data-testid^="mine-open-"]').first().click();
+    await page3.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    check(true, 'свой узор из файла открылся на канве');
+    await ctx3.close();
+  }
+
   // файл работы и повтор
   await page.getByTestId('home-file').click();
   await page.getByTestId('file-run').click();

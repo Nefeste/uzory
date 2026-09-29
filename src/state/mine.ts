@@ -18,7 +18,7 @@ export interface MineEntry {
   threads: number;
 }
 
-interface MineFile {
+export interface MineFile {
   key: string;
   title: string;
   created: number;
@@ -83,6 +83,30 @@ export async function loadMine(id: string): Promise<Pattern | null> {
     logError('mine', e, fileOf(id));
     return null;
   }
+}
+
+/** Файл узора как есть — для «Перенос»; нет или не читается — null. */
+export async function readMineFile(id: string): Promise<MineFile | null> {
+  try {
+    const b = await readFile(fileOf(id));
+    return b ? (JSON.parse(utf8Decode(b)) as MineFile) : null;
+  } catch (e) {
+    logError('mine', e, fileOf(id));
+    return null;
+  }
+}
+
+/** Узоры из файла переноса (уже проверенные, src/engine/backup.ts). Сбой записи — исключение. */
+export async function putMine(files: readonly MineFile[]): Promise<void> {
+  if (!files.length) return;
+  const entries: MineEntry[] = [];
+  for (const f of files) {
+    const id = f.key.replace(/@1$/, '');
+    await writeFile(fileOf(id), utf8Encode(JSON.stringify(f)));
+    entries.push({ id, title: f.title, created: f.created, w: f.w, h: f.h, threads: f.threads.length });
+  }
+  const ids = new Set(entries.map((m) => m.id));
+  await updateIndex((list) => [...list.filter((m) => !ids.has(m.id)), ...entries].sort((a, b) => b.created - a.created));
 }
 
 /** Удаляет узор и все его работы. */

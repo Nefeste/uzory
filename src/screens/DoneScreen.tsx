@@ -21,7 +21,7 @@ import { logError } from '../state/crashlog';
 import { dailyCalendar, FIRST_PICTURE, pictureById } from '../state/library';
 import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
-import { sharePng } from '../state/share';
+import { shareFile } from '../state/share';
 import { openWork, type WorkSession } from '../state/works';
 import { Button, Screen, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
@@ -119,7 +119,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
       const png = shareImage(pattern, session.state.stitched, settings.style === 'mosaic', { title: titleFont, text: textFont, digits: font },
         { title, caption, mark: pic?.author ? T.done.markBased(T.picture.basedOn[pic.collection]) : T.done.mark });
       const name = `uzory-${pattern.key.replace(/@.*$/, '')}.png`;
-      if (!png || !(await sharePng(png, name, T.done.share))) setNote(T.done.shareFailed);
+      if (!png || !(await shareFile(png, name, 'image/png', T.done.share))) setNote(T.done.shareFailed);
     } catch (e) {
       logError('work', e, 'share');
       setNote(T.done.shareFailed);
