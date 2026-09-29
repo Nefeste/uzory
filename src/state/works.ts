@@ -166,6 +166,19 @@ export async function startWork(pattern: Pattern, now: number): Promise<WorkSess
   return s;
 }
 
+/**
+ * Работы из файла переноса (src/state/backup.ts): стежки — файлами (прежний файл той же
+ * работы становится `.bak`), записи — в указатель вместо прежних. Сбой записи — исключение.
+ */
+export async function putWorks(list: readonly { entry: WorkEntry; log: Uint8Array }[]): Promise<void> {
+  if (!list.length) return;
+  for (const w of list) await writeFile(`${w.entry.id}.log`, w.log);
+  const ids = new Set(list.map((w) => w.entry.id));
+  const next = indexQueue.then(async () => saveIndex([...list.map((w) => w.entry), ...(await loadIndex()).filter((w) => !ids.has(w.id))]));
+  indexQueue = next.catch((e) => logError('work', e, 'index'));
+  await next;
+}
+
 export async function deleteWork(id: string): Promise<void> {
   await removeFile(`${id}.log`);
   await updateIndex((list) => list.filter((w) => w.id !== id));
