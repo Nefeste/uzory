@@ -1,0 +1,31 @@
+# «Детям» (docs/09-content.md, §1): пирамидка — кольца всех цветов радуги.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-piramidka
+title: Пирамидка
+collection: kids
+order: 18
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    r: ["#b3162f", кумачовая]
+    o: ["#e0712c", морковная]
+    y: ["#f2c230", солнечная]
+    e: ["#5a9a3c", травяная]
+    n: ["#6fa8dc", небесная]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    ......rrr......
+    .....rrrrr.....
+    .....ooooo.....
+    ....ooooooo....
+    ....yyyyyyy....
+    ...yyyyyyyyy...
+    ...eeeeeeeee...
+    ..eeeeeeeeeee..
+    ..nnnnnnnnnnn..
+    .nnnnnnnnnnnnn.
+    vvvvvvvvvvvvvvv
+    vvvvvvvvvvvvvvv

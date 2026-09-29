@@ -1,0 +1,33 @@
+# «Детям» (docs/09-content.md, §1): парусник на волнах.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-korablik
+title: Кораблик
+collection: kids
+order: 7
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    m: ["#6b4226", шоколадная]
+    w: ["#f2c230", солнечная]
+    c: ["#6fa8dc", небесная]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    .......mkkk.....
+    .......mkkkk....
+    .......mkk......
+    ......wm........
+    .....wwm........
+    ....wwwmc.......
+    ...wwwwmcc......
+    ..wwwwwmccc.....
+    .wwwwwwmcccc....
+    .......m........
+    mmmmmmmmmmmmmmmm
+    .mmmmmmmmmmmmmm.
+    ..mmmmmmmmmmmm..
+    vv..vv..vv..vv..
+    .vv..vv..vv..vv.

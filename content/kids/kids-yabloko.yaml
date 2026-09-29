@@ -1,0 +1,32 @@
+# «Детям» (docs/09-content.md, §1): красное яблоко с листиком и бликом.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-yabloko
+title: Яблоко
+collection: kids
+order: 4
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    b: ["#6b4226", шоколадная]
+    g: ["#5a9a3c", травяная]
+    w: ["#f4b6c2", розовая]
+  grid: |
+    .......bb.......
+    .......bbggg....
+    ....kkkbbggg....
+    ..kkkkkbbkggkk..
+    .kkkkkkkkkkkkkk.
+    .kkwwkkkkkkkkkk.
+    kkkwwkkkkkkkkkkk
+    kkkwwkkkkkkkkkkk
+    kkkwwkkkkkkkkkkk
+    kkkkkkkkkkkkkkkk
+    .kkkkkkkkkkkkkk.
+    .kkkkkkkkkkkkkk.
+    ..kkkkkkkkkkkk..
+    ...kkkkkkkkkk...
+    ....kkk..kkk....
