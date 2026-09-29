@@ -469,6 +469,25 @@ try {
   // список прокручивается и рисует не всё сразу: проверяем, что он не пуст и первые на месте
   check((await page.locator('[data-testid^="sheet-"]').count()) >= Math.min(built.length, 5), `лист: ${built.length} картинок в наборе`);
   await page.screenshot({ path: join(OUT, '05-sheet.png') });
+  // отбор (docs/09-content.md, §8): «Да» у первой картинки, «Нет» у «Розетки», «Позже» и снова
+  // «Позже» — снято; «Скопировать решения» — текстом в буфер обмена
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(base).origin });
+  await page.getByTestId('pick-first-picture-yes').click();
+  await page.getByTestId('pick-rozetka-no').click();
+  await page.getByTestId('pick-zvezda-alatyr-later').click();
+  await page.getByTestId('pick-zvezda-alatyr-later').click();
+  const picked = await page.getByTestId('sheet-picked').innerText();
+  await page.getByTestId('sheet-copy').click();
+  await page.getByTestId('sheet-picks-text').waitFor({ timeout: 5000 }).catch(() => {});
+  const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
+  check(picked.startsWith('Отмечено 2 из') && clip.includes('Да (1): Первая картинка (first-picture)') && clip.includes('Нет (1): Розетка (rozetka)')
+    && !clip.includes('Позже'), `отбор в листе: ${picked}; решения — в буфере обмена`);
+  await page.getByTestId('sheet-filter-unmarked').click();
+  await page.waitForTimeout(300);
+  check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,
+    '«Без отметки» — только неотмеченные');
+  await page.getByTestId('sheet-filter-all').click();
+  await page.screenshot({ path: join(OUT, '05-sheet-picks.png') });
   await page.getByTestId('back').click();
 
   // свой узор (docs/specs/2026-09-custom.md): снимок → кадр → размер → приговор → «Вышивать»

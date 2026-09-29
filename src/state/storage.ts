@@ -41,4 +41,6 @@ export const KEYS = {
   net: 'uzory.net.v1',
   /** счётчики суток: итоги дня игры для первого за день запроса каталога (src/state/counters.ts) */
   counters: 'uzory.counters.v1',
+  /** отбор картинок владельцем в листе: id → «да», «нет», «позже» (src/state/picks.ts, только 0.x) */
+  picks: 'uzory.picks.v1',
 };
