@@ -21,6 +21,8 @@ describe('карточки', () => {
     'no-museum.yaml': /museum|где хранится/,
     'both-ways.yaml': /ровно одно/,
     'Bad_Id.yaml': /латиница/,
+    'bad-season.yaml': /season «зима»/,
+    'bad-day.yaml': /day «02-30»/,
   };
   for (const f of readdirSync(dir)) {
     test(`испорченная карточка ${f} не проходит`, () => {

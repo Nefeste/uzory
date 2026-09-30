@@ -5,6 +5,7 @@ title: Варежка
 collection: kids
 order: 21
 free: true
+season: winter   # календарь: только в свой сезон (docs/09-content.md, §9)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

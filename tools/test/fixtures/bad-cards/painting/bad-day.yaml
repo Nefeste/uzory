@@ -1,0 +1,11 @@
+id: bad-day
+title: Праздник — не день года
+collection: painting
+order: 1
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: abroad
+day: "02-30"
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 60, threads: 16 }

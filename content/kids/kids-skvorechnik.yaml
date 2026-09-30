@@ -5,6 +5,7 @@ title: Скворечник
 collection: kids
 order: 23
 free: true
+season: spring   # календарь: только в свой сезон (docs/09-content.md, §9)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

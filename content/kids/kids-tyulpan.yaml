@@ -5,6 +5,7 @@ title: Тюльпан
 collection: kids
 order: 24
 free: true
+day: "03-08"   # календарь: 8 Марта — цветы (docs/09-content.md, §9)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

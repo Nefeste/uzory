@@ -1,0 +1,11 @@
+id: bad-season
+title: Время года не из списка
+collection: painting
+order: 1
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: abroad
+season: зима
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 60, threads: 16 }

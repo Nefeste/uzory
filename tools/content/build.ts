@@ -13,11 +13,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { base64Encode } from '../../src/engine/base64';
-import { addDays } from '../../src/engine/dates';
+import { addDays, daysBetween } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex } from '../../src/engine/pattern';
-import { type Card, CONTENT, listCards, readCard, releasable, ROOT } from './cards';
+import { type Card, CONTENT, listCards, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid, toGrid } from './image';
@@ -95,21 +95,96 @@ export function toPicture(card: Card, size: Picture['size'], created: string, tr
   return p;
 }
 
+/** Время года дня: зима — декабрь, январь, февраль; весна — с марта; лето — с июня; осень — с сентября. */
+export function seasonOf(date: string): Season {
+  const m = Number(date.slice(5, 7));
+  return m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'autumn';
+}
+
+/** a лучше b: первое различие по порядку — больше */
+const better = (a: number[], b: number[]) => {
+  for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k] > b[k];
+  return false;
+};
+
+/** Первый день времени года `s` с даты `from` включительно и первый день после него. */
+function seasonWindow(s: Season, from: string): [string, string] {
+  let d = from;
+  while (seasonOf(d) !== s) d = addDays(d, 1);
+  const start = d;
+  while (seasonOf(d) === s) d = addDays(d, 1);
+  return [start, d];
+}
+
+/** Правила календаря из карточек (docs/09-content.md, §9). */
+export interface CalendarRules {
+  /** время года картинки (`season`): только в свой сезон, вразбивку по нему */
+  season?: ReadonlyMap<string, Season>;
+  /** день картинки «ММ-ДД» (`day`, праздник): ровно в этот день, если календарь до него дотянется */
+  day?: ReadonlyMap<string, string>;
+}
+
 /**
- * Календарь сборки: с `from` по дню на картинку — малые и средние, коллекции по кругу,
- * чтобы две картинки одной коллекции не шли подряд (docs/09-content.md, §8–9).
+ * Календарь сборки: с `from` по дню на картинку — малые и средние (docs/09-content.md, §8–9).
+ * - Картинка с днём (`day`) встаёт ровно в свой день — ближайший с `from`, если календарь
+ *   до него дотянется; иначе в календарь не идёт.
+ * - Картинка со временем года (`season`) встаёт только в свой сезон — первый с `from` — и не
+ *   раньше своей доли сезона: картинки одного сезона идут вразбивку, а не в первые дни.
+ * - В прочие дни выбирается коллекция: не та, что вчера, и не та, что у завтрашнего праздника,
+ *   пока есть другая (две картинки одной коллекции подряд не идут); среди прочих — та, где
+ *   подошла картинка сезона, потом та, где картинок осталось больше, — так коллекции идут
+ *   вперемешку до конца, а не одна за другой.
+ * Остались одни картинки других сезонов — календарь кончается.
  */
-export function autoCalendar(pictures: Picture[], from: string): CalendarDay[] {
-  const queues = COLLECTIONS.map((c) => pictures.filter((p) => p.collection === c && dailySize(p.size) && !p.hidden));
+export function autoCalendar(pictures: Picture[], from: string, rules: CalendarRules = {}): CalendarDay[] {
+  const season = rules.season ?? new Map<string, Season>();
+  const day = rules.day ?? new Map<string, string>();
+  const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden);
+  const queues = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id)));
+  // праздники: ближайший такой день, если до него картинок хватит
+  const pinned = new Map<string, Picture>();
+  for (const p of daily) {
+    const md = day.get(p.id);
+    if (!md) continue;
+    for (let k = 0; k < daily.length; k++) {
+      const d = addDays(from, k);
+      if (d.slice(5) === md) {
+        if (!pinned.has(d)) pinned.set(d, p);
+        break;
+      }
+    }
+  }
+  // время года: k-я из n картинок сезона — не раньше k/(n+1) его длины
+  const notBefore = new Map<string, string>();
+  for (const s of SEASONS) {
+    const list = queues.flat().filter((p) => season.get(p.id) === s);
+    if (!list.length) continue;
+    const [start, end] = seasonWindow(s, from);
+    const len = daysBetween(start, end);
+    list.forEach((p, k) => notBefore.set(p.id, addDays(start, Math.floor(((k + 1) * len) / (list.length + 1)))));
+  }
   const out: CalendarDay[] = [];
   let last: string | null = null;
   for (;;) {
-    const ready = queues.filter((q) => q.length);
-    if (!ready.length) break;
-    const q = ready.find((x) => x[0].collection !== last) ?? ready[0];
-    const p = q.shift()!;
-    out.push({ date: addDays(from, out.length), picture: p.id });
-    last = p.collection;
+    const date = addDays(from, out.length);
+    const now = seasonOf(date);
+    const tomorrow = pinned.get(addDays(date, 1))?.collection ?? null;
+    let pick = pinned.get(date) ?? null;
+    if (!pick) {
+      let best: { q: Picture[]; i: number; key: number[] } | null = null;
+      for (const q of queues) {
+        const due = q.findIndex((p) => season.get(p.id) === now && date >= notBefore.get(p.id)!);
+        const i = due >= 0 ? due : q.findIndex((p) => !season.has(p.id));
+        if (i < 0) continue;
+        const c = q[i].collection;
+        const key: number[] = [c !== last ? 1 : 0, c !== tomorrow ? 1 : 0, due >= 0 ? 1 : 0, q.length];
+        if (!best || better(key, best.key)) best = { q, i, key };
+      }
+      if (best) pick = best.q.splice(best.i, 1)[0];
+    }
+    if (!pick) break;
+    out.push({ date, picture: pick.id });
+    last = pick.collection;
   }
   return out;
 }
@@ -154,7 +229,9 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
   }
   const col = (c: string) => COLLECTIONS.indexOf(c as Picture['collection']);
   built.sort((a, b) => col(a.card.collection) - col(b.card.collection) || a.card.order - b.card.order || a.card.id.localeCompare(b.card.id));
-  const calendar = autoCalendar(built.map((b) => b.picture), meta.calendar_from ?? meta.created);
+  const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
+  const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
+  const calendar = autoCalendar(built.map((b) => b.picture), meta.calendar_from ?? meta.created, { season, day });
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: built.map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
   return { meta, built, failed, skipped, bytes, calendar };
 }

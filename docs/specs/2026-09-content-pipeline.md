@@ -115,6 +115,9 @@ bun tools/content/sheet.ts --new           # лист превью новых к
   сборке приложения, а не хранится в git.
 - `tools/test/fixtures/released.json` — ключи и хеши выпущенных узоров
   (ADR [0010](../adr/0010-frozen-patterns.md)); дополняется при выкладке набора.
+- Календарь картинок дня встроенного набора — `autoCalendar` в `tools/content/build.ts`,
+  с `calendar_from` из `content/pack.yaml`; время года и праздник — поля карточки `season`
+  и `day` ([`../09-content.md`](../09-content.md), §3 и §9).
 
 ## Неудачные случаи
 

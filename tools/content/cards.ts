@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { parse } from 'yaml';
 import { COLLECTIONS, type CollectionId } from '../../src/engine/library';
+import { isDate } from '../../src/engine/dates';
 import { parseHex } from '../../src/engine/pattern';
 import { SIZES } from './checks';
 
@@ -16,6 +17,10 @@ export const CONTENT = join(ROOT, 'content');
  */
 export const DEATH_LIMIT = 1951;
 export const MADE_LIMIT = 1931;
+
+/** Времена года календаря картинок дня (docs/09-content.md, §9): зима — декабрь–февраль и так далее. */
+export const SEASONS = ['winter', 'spring', 'summer', 'autumn'] as const;
+export type Season = (typeof SEASONS)[number];
 
 export interface Card {
   id: string;
@@ -60,6 +65,10 @@ export interface Card {
   added?: string;
   free?: boolean;
   hidden?: boolean;
+  /** время года: в календаре сборки картинка встаёт только в свой сезон (docs/09-content.md, §9) */
+  season?: Season;
+  /** день «ММ-ДД» — праздник: в календаре сборки картинка встаёт ровно в этот день (§9) */
+  day?: string;
   /** путь к карточке от корня — для отчёта */
   path: string;
   dir: string;
@@ -148,6 +157,10 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (card.museum !== 'ru' && card.museum !== 'abroad' && card.museum !== 'none') errors.push('у живописи — museum: ru | abroad | none');
   }
   if (card.approved !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(card.approved))) errors.push(`approved «${String(card.approved)}» — дата`);
+  if (card.season !== undefined && !SEASONS.includes(card.season)) errors.push(`season «${String(card.season)}» — одно из: ${SEASONS.join(', ')}`);
+  if (card.day !== undefined && !(typeof card.day === 'string' && /^\d{2}-\d{2}$/.test(card.day) && isDate(`2028-${card.day}`))) {
+    errors.push(`day «${String(card.day)}» — день года «ММ-ДД», например «12-31»`);
+  }
   return { card: errors.length ? null : card, errors };
 }
 
