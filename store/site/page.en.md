@@ -7,6 +7,7 @@ status: dev
 lead: "Cross-stitch by numbers: pick a thread and stitch — tap a cell or brush your finger across the canvas."
 icon: graphics/icon-512.png
 feature: graphics/feature-en.png
+cover: graphics/cover.png
 shots:
   - file: screenshots/ru/01-stitch.png
     caption: Stitching

@@ -1,14 +1,15 @@
 // Графика карточки RuStore и сайта студии (store/README.md): баннер 1024 × 500 по-русски
-// и по-английски. Всё рисуется кодом: вышивка — тем же шейдером, что на телефоне, надписи —
-// шрифтами студии (Kurale, Onest). Только картинки, которые можно выпускать: свои орнаменты
-// и снимки Прокудина-Горского — не картины из российских музеев (docs/09-content.md, §2).
+// и по-английски и обложка страницы игры на сайте — 3 : 1, без надписей (брендбук студии). Всё
+// рисуется кодом: вышивка — тем же шейдером, что на телефоне, надписи — шрифтами студии (Kurale,
+// Onest). Только картинки, которые можно выпускать: свои орнаменты и снимки Прокудина-Горского —
+// не картины из российских музеев (docs/09-content.md, §2).
 //
-//   bun tools/store/graphics.ts   → store/graphics/feature-<ru|en>.png (их же берёт сайт студии —
-//   store/site/page.*.md; WebP для сайта он делает сам, ADR студии 0015)
+//   bun tools/store/graphics.ts   → store/graphics/feature-<ru|en>.png и cover.png (их же берёт сайт
+//   студии — store/site/page.*.md; WebP для сайта он делает сам, ADR студии 0015)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { type Pattern } from '../../src/engine/pattern';
+import { CANVAS, type Pattern, type Thread } from '../../src/engine/pattern';
 import { rng } from '../../src/engine/seed';
 import { canvasKit, renderFrame } from '../canvas/ck';
 import { buildAll, type Built } from '../content/build';
@@ -93,11 +94,77 @@ export async function feature(lang: 'ru' | 'en', built: Built[]): Promise<Buffer
     .toBuffer();
 }
 
+/** Узоры на одной канве: нити — общим списком по цвету, клетки — со сдвигом каждой части. */
+function compose(w: number, h: number, parts: { p: Pattern; x: number; y: number }[]): Pattern {
+  const threads: Thread[] = [];
+  const index = new Map<number, number>();
+  const cells = new Uint8Array(w * h).fill(CANVAS);
+  for (const { p, x, y } of parts) {
+    const map = p.threads.map((t) => {
+      if (!index.has(t.rgb)) {
+        index.set(t.rgb, threads.length);
+        threads.push(t);
+      }
+      return index.get(t.rgb)!;
+    });
+    for (let j = 0; j < p.h; j++) {
+      for (let i = 0; i < p.w; i++) {
+        const c = p.cells[j * p.w + i];
+        if (c !== CANVAS && x + i < w && y + j < h) cells[(y + j) * w + x + i] = map[c];
+      }
+    }
+  }
+  return { key: 'cover@1', w, h, threads, cells };
+}
+
+/**
+ * Обложка страницы игры на сайте студии (`cover` в store/site/page.*.md): 3 : 1, без надписей —
+ * рушник: каймы сверху и снизу, между ними ряд мотивов; последний вышит наполовину, и видны номера.
+ */
+export async function cover(built: Built[]): Promise<Buffer> {
+  const W = 2400;
+  const H = 800;
+  const s = 14;
+  const w = Math.ceil(W / s);
+  const h = Math.ceil(H / s);
+  const pick = (id: string) => built.find((b) => b.card.id === id)!.pattern;
+  const band = pick('kayma-rushnika');
+  const motifs = ['kon', 'zvezda-alatyr', 'petushok', 'olen', 'vazon'].map(pick);
+  const top = 1;
+  const bottom = h - 1 - band.h;
+  const parts: { p: Pattern; x: number; y: number }[] = [];
+  for (let x = 0; x < w; x += band.w) parts.push({ p: band, x, y: top }, { p: band, x, y: bottom });
+  // мотивы — поровну по ширине и по середине между каймами
+  const gap = Math.floor((w - motifs.reduce((a, m) => a + m.w, 0)) / (motifs.length + 1));
+  const mid = (top + band.h + bottom) / 2;
+  let x = gap;
+  const last = { x0: 0, x1: 0, y0: 0, y1: 0 };
+  for (const m of motifs) {
+    const y = Math.round(mid - m.h / 2);
+    parts.push({ p: m, x, y });
+    Object.assign(last, { x0: x, x1: x + m.w, y0: y, y1: y + m.h });
+    x += m.w + gap;
+  }
+  const p = compose(w, h, parts);
+  // вышито всё, кроме верха последнего мотива: неровный край, выше — номера
+  const r = rng(11);
+  const edge = last.y0 + (last.y1 - last.y0) * 0.5;
+  const stitched = Uint8Array.from(p.cells, (_, i) => {
+    const cx = i % w;
+    const cy = Math.floor(i / w);
+    if (cx < last.x0 || cx >= last.x1 || cy < last.y0 || cy >= last.y1) return 1;
+    return cy > edge + 2 || (cy > edge - 2 && r() < 0.5) ? 1 : 0;
+  });
+  const f = await renderFrame(p, stitched, { width: W, height: H, s, tx: 0, ty: 0, near: true, selected: 0, font: true });
+  return sharp(Buffer.from(f.png())).png().toBuffer();
+}
+
 if (import.meta.main) {
   const { built } = await buildAll();
   for (const lang of ['ru', 'en'] as const) {
     const png = await feature(lang, built);
     await sharp(png).toFile(join(ROOT, 'store', 'graphics', `feature-${lang}.png`));
   }
+  await sharp(await cover(built)).toFile(join(ROOT, 'store', 'graphics', 'cover.png'));
   console.log('графика готова');
 }
