@@ -11,8 +11,8 @@
 //                                       (четыре клетки на сантиметр, docs/08-game-design.md)
 //
 // Качается только с Викисклада, Библиотеки Конгресса и из открытых собраний музеев с CC0 —
-// Метрополитен-музея и Чикагского института искусств (для «Цветов»: адрес файла — source.download);
-// всё остальное — ошибка.
+// Метрополитен-музея, Чикагского института искусств и Кливлендского музея искусств (для «Цветов»
+// и картин из зарубежных собраний: адрес файла — source.download); всё остальное — ошибка.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -24,6 +24,7 @@ const ALLOWED = [
   /^https:\/\/commons\.wikimedia\.org\//, /^https:\/\/(upload|thumb)\.wikimedia\.org\//,
   /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//, /^https:\/\/www\.wikidata\.org\//,
   /^https:\/\/images\.metmuseum\.org\/CRDImages\//, /^https:\/\/www\.artic\.edu\/iiif\/2\//,
+  /^https:\/\/openaccess-cdn\.clevelandart\.org\//,
 ];
 /** Длинная сторона исходника: запас на узор в четыре клетки на сантиметр холста. */
 const MAX_SIDE = 2000;
