@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): гравюра с раскраской от руки из «Ботанического журнала» Кёртиса; подпись на листе — «Syd. Edwards Del.» (музей называет художником издателя, Кёртиса). Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: edvards-liliya-oranzhevaya
+title: Лилия оранжевая
+collection: flowers
+order: 46
+author: { name: Сайденем Эдвардс, life: 1768–1819 }
+made: "1807"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: edvards-liliya-oranzhevaya.jpg
+  url: https://clevelandart.org/art/1955.144
+  download: https://openaccess-cdn.clevelandart.org/1955.144/1955.144_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1819"
+pattern:
+  crop: [0.04, 0.08, 0.96, 0.89]   # без номера и подписей
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#d4c4b1"      # бумага листа — фон, не вышивается

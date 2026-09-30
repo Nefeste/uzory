@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): гравюра с раскраской от руки из «Ботанического журнала» Кёртиса; подпись на листе — «Sydm Edwards Del.» (музей называет художником издателя, Кёртиса). Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: edvards-saranka
+title: Лилия-саранка
+collection: flowers
+order: 47
+author: { name: Сайденем Эдвардс, life: 1768–1819 }
+made: "1814"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: edvards-saranka.jpg
+  url: https://clevelandart.org/art/1955.145
+  download: https://openaccess-cdn.clevelandart.org/1955.145/1955.145_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1819"
+pattern:
+  crop: [0.08, 0.06, 0.92, 0.94]   # без номера и подписей
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#c9c4b9"      # бумага листа — фон, не вышивается

@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): гравюра с раскраской от руки из «Ботанического журнала» Кёртиса. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: edvards-veresk
+title: Вереск изящный
+collection: flowers
+order: 49
+author: { name: Сайденем Эдвардс, life: 1768–1819 }
+made: "1806"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: edvards-veresk.jpg
+  url: https://clevelandart.org/art/2005.338
+  download: https://openaccess-cdn.clevelandart.org/2005.338/2005.338_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1819"
+pattern:
+  crop: [0.12, 0.25, 0.82, 0.80]   # без номера и подписей
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#ddcbb1"      # бумага листа — фон, не вышивается

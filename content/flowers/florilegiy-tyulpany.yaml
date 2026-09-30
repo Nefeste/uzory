@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акварель из «Флорилегия» — книги этюдов цветов. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: florilegiy-tyulpany
+title: Тюльпаны
+collection: flowers
+order: 43
+author: { name: "неизвестный художник, Франция", life: работал около 1608 }
+made: "1608"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: florilegiy-tyulpany.jpg
+  url: https://clevelandart.org/art/1963.594.5.a
+  download: https://openaccess-cdn.clevelandart.org/1963.594.5.a/1963.594.5.a_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); работа 1608 года"
+pattern:
+  crop: [0.08, 0.13, 0.73, 0.78]   # цветы без полей книги и рамки
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#d9d0bb"      # бумага листа — фон, не вышивается
+  canvas_delta: 0.09   # и бледный отпечаток соседней страницы
