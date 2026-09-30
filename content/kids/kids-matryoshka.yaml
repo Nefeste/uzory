@@ -1,0 +1,41 @@
+# «Детям» (docs/09-content.md, §1): матрёшка в красном платке с цветком на фартуке.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-matryoshka
+title: Матрёшка
+collection: kids
+order: 22
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    t: ["#eac7aa", телесная]
+    u: ["#2b2b2b", угольная]
+    p: ["#f0a6b8", розовая]
+    y: ["#f3cf2c", жёлтая]
+    v: ["#1f4fa0", синяя]
+  grid: |
+    .....kkkk.....
+    ...kkkkkkkk...
+    ..kkkkkkkkkk..
+    .kkkkkuukkkkk.
+    .kkkuuuuuukkk.
+    .kkkttttttkkk.
+    .kktuttttutkk.
+    .kktuttttutkk.
+    .kkppttttppkk.
+    ..kpptkktppk..
+    ..kkkkkkkkkk..
+    .kkkkkkkkkkkk.
+    .kkkkyyyykkkk.
+    kkkkyyvvyykkkk
+    kkkyyyvvyyykkk
+    kkkyvvkkvvykkk
+    kkkyvvkkvvykkk
+    kkkyyyvvyyykkk
+    kkkyyyvvyyykkk
+    .kkyyyyyyyykk.
+    ..kkyyyyyykk..
+    ...kkyyyykk...
