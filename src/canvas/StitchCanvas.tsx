@@ -384,16 +384,22 @@ export function StitchCanvas(props: Props) {
   useEffect(() => { sel.set(props.selected); }, [props.selected, sel]);
   // размер канвы поменялся — камера остаётся в пределах, центр экрана — на той же клетке
   const lastSize = useSharedValue({ vw, vh });
+  /** камера открытия: пока её не трогали, открытие считается заново по новому размеру */
+  const opened = useSharedValue(start.cam);
   const wholeView = props.initial === 'fit';
   useEffect(() => {
     const prev = lastSize.get();
     if (prev.vw === vw && prev.vh === vh) return;
-    if (wholeView) {
-      // просмотр «весь узор» — весь и после смены размера
-      const c = viewFit(w, h, vw, vh);
+    const o = opened.get();
+    // просмотр «весь узор» — весь и после смены размера; канва для вышивания, которую ещё не
+    // двигали, открывается заново: полоса нитей появляется и после разметки канвы и уменьшает
+    // её — узор, открытый целиком, иначе остался бы обрезанным
+    if (wholeView || (s.get() === o.s && tx.get() === o.tx && ty.get() === o.ty)) {
+      const c = start.cam;
       s.set(c.s);
       tx.set(c.tx);
       ty.set(c.ty);
+      opened.set(c);
       lastSize.set({ vw, vh });
       return;
     }
@@ -404,7 +410,7 @@ export function StitchCanvas(props: Props) {
     tx.set(clampX(vw / 2 - cx * k, k, w, vw));
     ty.set(clampY(vh / 2 - cy * k, k, h, vh));
     lastSize.set({ vw, vh });
-  }, [vw, vh, w, h, s, tx, ty, lastSize, wholeView]);
+  }, [vw, vh, w, h, s, tx, ty, lastSize, wholeView, opened, start]);
   useEffect(() => { mosaic.set(props.mosaic); }, [props.mosaic, mosaic]);
   useEffect(() => { hatch.set(props.hatch); }, [props.hatch, hatch]);
   useEffect(() => { fillOn.set(props.fill); }, [props.fill, fillOn]);
