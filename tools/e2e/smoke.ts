@@ -147,6 +147,19 @@ try {
 
   // библиотека (docs/specs/2026-09-library.md): коллекции рядами → «Все» → карточка картинки →
   // «Вышивать»; начатая работа — «Продолжить» на карточке и в «Моих работах»
+  // библиотека не держит экран (0.10.3): превью считаются по одному, между ними экран отвечает;
+  // при замедлении процессора в четыре раза «назад» срабатывает сразу, а не после всех превью
+  // (прежде — 3,4 с при замедлении в шесть раз)
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('lib-ornaments').waitFor({ timeout: 20_000 });
+  const backAt = Date.now();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-library').waitFor({ timeout: 20_000 });
+  const backMs = Date.now() - backAt;
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  check(backMs < 2000, `библиотека не держит экран: «назад» при замедлении ×4 — за ${backMs} мс`);
   await page.getByTestId('home-library').click();
   await page.getByTestId('lib-ornaments').waitFor({ timeout: 10_000 });
   check((await page.locator('[data-testid^="lib-"]').count()) >= 3, 'библиотека: коллекции рядами');

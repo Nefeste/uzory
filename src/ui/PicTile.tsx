@@ -2,6 +2,8 @@
 // начатая — схемой, бледно; вышитая — целиком, с ✓; начатая — процент. Метки «Новое» и «Узоры+»
 // (без замка и затемнения: смотреть можно всё). Превью считается после первой отрисовки, а
 // до того — бледная заглушка тех же размеров: сетка не прыгает (docs/specs/2026-09-library.md).
+// Превью считаются по очереди, по одному за раз (0.10.3): большая картина — сотни тысяч клеток,
+// и десятки превью подряд держали бы экран секунды; между ними телефон отвечает на касания.
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import type { PackPicture } from '../engine/pack';
@@ -10,6 +12,28 @@ import { previewUri } from '../render/preview';
 import { patternOf } from '../state/library';
 import { useSettings } from '../state/settings';
 import { Txt } from './components';
+
+/** Очередь превью: первыми — те, что показались раньше (верхние ряды). */
+const queue: (() => void)[] = [];
+let pumping = false;
+
+function pump() {
+  const job = queue.shift();
+  if (!job) {
+    pumping = false;
+    return;
+  }
+  pumping = true;
+  setTimeout(() => {
+    job();
+    pump();
+  }, 0);
+}
+
+function later(job: () => void) {
+  queue.push(job);
+  if (!pumping) pump();
+}
 
 export function PicTile({ pic, size, done, percent, isNew, plus, title = true, onPress, testID }: {
   pic: PackPicture;
@@ -31,13 +55,12 @@ export function PicTile({ pic, size, done, percent, isNew, plus, title = true, o
   const [shown, setShown] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {
     let alive = true;
-    const t = setTimeout(() => {
-      const uri = previewUri(patternOf(pic), mode, 240);
-      if (alive) setShown({ key, uri });
-    }, 0);
+    // ушедшая с экрана плитка своё превью не считает
+    later(() => {
+      if (alive) setShown({ key, uri: previewUri(patternOf(pic), mode, 240) });
+    });
     return () => {
       alive = false;
-      clearTimeout(t);
     };
   }, [pic, mode, key]);
 

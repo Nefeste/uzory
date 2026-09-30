@@ -24,6 +24,8 @@ export function LibraryScreen({ onBack, onOpen, onCollection }: {
     <Screen title={T.library.title} onBack={onBack}>
       {!cat ? <ActivityIndicator style={styles.wait} color={theme.accent} /> : (
         <FlatList data={cat.collections} keyExtractor={(c) => c.id} contentContainerStyle={styles.list} testID="library"
+          // ряд коллекции — восемь превью: сразу — ряды первого экрана, дальше — по прокрутке
+          initialNumToRender={4} windowSize={5}
           ListEmptyComponent={<Txt dim>{T.library.none}</Txt>}
           renderItem={({ item }) => (
             <View style={styles.row} testID={`lib-${item.id}`}>
