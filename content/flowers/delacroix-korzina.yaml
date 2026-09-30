@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 107,3 × 142,2 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: delacroix-korzina
+title: Корзина с цветами
+collection: flowers
+order: 17
+author: { name: Эжен Делакруа, life: 1798–1863 }
+made: "1848–1849"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: delacroix-korzina.jpg
+  url: https://www.metmuseum.org/art/collection/search/436175
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-14347-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1863"
+pattern:
+  crop: [0.02, 0.03, 0.98, 0.97]   # без рамки скана
+  size: 110
+  threads: 28

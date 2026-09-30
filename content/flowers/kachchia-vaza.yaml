@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 102,5 × 81 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: kachchia-vaza
+title: Цветы в вазе с маскароном
+collection: flowers
+order: 26
+author: { name: Орсола Маддалена Каччиа, life: 1596–1676 }
+made: "около 1635"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: kachchia-vaza.jpg
+  url: https://www.metmuseum.org/art/collection/search/816522
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-19714-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1676"
+pattern:
+  crop: [0.02, 0.01, 0.98, 0.99]   # без рамки скана
+  size: 100
+  threads: 24

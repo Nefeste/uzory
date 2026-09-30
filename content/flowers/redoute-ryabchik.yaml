@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): раскрашенная пунктирная гравюра из «Лилейных», лист 131. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redoute-ryabchik
+title: Рябчик императорский
+collection: flowers
+order: 12
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1802–1816"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: redoute-ryabchik.jpg
+  url: https://www.metmuseum.org/art/collection/search/828288
+  download: https://images.metmuseum.org/CRDImages/dp/original/DP-18599-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.1, 0.03, 0.9, 0.9]   # без рамки скана и подписи
+  size: 90
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#f0ebdf"      # бумага листа — фон, не вышивается

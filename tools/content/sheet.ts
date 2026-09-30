@@ -64,7 +64,8 @@ async function sourceTile(b: Built): Promise<Buffer | null> {
   // рамка кадра, у старинной схемы — рамка сетки
   const [l, t, r, bt] = b.card.pattern?.chart ?? b.card.pattern?.crop ?? [0, 0, 1, 1];
   const frame = Buffer.from(`<svg width="${w}" height="${h}"><rect x="${l * w}" y="${t * h}" width="${(r - l) * w}" height="${(bt - t) * h}" fill="none" stroke="#b3162f" stroke-width="3"/></svg>`);
-  return img.resize({ height: h }).composite([{ input: frame }]).png().toBuffer();
+  // ширина — та же, что у рамки: sharp округляет её по-своему, и рамка на пиксель шире не ляжет
+  return img.resize({ width: w, height: h, fit: 'fill' }).composite([{ input: frame }]).png().toBuffer();
 }
 
 function caption(b: Built): Buffer {

@@ -10,7 +10,9 @@
 //   bun tools/content/fetch.ts dims     размеры холстов картин из Викиданных → content/dimensions.json
 //                                       (четыре клетки на сантиметр, docs/08-game-design.md)
 //
-// Качается только с Викисклада и Библиотеки Конгресса; всё остальное — ошибка.
+// Качается только с Викисклада, Библиотеки Конгресса и из открытых собраний музеев с CC0 —
+// Метрополитен-музея и Чикагского института искусств (для «Цветов»: адрес файла — source.download);
+// всё остальное — ошибка.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -21,6 +23,7 @@ const UA = 'UzoryContentBot/0.1 (https://gornitsa.games; game studio Gornitsa)';
 const ALLOWED = [
   /^https:\/\/commons\.wikimedia\.org\//, /^https:\/\/(upload|thumb)\.wikimedia\.org\//,
   /^https:\/\/www\.loc\.gov\//, /^https:\/\/tile\.loc\.gov\//, /^https:\/\/www\.wikidata\.org\//,
+  /^https:\/\/images\.metmuseum\.org\/CRDImages\//, /^https:\/\/www\.artic\.edu\/iiif\/2\//,
 ];
 /** Длинная сторона исходника: запас на узор в четыре клетки на сантиметр холста. */
 const MAX_SIDE = 2000;

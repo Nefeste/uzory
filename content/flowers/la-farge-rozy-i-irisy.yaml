@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): гуашь и акварель на бумаге, 36,8 × 26,5 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: la-farge-rozy-i-irisy
+title: Шиповник и ирисы
+collection: flowers
+order: 24
+author: { name: Джон Ла Фарж, life: 1835–1910 }
+made: "1887"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: la-farge-rozy-i-irisy.jpg
+  url: https://www.metmuseum.org/art/collection/search/11376
+  download: https://images.metmuseum.org/CRDImages/ad/original/DP119120.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1910"
+pattern:
+  crop: [0.07, 0.05, 0.94, 0.86]   # без рамки скана
+  size: 100
+  threads: 24

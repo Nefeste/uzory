@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 43 × 61 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: van-gogh-podsolnukhi
+title: Подсолнухи
+collection: flowers
+order: 0
+author: { name: Винсент Ван Гог, life: 1853–1890 }
+made: "1887"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: van-gogh-podsolnukhi.jpg
+  url: https://www.metmuseum.org/art/collection/search/436524
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-41223-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1890"
+pattern:
+  crop: [0.02, 0.025, 0.98, 0.975]   # без рамки скана
+  size: 100
+  threads: 24

@@ -134,7 +134,8 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (!d.grid === !d.generator) errors.push('drawn: либо grid, либо generator');
   }
   // рисунки и снимки живописи несут автора и год; правило срока
-  if (card.collection === 'painting' || card.collection === 'tales' || card.collection === 'russia') {
+  const art = card.collection === 'painting' || card.collection === 'tales' || card.collection === 'flowers';
+  if (art || card.collection === 'russia') {
     if (!card.author?.name || !card.author.life) errors.push('у живописи и снимков — автор и годы жизни');
     if (!card.made) errors.push('у живописи и снимков — год работы (made)');
     const death = Math.max(...years(card.author?.life));
@@ -142,7 +143,7 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (Number.isFinite(death) && death > DEATH_LIMIT) errors.push(`автор умер в ${death}: позже ${DEATH_LIMIT} (правило срока)`);
     if (Number.isFinite(made) && made >= MADE_LIMIT) errors.push(`работа ${made} года: не раньше ${MADE_LIMIT} (правило срока)`);
   }
-  if (card.collection === 'painting' || card.collection === 'tales') {
+  if (art) {
     if (!card.place) errors.push('у живописи — где хранится оригинал (place)');
     if (card.museum !== 'ru' && card.museum !== 'abroad' && card.museum !== 'none') errors.push('у живописи — museum: ru | abroad | none');
   }

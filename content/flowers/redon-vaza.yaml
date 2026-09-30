@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 72,7 × 54 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redon-vaza
+title: Ваза с цветами на розовом фоне
+collection: flowers
+order: 8
+author: { name: Одилон Редон, life: 1840–1916 }
+made: "около 1906"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: redon-vaza.jpg
+  url: https://www.metmuseum.org/art/collection/search/437382
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT2159.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1916"
+pattern:
+  crop: [0.01, 0.01, 0.99, 0.99]   # без рамки скана
+  size: 100
+  threads: 24

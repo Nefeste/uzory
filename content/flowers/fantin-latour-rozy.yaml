@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 29,8 × 41,6 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: fantin-latour-rozy
+title: Розы в чаше
+collection: flowers
+order: 7
+author: { name: Анри Фантен-Латур, life: 1836–1904 }
+made: "1883"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: fantin-latour-rozy.jpg
+  url: https://www.metmuseum.org/art/collection/search/437995
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT10260.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1904"
+pattern:
+  crop: [0.02, 0.03, 0.98, 0.97]   # без рамки скана
+  size: 100
+  threads: 24

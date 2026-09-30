@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 64,8 × 49,8 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redon-kitayskaya-vaza
+title: Букет в китайской вазе
+collection: flowers
+order: 16
+author: { name: Одилон Редон, life: 1840–1916 }
+made: "около 1912–1914"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: redon-kitayskaya-vaza.jpg
+  url: https://www.metmuseum.org/art/collection/search/437378
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP240599.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1916"
+pattern:
+  crop: [0.02, 0.015, 0.98, 0.985]   # без рамки скана
+  size: 100
+  threads: 24

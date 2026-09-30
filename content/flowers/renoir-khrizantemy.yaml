@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 66 × 55,6 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: renoir-khrizantemy
+title: Букет хризантем
+collection: flowers
+order: 3
+author: { name: Огюст Ренуар, life: 1841–1919 }
+made: "1881"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: renoir-khrizantemy.jpg
+  url: https://www.metmuseum.org/art/collection/search/438012
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT1877.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1919"
+pattern:
+  crop: [0.025, 0.02, 0.975, 0.98]   # без рамки скана
+  size: 100
+  threads: 24

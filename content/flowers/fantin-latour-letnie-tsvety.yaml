@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 50,8 × 61,9 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: fantin-latour-letnie-tsvety
+title: Летние цветы
+collection: flowers
+order: 13
+author: { name: Анри Фантен-Латур, life: 1836–1904 }
+made: "1880"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: fantin-latour-letnie-tsvety.jpg
+  url: https://www.metmuseum.org/art/collection/search/438031
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT4204.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1904"
+pattern:
+  crop: [0.01, 0.02, 0.99, 0.98]   # без рамки скана
+  size: 100
+  threads: 24

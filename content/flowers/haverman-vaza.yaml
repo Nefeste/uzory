@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): дерево, 79,4 × 60,3 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: haverman-vaza
+title: Ваза с цветами
+collection: flowers
+order: 21
+author: { name: Маргарета Хаверман, life: 1693 — 1722 или позже }
+made: "1716"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: haverman-vaza.jpg
+  url: https://www.metmuseum.org/art/collection/search/436634
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-15788-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1722"
+pattern:
+  crop: [0.03, 0.02, 0.97, 0.98]   # без рамки скана
+  size: 110
+  threads: 28

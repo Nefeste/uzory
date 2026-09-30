@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): дерево, 61 × 30,2 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: lambdin-rozy
+title: Розы на тёмном фоне
+collection: flowers
+order: 10
+author: { name: Джордж Кокран Лэмбдин, life: 1830–1896 }
+made: "1878"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: lambdin-rozy.jpg
+  url: https://www.metmuseum.org/art/collection/search/11392
+  download: https://images.metmuseum.org/CRDImages/ad/original/ap18.116.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1896"
+pattern:
+  crop: [0.03, 0.02, 0.97, 0.98]   # без рамки скана
+  size: 100
+  threads: 20
