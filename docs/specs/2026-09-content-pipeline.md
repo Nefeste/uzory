@@ -20,6 +20,8 @@ bun tools/content/build.ts                 # все картинки → dist/
 bun tools/content/build.ts --only painting # одна коллекция
 bun tools/content/build.ts --check         # только проверки, как в CI
 bun tools/content/sheet.ts --new           # лист превью новых картинок
+bun tools/content/week.ts --released https://gornitsa.games/uzory/v1/ --freeze
+                                           # что войдёт в набор недели (с 0.13.0)
 ```
 
 - `dist/packs/*.pack`, `dist/catalog.json` — наборы и каталог ([`../03-server-api.md`](../03-server-api.md)).
@@ -114,7 +116,7 @@ bun tools/content/sheet.ts --new           # лист превью новых к
 - Выход: `dist/` — в `.gitignore`; встроенный набор копируется в `assets/packs/` при
   сборке приложения, а не хранится в git.
 - `tools/test/fixtures/released.json` — ключи и хеши выпущенных узоров
-  (ADR [0010](../adr/0010-frozen-patterns.md)); дополняется при выкладке набора.
+  (ADR [0010](../adr/0010-frozen-patterns.md)); дополняет `week.ts --freeze` в PR набора недели.
 - Календарь картинок дня встроенного набора — `autoCalendar` в `tools/content/build.ts`,
   с `calendar_from` из `content/pack.yaml`; время года и праздник — поля карточки `season`
   и `day` ([`../09-content.md`](../09-content.md), §3 и §9).

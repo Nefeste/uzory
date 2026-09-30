@@ -1,0 +1,165 @@
+# Наборы картинок на сервере (docs/05-process.md, «Выкладывание наборов»; docs/specs/2026-09-packs.md).
+#
+# Раз в сутки, если main ушёл вперёд от прошлого успешного запуска, и вручную — tools/content/week.ts.
+# Не на push в main: слияние автослиянием (GITHUB_TOKEN) workflow на push не запускает
+# (docs/05-process.md, «Ветки»). Что делает:
+# - золотой тест: картинки, уже выложенные на сервер, собираются в те же клетки и нити (иначе —
+#   поднять v в карточке); пока на сервере каталога нет, сверять не с чем — запуск это пишет
+#   и заканчивается, ничего не собирая;
+# - если в content/week.yaml ещё не выпущенный id — набор недели и новый каталог, подписанный
+#   CATALOG_SIGNING_KEY, и выкладка: сначала наборы (выложенные не трогаются), потом подпись
+#   и каталог — rsync по SSH пользователем deploy в /srv/gornitsa/uzory/v1/ (вне папки сайта);
+#   затем всё скачивается обратно с сайта и сверяется;
+# - свёртка журнала каталога (server/stats/fold.ts) — туда же, в /srv/gornitsa/uzory/stats/.
+# Руками (Actions → Content → Run workflow, только main): «base» — первый каталог со встроенным
+# набором этой версии, один раз к выпуску 1.0.
+#
+# Нужны секреты CATALOG_SIGNING_KEY, DEPLOY_SSH_KEY, DEPLOY_HOST (В9, В18) и, лучше, переменная
+# DEPLOY_KNOWN_HOSTS — строка `ssh-keyscan` сервера. Нет секретов — выкладка останавливается с
+# ошибкой до того, как что-то тронуть на сервере. Откат — прежний каталог из артефактов запуска
+# (наборы не удаляются никогда).
+name: Content
+
+on:
+  schedule:
+    - cron: '41 1 * * *'   # 04:41 по Москве
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Первый каталог: встроенный набор этой версии (один раз, к выпуску 1.0)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+# выкладки идут по одной и не прерывают друг друга
+concurrency:
+  group: content-packs
+  cancel-in-progress: false
+
+env:
+  V1: https://gornitsa.games/uzory/v1/
+
+jobs:
+  packs:
+    name: Наборы на сервере
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      # без каталога на сервере и без набора недели делать нечего — не ставить зависимости зря
+      - name: Что делать
+        id: what
+        env:
+          BASE: ${{ inputs.base }}
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # по расписанию — только если main ушёл вперёд от прошлого успешного запуска
+          if [ "$EVENT" = "schedule" ]; then
+            LAST="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/content.yml/runs?status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' 2>/dev/null || true)"
+            if [ "$LAST" = "$GITHUB_SHA" ]; then
+              echo "main ${GITHUB_SHA:0:7} уже сверен прошлым запуском — делать нечего." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "run=no" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 "${V1}catalog.json" || true)"
+          echo "каталог на сервере: HTTP $CODE"
+          if [ "$BASE" = "true" ] || [ -f content/week.yaml ] || [ "$CODE" != "404" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "Каталога на сервере нет и набора недели нет — сверять и выкладывать нечего." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "run=no" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.what.outputs.run == 'yes'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        if: steps.what.outputs.run == 'yes'
+        with:
+          bun-version: 1.3.11
+      - if: steps.what.outputs.run == 'yes'
+        run: npm ci
+      - name: Золотой тест и набор недели
+        if: steps.what.outputs.run == 'yes'
+        env:
+          CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
+          BASE: ${{ inputs.base && '--base' || '' }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          bun tools/content/week.ts --released "$V1" $BASE --out dist/v1
+          if [ -f dist/v1/week.md ]; then cat dist/v1/week.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: SSH к серверу
+        id: ssh
+        if: steps.what.outputs.run == 'yes'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          KNOWN: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEY" ] || [ -z "$HOST" ]; then
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          if [ -n "$KNOWN" ]; then
+            printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+            CHECK=yes
+          else
+            echo "::warning::Нет переменной DEPLOY_KNOWN_HOSTS: ключ сервера принят без сверки. Выложенное всё равно сверяется скачиванием с сайта."
+            CHECK=accept-new
+          fi
+          {
+            echo "ready=yes"
+            echo "ssh=ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=$CHECK"
+          } >> "$GITHUB_OUTPUT"
+      - name: Выкладка — наборы, затем подпись и каталог
+        if: steps.what.outputs.run == 'yes' && hashFiles('dist/v1/catalog.json') != ''
+        env:
+          READY: ${{ steps.ssh.outputs.ready }}
+          SSH: ${{ steps.ssh.outputs.ssh }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          if [ "$READY" != "yes" ]; then
+            echo "::error::Нет секретов DEPLOY_SSH_KEY и DEPLOY_HOST (В9): набор собран, но не выложен — на сервере ничего не менялось."
+            exit 1
+          fi
+          DEST="deploy@$HOST:/srv/gornitsa/uzory"
+          # наборы первыми: телефон не увидит каталога со ссылкой на невыложенный набор;
+          # выложенные наборы не переписываются никогда
+          rsync -rv --ignore-existing --chmod=D755,F644 -e "$SSH" dist/v1/packs/ "$DEST/v1/packs/"
+          rsync -v --chmod=F644 -e "$SSH" dist/v1/catalog.sig "$DEST/v1/"
+          rsync -v --chmod=F644 -e "$SSH" dist/v1/catalog.json "$DEST/v1/"
+      - name: Сверка с сайтом
+        if: steps.what.outputs.run == 'yes' && hashFiles('dist/v1/catalog.json') != ''
+        run: bun tools/content/week.ts --verify "$V1" --out dist/v1
+      # свёртку журнала запускает таймер на сервере (server/stats/README.md); сам скрипт — отсюда
+      - name: Свёртка счётчиков на сервере
+        if: steps.what.outputs.run == 'yes' && steps.ssh.outputs.ready == 'yes'
+        env:
+          SSH: ${{ steps.ssh.outputs.ssh }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: rsync -v --chmod=F644 -e "$SSH" server/stats/fold.ts "deploy@$HOST:/srv/gornitsa/uzory/stats/"
+      # прежний каталог — для отката: вернуть его и его подпись на место
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.what.outputs.run == 'yes'
+        with:
+          name: catalog-${{ github.run_number }}
+          path: |
+            dist/v1/catalog.json
+            dist/v1/catalog.sig
+            dist/v1/previous-catalog.json
+            dist/v1/previous-catalog.sig
+            dist/v1/week.md
+          if-no-files-found: ignore

@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { base64Encode } from '../../src/engine/base64';
 import { addDays, daysBetween } from '../../src/engine/dates';
-import { COLLECTIONS, type CalendarDay, type Picture } from '../../src/engine/library';
+import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex } from '../../src/engine/pattern';
 import { type Card, CONTENT, listCards, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
@@ -122,6 +122,17 @@ export interface CalendarRules {
   season?: ReadonlyMap<string, Season>;
   /** день картинки «ММ-ДД» (`day`, праздник): ровно в этот день, если календарь до него дотянется */
   day?: ReadonlyMap<string, string>;
+  /**
+   * дни, расставленные руками в наборе недели (content/week.yaml, `pin`): дата → картинка —
+   * праздник с плавающей датой, день рождения художника
+   */
+  dates?: ReadonlyMap<string, string>;
+}
+
+/** Как продолжать календарь: сколько дней (нет — пока есть картинки) и коллекция дня перед `from`. */
+export interface CalendarRun {
+  days?: number;
+  after?: CollectionId | null;
 }
 
 /**
@@ -134,18 +145,26 @@ export interface CalendarRules {
  *   пока есть другая (две картинки одной коллекции подряд не идут); среди прочих — та, где
  *   подошла картинка сезона, потом та, где картинок осталось больше, — так коллекции идут
  *   вперемешку до конца, а не одна за другой.
- * Остались одни картинки других сезонов — календарь кончается.
+ * - Картинка из `dates` — ровно в свою дату; такой день важнее праздника из карточки.
+ * Остались одни картинки других сезонов — календарь кончается; `run.days` — не дальше стольких
+ * дней, `run.after` — коллекция дня перед `from`: набор недели продолжает выпущенный календарь.
  */
-export function autoCalendar(pictures: Picture[], from: string, rules: CalendarRules = {}): CalendarDay[] {
+export function autoCalendar(pictures: Picture[], from: string, rules: CalendarRules = {}, run: CalendarRun = {}): CalendarDay[] {
   const season = rules.season ?? new Map<string, Season>();
   const day = rules.day ?? new Map<string, string>();
+  const dates = rules.dates ?? new Map<string, string>();
+  const byDate = new Set(dates.values());
   const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden);
-  const queues = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id)));
-  // праздники: ближайший такой день, если до него картинок хватит
+  const queues = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id) && !byDate.has(p.id)));
   const pinned = new Map<string, Picture>();
+  for (const [d, id] of dates) {
+    const p = daily.find((x) => x.id === id);
+    if (p) pinned.set(d, p);
+  }
+  // праздники: ближайший такой день, если до него картинок хватит
   for (const p of daily) {
     const md = day.get(p.id);
-    if (!md) continue;
+    if (!md || byDate.has(p.id)) continue;
     for (let k = 0; k < daily.length; k++) {
       const d = addDays(from, k);
       if (d.slice(5) === md) {
@@ -164,8 +183,9 @@ export function autoCalendar(pictures: Picture[], from: string, rules: CalendarR
     list.forEach((p, k) => notBefore.set(p.id, addDays(start, Math.floor(((k + 1) * len) / (list.length + 1)))));
   }
   const out: CalendarDay[] = [];
-  let last: string | null = null;
+  let last: string | null = run.after ?? null;
   for (;;) {
+    if (run.days !== undefined && out.length >= run.days) break;
     const date = addDays(from, out.length);
     const now = seasonOf(date);
     const tomorrow = pinned.get(addDays(date, 1))?.collection ?? null;

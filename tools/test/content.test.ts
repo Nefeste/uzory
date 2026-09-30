@@ -1,16 +1,13 @@
 // Сборка картинок (docs/06-testing.md, «Картинки»): проверки ловят испорченные карточки,
 // сборка детерминирована до байта, выпущенные узоры не меняются (ADR 0010).
 import { describe, expect, test } from 'bun:test';
-import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { hex, type Pattern } from '../../src/engine/pattern';
 import { buildAll } from '../content/build';
 import { readCard, releasable } from '../content/cards';
+import { patternDigest } from '../content/week';
 
 const FIX = join(import.meta.dir, 'fixtures');
-
-const digest = (p: Pattern) => createHash('sha256').update(p.cells).update(p.threads.map((t) => `${hex(t.rgb)} ${t.name}`).join('\n')).digest('hex');
 
 describe('карточки', () => {
   const dir = join(FIX, 'bad-cards', 'painting');
@@ -58,7 +55,7 @@ describe('сборка', () => {
     const { built } = await once();
     for (const [key, sha] of Object.entries(released)) {
       const b = built.find((x) => x.pattern.key === key);
-      expect(b ? digest(b.pattern) : `узора ${key} нет`).toBe(sha);
+      expect(b ? patternDigest(b.pattern) : `узора ${key} нет`).toBe(sha);
     }
   }, 300_000);
 });

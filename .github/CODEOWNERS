@@ -10,5 +10,7 @@
 /store/privacy* @Nefeste
 # политика конфиденциальности «Узоров» — страница для сайта
 /store/site/privacy* @Nefeste
+# план набора недели: content.yml выкладывает его игрокам (выпуск — класс 4 устава)
+/content/week.yaml @Nefeste
 /app.json @Nefeste
 /eas.json @Nefeste
