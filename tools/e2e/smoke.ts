@@ -407,7 +407,13 @@ try {
   await page.waitForTimeout(1200);
   const gone = (await music()).slice(heard.length);
   check(gone.some((e) => e.what === 'pause') && !gone.some((e) => e.what === 'play'), 'ушли с экрана вышивания — музыка затихла и встала на паузу');
+  // лист открывается сразу (0.10.1): превью и числа карточки считаются при показе — разом двести
+  // узоров открывались 2,3 с на компьютере и десятки секунд на слабом телефоне
+  const sheetAt = Date.now();
   await page.getByTestId('home-sheet').click();
+  await page.getByTestId('sheet-picked').waitFor();
+  const sheetMs = Date.now() - sheetAt;
+  check(sheetMs < 1500, `лист из ${built.length} картинок открылся за ${sheetMs} мс`);
   await page.getByTestId('sheet-work-first-picture').waitFor({ timeout: 5000 }).catch(() => {});
   const started = await page.getByTestId('sheet-work-first-picture').innerText().catch(() => '');
   check(started.includes('Вышито'), `в листе — начатая работа: «${started}»`);

@@ -2,6 +2,8 @@
 // как их увидит игрок, с числами проверок. Владелец отмечает у каждой «Да», «Нет» или «Позже»
 // (docs/09-content.md, §8) и отдаёт решения ассистенту текстом — тот ставит `approved`.
 // Начатая картинка открывается там, где её оставили: большие вышиваются не за один раз.
+// Превью и числа карточки считаются, когда карточка показывается (0.10.1): разом двести узоров
+// телефон разбирал бы десятки секунд.
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { PackPicture } from '../engine/pack';
@@ -21,11 +23,29 @@ import { APP_VERSION } from '../version';
 type Filter = 'all' | 'unmarked';
 const PICKS: Pick[] = ['yes', 'no', 'later'];
 
-interface Row {
-  pic: PackPicture;
+interface Info {
   uri: string | null;
   meta: string;
   stats: string;
+}
+
+/** Посчитанные карточки — на всё время работы: лист открывают снова и снова. */
+const infos = new Map<string, Info>();
+
+function infoOf(pic: PackPicture): Info {
+  const key = `${pic.id}@${pic.v}`;
+  let info = infos.get(key);
+  if (!info) {
+    const p = patternOf(pic);
+    const st = patternStats(p);
+    info = {
+      uri: previewUri(p, 'done', 480),
+      meta: `${T.common.sizes[pic.size]} · ${T.common.meta(p.w, p.h, p.threads.length, estimateMinutes(p))}`,
+      stats: T.sheet.stats(st.singles.toFixed(1), st.small.toFixed(1), Number.isFinite(st.minDelta) ? st.minDelta.toFixed(3) : '—'),
+    };
+    infos.set(key, info);
+  }
+  return info;
 }
 
 export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (pic: PackPicture, workId?: string) => void }) {
@@ -46,24 +66,15 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   // указатель работ — от свежих к старым: первая незаконченная и есть последняя
   const started = (pic: PackPicture) => works.find((w) => w.pattern === `${pic.id}@${pic.v}` && !w.finished);
 
-  const rows = useMemo<Row[]>(() => pictures().filter((p) => !p.hidden).map((pic) => {
-    const p = patternOf(pic);
-    const st = patternStats(p);
-    return {
-      pic,
-      uri: previewUri(p, 'done', 480),
-      meta: `${T.common.sizes[pic.size]} · ${T.common.meta(p.w, p.h, p.threads.length, estimateMinutes(p))}`,
-      stats: T.sheet.stats(st.singles.toFixed(1), st.small.toFixed(1), Number.isFinite(st.minDelta) ? st.minDelta.toFixed(3) : '—'),
-    };
-  }), []);
+  const rows = useMemo(() => pictures().filter((p) => !p.hidden), []);
 
-  const count = (v: Pick) => rows.filter((r) => picks[r.pic.id] === v).length;
-  const marked = rows.filter((r) => picks[r.pic.id]).length;
-  const shown = filter === 'unmarked' ? rows.filter((r) => !picks[r.pic.id]) : rows;
+  const count = (v: Pick) => rows.filter((pic) => picks[pic.id] === v).length;
+  const marked = rows.filter((pic) => picks[pic.id]).length;
+  const shown = filter === 'unmarked' ? rows.filter((pic) => !picks[pic.id]) : rows;
   // «Название (id)»: владельцу — узнать картинку, ассистенту — найти карточку
   const copy = async () => {
     const text = T.sheet.picksText(APP_VERSION, today, PICKS.map((v) => [
-      T.sheet.picks[v], rows.filter((r) => picks[r.pic.id] === v).map((r) => `${r.pic.title} (${r.pic.id})`),
+      T.sheet.picks[v], rows.filter((pic) => picks[pic.id] === v).map((pic) => `${pic.title} (${pic.id})`),
     ]));
     setCopied({ ok: await copyText(text), text });
   };
@@ -91,27 +102,32 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
         numColumns={cols}
         columnWrapperStyle={cols > 1 ? styles.row : undefined}
         data={shown}
-        keyExtractor={(r) => r.pic.id}
+        keyExtractor={(pic) => pic.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={rows.length ? header : null}
         ListEmptyComponent={<Txt dim style={styles.empty}>{T.sheet.empty}</Txt>}
         extraData={[works, picks, theme]}
-        renderItem={({ item }) => {
-          const work = started(item.pic);
+        // карточка — крупное превью: на экране их две-три, вперёд — ещё на пару экранов
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        renderItem={({ item: pic }) => {
+          const work = started(pic);
+          const info = infoOf(pic);
           return (
-            <Card onPress={() => onOpen(item.pic, work?.id)} style={[styles.card, cols > 1 && { flex: 1, maxWidth: cellWidth }]} testID={`sheet-${item.pic.id}`}>
-              {item.uri ? <Image source={{ uri: item.uri }} style={styles.img} resizeMode="contain" /> : null}
+            <Card onPress={() => onOpen(pic, work?.id)} style={[styles.card, cols > 1 && { flex: 1, maxWidth: cellWidth }]} testID={`sheet-${pic.id}`}>
+              {info.uri ? <Image source={{ uri: info.uri }} style={styles.img} resizeMode="contain" /> : null}
               <View style={styles.text}>
-                <Txt title style={styles.title}>{item.pic.title}</Txt>
-                {item.pic.author ? <Txt dim>{[item.pic.author.name, item.pic.made].filter(Boolean).join(', ')}</Txt> : null}
-                <Txt>{item.meta}</Txt>
-                <Txt dim style={styles.small}>{item.stats}</Txt>
-                {item.pic.trial ? <Txt dim style={styles.small}>{T.sheet.notForRelease}</Txt> : null}
-                {work ? <Txt bold testID={`sheet-work-${item.pic.id}`}>{T.sheet.progress(Math.floor((work.done * 100) / Math.max(1, work.total)))}</Txt> : null}
+                <Txt title style={styles.title}>{pic.title}</Txt>
+                {pic.author ? <Txt dim>{[pic.author.name, pic.made].filter(Boolean).join(', ')}</Txt> : null}
+                <Txt>{info.meta}</Txt>
+                <Txt dim style={styles.small}>{info.stats}</Txt>
+                {pic.trial ? <Txt dim style={styles.small}>{T.sheet.notForRelease}</Txt> : null}
+                {work ? <Txt bold testID={`sheet-work-${pic.id}`}>{T.sheet.progress(Math.floor((work.done * 100) / Math.max(1, work.total)))}</Txt> : null}
                 {/* та же отметка ещё раз — снять */}
                 <View style={styles.pick}>
-                  <Segmented<Pick | 'none'> value={picks[item.pic.id] ?? 'none'} testID={`pick-${item.pic.id}`}
-                    onChange={(v) => setPick(item.pic.id, v === 'none' || v === picks[item.pic.id] ? null : v)}
+                  <Segmented<Pick | 'none'> value={picks[pic.id] ?? 'none'} testID={`pick-${pic.id}`}
+                    onChange={(v) => setPick(pic.id, v === 'none' || v === picks[pic.id] ? null : v)}
                     options={PICKS.map((v) => ({ id: v, label: T.sheet.picks[v] }))} />
                 </View>
               </View>
