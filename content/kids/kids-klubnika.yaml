@@ -1,0 +1,41 @@
+# «Детям» (docs/09-content.md, §1): клубничка с листиками и бликом.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-klubnika
+title: Клубничка
+collection: kids
+order: 30
+free: true
+season: summer   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    g: ["#5a9a3c", травяная]
+    r: ["#e0242f", алая]
+    d: ["#b3162f", кумачовая]
+    p: ["#f4b6c2", розовая]
+    y: ["#f2c230", солнечная]
+  grid: |
+    .........gg.........
+    .........gg.........
+    ....ggg..gg..ggg....
+    ...gggggggggggggg...
+    ..rrggggggggggggrr..
+    .rrrrrggggggggrrrrr.
+    rrrrrrrrggggrrrrrrrr
+    rrpprrrrrrrrrrrrrrrd
+    rrpprrrryrrrrrrrrrrd
+    rrpprrrryrrrrryrrrdd
+    rrpprrrrrrrrrrryrrdd
+    .rrpprrrrrrrrrrrrrdd
+    .rrrrrryrrrrrrrrrdd.
+    .rrrrrryrrrrryrrrdd.
+    ..rrrrrrrrrrrryrrdd.
+    ..rrrrrrrrrrrrrrdd..
+    ...rrrrrrrrrrrrrdd..
+    ....rrrrrrrrrrrdd...
+    .....rrrrrrrrrdd....
+    ......rrrrrrrdd.....
+    .......rrrrrdd......
+    ........rrrdd.......
