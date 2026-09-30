@@ -1,6 +1,7 @@
 # Россия в цвете, пачка 29.09.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
 # Библиотеки Конгресса (ppmsc — выправленная, prokc — сырая с каймой от сдвига трёх негативов),
 # найден по content/candidates.json. В выпуск — после «да» владельца в «Листе узоров» (В19).
+# 30.09.2026: файл — ppem, та же сборка, выправленная для Библиотеки (цвет, без каймы).
 id: pg-rybatskoe-poselenie
 title: Рыбацкое поселение на Селигере
 collection: russia
@@ -11,9 +12,9 @@ place: "озеро Селигер"
 source:
   file: pg-rybatskoe-poselenie.jpg
   url: https://www.loc.gov/item/2018680363/
-  download: https://tile.loc.gov/storage-services/service/pnp/prokc/21100/21122v.jpg
+  download: https://tile.loc.gov/storage-services/service/pnp/ppem/01700/01768v.jpg
   basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
 pattern:
-  crop: [0.05, 0.11, 0.91, 0.91]   # края сборки — цветная кайма от сдвига трёх негативов
+  crop: [0.02, 0.02, 0.98, 0.98]   # сборка выправлена, края — на всякий случай
   size: 300
   threads: 40

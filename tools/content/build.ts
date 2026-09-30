@@ -25,6 +25,9 @@ import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
 
+/** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
+export const PACK_MAX_BYTES = 8 * 1024 * 1024;
+
 export interface Built {
   card: Card;
   pattern: Pattern;
@@ -204,5 +207,7 @@ if (import.meta.main) {
   }
   console.log(text);
   console.log(`набор ${r.meta.id}: ${(r.bytes.length / 1024).toFixed(1)} КБ, SHA-256 ${sha}`);
-  if (r.failed.length) process.exit(1);
+  const over = r.bytes.length > PACK_MAX_BYTES;
+  if (over) console.log(`${release ? 'ошибка' : 'предупреждение'}: набор больше ${PACK_MAX_BYTES / 1048576} МБ — бюджет встроенного набора (docs/02-architecture.md, «Ограничения»)`);
+  if (r.failed.length || (over && release)) process.exit(1);
 }
