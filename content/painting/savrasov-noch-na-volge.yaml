@@ -1,0 +1,19 @@
+# «Живопись» (docs/09-content.md, §1): дерево 32,7 × 54,6 см. Оригинал — в Метрополитен-музее, за рубежом:
+# музейного вопроса (В12) нет; изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: savrasov-noch-na-volge
+title: Ночь на Волге
+collection: painting
+order: 31
+author: { name: Алексей Саврасов, life: 1830–1897 }
+made: "1871"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: savrasov-noch-na-volge.jpg
+  url: https://www.metmuseum.org/art/collection/search/437631
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-23542-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1897"
+pattern:
+  crop: [0.01, 0.025, 0.985, 0.975]   # без края доски на скане
+  size: 218   # четыре клетки на сантиметр: дерево 32,7 × 54,6 см (по музею)
+  threads: 40   # тёмная картина: после слияния 14 нитей — предупреждение XL, не ошибка
