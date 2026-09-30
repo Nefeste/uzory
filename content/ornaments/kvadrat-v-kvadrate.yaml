@@ -1,0 +1,47 @@
+# Квадрат в квадрате — по мотивам народной вышивки: рамка, ромб, квадрат и ромбик — один в другом.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kvadrat-v-kvadrate
+title: Квадрат в квадрате
+collection: ornaments
+order: 48
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kk.............e.............kk
+    kk..l.........eee.........l..kk
+    kk.lll.......ee.ee.......lll.kk
+    kk..l.......ee...ee.......l..kk
+    kk.........ee.....ee.........kk
+    kk........ee.......ee........kk
+    kk.......ee.........ee.......kk
+    kk......evvvvvvvvvvvvve......kk
+    kk.....eevvvvvvvvvvvvvee.....kk
+    kk....ee.vv.........vv.ee....kk
+    kk...ee..vv....l....vv..ee...kk
+    kk..ee...vv...lll...vv...ee..kk
+    kk.ee....vv..llkll..vv....ee.kk
+    kkee.....vv.llkkkll.vv.....eekk
+    kk.ee....vv..llkll..vv....ee.kk
+    kk..ee...vv...lll...vv...ee..kk
+    kk...ee..vv....l....vv..ee...kk
+    kk....ee.vv.........vv.ee....kk
+    kk.....eevvvvvvvvvvvvvee.....kk
+    kk......evvvvvvvvvvvvve......kk
+    kk.......ee.........ee.......kk
+    kk........ee.......ee........kk
+    kk.........ee.....ee.........kk
+    kk..l.......ee...ee.......l..kk
+    kk.lll.......ee.ee.......lll.kk
+    kk..l.........eee.........l..kk
+    kk.............e.............kk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk

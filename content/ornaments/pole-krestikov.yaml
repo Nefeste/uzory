@@ -1,0 +1,46 @@
+# Поле крестиков — по мотивам народной вышивки: косые кресты двух цветов в шахматном порядке в рамке.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: pole-krestikov
+title: Поле крестиков
+collection: ornaments
+order: 49
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ee...........................ee
+    ee...........................ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...k....v....k....v....k...ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...........................ee
+    ee...........................ee
+    ee..v.v..k.k..v.v..k.k..v.v..ee
+    ee...v....k....v....k....v...ee
+    ee..v.v..k.k..v.v..k.k..v.v..ee
+    ee...........................ee
+    ee...........................ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...k....v....k....v....k...ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...........................ee
+    ee...........................ee
+    ee..v.v..k.k..v.v..k.k..v.v..ee
+    ee...v....k....v....k....v...ee
+    ee..v.v..k.k..v.v..k.k..v.v..ee
+    ee...........................ee
+    ee...........................ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...k....v....k....v....k...ee
+    ee..k.k..v.v..k.k..v.v..k.k..ee
+    ee...........................ee
+    ee...........................ee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee

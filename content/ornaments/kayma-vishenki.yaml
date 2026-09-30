@@ -1,0 +1,28 @@
+# Кайма с вишенками — по мотивам народной вышивки: пары вишен на веточках между медовыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-vishenki
+title: Кайма с вишенками
+collection: ornaments
+order: 55
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    l: ["#d9a441", медовая]
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+  grid: |
+    lllllllllllllllllllllllllllllllllllllll
+    lllllllllllllllllllllllllllllllllllllll
+    .......................................
+    ....e.........e.........e.........e....
+    ...e.e.......e.e.......e.e.......e.e...
+    ..e...e.....e...e.....e...e.....e...e..
+    .kk...kk...kk...kk...kk...kk...kk...kk.
+    kkkk.kkkk.kkkk.kkkk.kkkk.kkkk.kkkk.kkkk
+    kkkk.kkkk.kkkk.kkkk.kkkk.kkkk.kkkk.kkkk
+    .kk...kk...kk...kk...kk...kk...kk...kk.
+    .......................................
+    lllllllllllllllllllllllllllllllllllllll
+    lllllllllllllllllllllllllllllllllllllll

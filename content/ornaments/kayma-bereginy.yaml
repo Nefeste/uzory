@@ -1,0 +1,31 @@
+# Кайма с берегинями — по мотивам народной вышивки: четыре фигурки взялись за поднятые руки.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-bereginy
+title: Кайма с берегинями
+collection: ornaments
+order: 57
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    l: ["#d9a441", медовая]
+    k: ["#b3162f", кумачовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    lllllllllllllllllllllllllllllllllllll
+    lllllllllllllllllllllllllllllllllllll
+    .k.......kk.......kk.......kk.......k
+    .k...k...kk...k...kk...k...kk...k...k
+    .k..kkk..kk..kkk..kk..kkk..kk..kkk..k
+    .kk..k..kkkk..k..kkkk..k..kkkk..k..kk
+    ..kkkkkkk..kkkkkkk..kkkkkkk..kkkkkkk.
+    ....kkk......kkk......kkk......kkk...
+    ...kkkkk....kkkkk....kkkkk....kkkkk..
+    ...kkkkk....kkkkk....kkkkk....kkkkk..
+    ..vvvvvvv..vvvvvvv..vvvvvvv..vvvvvvv.
+    ..vvvvvvv..vvvvvvv..vvvvvvv..vvvvvvv.
+    ....v.v......v.v......v.v......v.v...
+    ....v.v......v.v......v.v......v.v...
+    lllllllllllllllllllllllllllllllllllll
+    lllllllllllllllllllllllllllllllllllll

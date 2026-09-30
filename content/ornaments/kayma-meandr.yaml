@@ -1,0 +1,27 @@
+# Кайма-бегунок — по мотивам народной вышивки: ступенчатая линия с завитками между полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-meandr
+title: Кайма-бегунок
+collection: ornaments
+order: 51
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    lllllllllllllllllllllllllllllllllllll
+    kkkkkk.....kkkkkkk.....kkkkkkk.....kk
+    k....kkkkk.kk....kkkkk.kk....kkkkk.kk
+    k.kk.kk..k.kk.kk.kk..k.kk.kk.kk..k.kk
+    k.k..kk.kk.kk.k..kk.kk.kk.k..kk.kk.kk
+    k.kkkkk....kk.kkkkk....kk.kkkkk....kk
+    k.....kkkkkkk.....kkkkkkk.....kkkkkkk
+    lllllllllllllllllllllllllllllllllllll
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
