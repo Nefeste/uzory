@@ -33,7 +33,7 @@ const FORBIDDEN = [
   /шишкин/i, /левитан/i, /айвазовск/i, /саврасов/i, /куинджи/i, /поленов/i, /кустодиев/i, /васнецов/i,
   /третьяков/i, /русский музей/i,
 ];
-const TEXTS = ['listing.ru.md', 'listing.en.md', 'faq.ru.md', 'site/page.ru.md', 'site/page.en.md'];
+const TEXTS = ['listing.ru.md', 'listing.en.md', 'faq.ru.md', 'closed-test.md', 'site/page.ru.md', 'site/page.en.md'];
 
 describe('карточка RuStore', () => {
   for (const [file, name, short] of [['listing.ru.md', 'Название', 'Краткое'], ['listing.en.md', 'Title', 'Short']] as const) {

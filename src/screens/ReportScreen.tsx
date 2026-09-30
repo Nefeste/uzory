@@ -2,9 +2,12 @@
 // видит отчёт целиком и отправляет сам — через «Поделиться».
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, Share, StyleSheet } from 'react-native';
+import { sessionTotals } from '../engine/sessions';
 import { T } from '../i18n';
 import { readCrashlog } from '../state/crashlog';
 import { buildReport } from '../state/report';
+import { readSessions } from '../state/sessions';
+import { loadIndex } from '../state/works';
 import { APP_BUILD, APP_VERSION } from '../version';
 import { Button, Card, Screen, Txt } from '../ui/components';
 
@@ -12,15 +15,24 @@ export function ReportScreen({ from, onBack }: { from: string; onBack: () => voi
   const [text, setText] = useState('');
 
   useEffect(() => {
-    void readCrashlog().then((log) => setText(buildReport({
-      what: '',
-      version: APP_VERSION,
-      build: APP_BUILD,
-      device: `${Platform.OS} ${String(Platform.Version)}`,
-      screen: from,
-      log,
-      labels: T.report.labels,
-    })));
+    let alive = true;
+    void Promise.all([readCrashlog(), readSessions(), loadIndex()]).then(([log, s, works]) => {
+      if (!alive) return;
+      setText(buildReport({
+        what: '',
+        version: APP_VERSION,
+        build: APP_BUILD,
+        device: `${Platform.OS} ${String(Platform.Version)}`,
+        screen: from,
+        sessions: s ? { since: s.since, ...sessionTotals(s) } : null,
+        finished: works.filter((w) => w.finished).length,
+        log,
+        labels: T.report.labels,
+      }));
+    });
+    return () => {
+      alive = false;
+    };
   }, [from]);
 
   return (

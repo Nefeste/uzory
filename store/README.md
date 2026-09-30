@@ -10,6 +10,7 @@
 | [`listing.ru.md`](listing.ru.md), [`listing.en.md`](listing.en.md) | название, краткое и полное описание, ключевые слова | руками; длины сверяет `tools/test/store.test.ts` |
 | [`faq.ru.md`](faq.ru.md) | частые вопросы для карточки RuStore (к выходу 1.0) | руками |
 | [`forms.md`](forms.md) | ответы для анкет RuStore: возраст, данные, покупки, права на картинки | руками, вместе с кодом |
+| [`closed-test.md`](closed-test.md) | памятка тестировщику закрытого теста: как поставить, что попробовать, как прислать отчёт | руками, когда меняется то, о чём в ней сказано |
 | `graphics/icon-512.png` | иконка 512 × 512 | `bun tools/store/icons.ts` |
 | `graphics/feature-ru.png`, `feature-en.png` | баннер 1024 × 500 | `bun tools/store/graphics.ts` |
 | `screenshots/ru/*.png` | снимки экрана телефона 1080 × 1920 | `npm run export:web && bun tools/store/shots.ts` |

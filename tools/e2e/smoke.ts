@@ -692,6 +692,20 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
 
+  // «Сообщить об ошибке» (0.14.0): для закрытого теста — сколько раз открывали (перезагрузка выше —
+  // второй запуск), сколько раз игра оборвалась и сколько картинок закончено
+  await page.getByTestId('home-settings').click();
+  await page.getByTestId('set-report').click();
+  await page.waitForFunction(() => (document.querySelector('[data-testid="report-text"]')?.textContent ?? '').includes('Последние ошибки'),
+    null, { timeout: 10_000 }).catch(() => {});
+  const report = await page.getByTestId('report-text').innerText().catch(() => '');
+  const runs = /Запусков с \d+ [а-я]+: (\d+), из них оборвались: (\d+)/.exec(report);
+  check(!!runs && Number(runs[1]) >= 1 && Number(runs[2]) <= Number(runs[1]) && /Законченных картинок: [1-9]/.test(report),
+    `отчёт об ошибке: ${runs ? `запусков ${runs[1]}, оборвались ${runs[2]}` : 'строки о запусках нет'}, ${/Законченных картинок: \d+/.exec(report)?.[0] ?? 'законченных нет'}`);
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-daily').waitFor();
+
   // «Перенос» (docs/specs/2026-09-plus.md): «Сохранить работы в файл» — файл .uzw; «Загрузить из
   // файла» в чистой вкладке — работы и свой узор на месте; тот же файл второй раз — ничего нового
   await page.getByTestId('home-settings').click();
