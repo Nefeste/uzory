@@ -1,0 +1,45 @@
+# Квадрат с уголками — по мотивам народной вышивки: рамка, уголки-галочки и ромб в середине.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kvadrat-s-ugolkami
+title: Квадрат с уголками
+collection: ornaments
+order: 68
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ee.........................ee
+    ee.........................ee
+    ee..kkkkkkk.......kkkkkkk..ee
+    ee..kkkkkkk.......kkkkkkk..ee
+    ee..kk.................kk..ee
+    ee..kk..l...........l..kk..ee
+    ee..kk.lll.........lll.kk..ee
+    ee..kk..l.....v.....l..kk..ee
+    ee..kk.......vvv.......kk..ee
+    ee..........vvlvv..........ee
+    ee.........vvlllvv.........ee
+    ee........vvllkllvv........ee
+    ee.......vvllkkkllvv.......ee
+    ee........vvllkllvv........ee
+    ee.........vvlllvv.........ee
+    ee..........vvlvv..........ee
+    ee..kk.......vvv.......kk..ee
+    ee..kk..l.....v.....l..kk..ee
+    ee..kk.lll.........lll.kk..ee
+    ee..kk..l...........l..kk..ee
+    ee..kk.................kk..ee
+    ee..kkkkkkk.......kkkkkkk..ee
+    ee..kkkkkkk.......kkkkkkk..ee
+    ee.........................ee
+    ee.........................ee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee

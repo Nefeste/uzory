@@ -1,0 +1,45 @@
+# Звезда в квадрате — по мотивам народной вышивки: восьмиконечная звезда в кумачовой рамке, ромбики по углам.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: zvezda-v-kvadrate
+title: Звезда в квадрате
+collection: ornaments
+order: 60
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kk.........................kk
+    kk...l.................l...kk
+    kk..lll.......e.......lll..kk
+    kk.lllll.....eve.....lllll.kk
+    kk..lll.....evvve.....lll..kk
+    kk...l.....evvvvve.....l...kk
+    kk......eeevvvvvvveee......kk
+    kk......evvvvvvvvvvve......kk
+    kk......evvvvvvvvvvve......kk
+    kk.....evvvvvvlvvvvvve.....kk
+    kk....evvvvvvlllvvvvvve....kk
+    kk...evvvvvvllkllvvvvvve...kk
+    kk..evvvvvvllkkkllvvvvvve..kk
+    kk...evvvvvvllkllvvvvvve...kk
+    kk....evvvvvvlllvvvvvve....kk
+    kk.....evvvvvvlvvvvvve.....kk
+    kk......evvvvvvvvvvve......kk
+    kk......evvvvvvvvvvve......kk
+    kk......eeevvvvvvveee......kk
+    kk...l.....evvvvve.....l...kk
+    kk..lll.....evvve.....lll..kk
+    kk.lllll.....eve.....lllll.kk
+    kk..lll.......e.......lll..kk
+    kk...l.................l...kk
+    kk.........................kk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkk
