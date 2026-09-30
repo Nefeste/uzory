@@ -586,6 +586,47 @@ try {
   await page.screenshot({ path: join(OUT, '05-sheet-picks.png') });
   await page.getByTestId('back').click();
 
+  // «Узоры+» (0.12.0, docs/specs/2026-09-plus.md): в сборке для проверки — образец экрана: цены —
+  // гипотезы, до кнопки всё, что требует закон, кнопка неактивна; «Как в 1.0» запирает картинку
+  // «Узоры+» — вместо «Вышивать» «Подробнее», сняли — снова «Вышивать»
+  await page.getByTestId('home-plus').click();
+  await page.getByTestId('plus-sample').waitFor();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(OUT, '06-plus.png'), fullPage: true });
+  const plusText = await page.getByTestId('plus').innerText();
+  const buyBtn = page.getByTestId('plus-buy');
+  check(/Вся библиотека — \d+ картин/.test(plusText) && plusText.includes('199 ₽ в месяц') && plusText.includes('990 ₽ в год')
+    && plusText.includes('≈ 83 ₽ в месяц') && plusText.includes('автопродление') && plusText.includes('раз в год')
+    && plusText.includes('Отменить — в RuStore') && plusText.includes('дошить') && (await buyBtn.innerText()) === 'Покупка — в сборке для RuStore'
+    && (await buyBtn.getAttribute('aria-disabled')) === 'true', 'образец «Узоры+»: цены, автопродление, где отменить; покупки в этой сборке нет');
+  await page.getByTestId('plus-month').click();
+  await page.getByTestId('plus-restore').click();
+  const legal = await page.getByTestId('plus-legal').innerText();
+  const said = await page.getByTestId('plus-said').innerText().catch(() => '');
+  check(legal.includes('раз в месяц') && said.includes('в сборке для RuStore'), `месячная — «раз в месяц»; «Восстановить покупки»: «${said}»`);
+  await page.getByTestId('plus-preview-lock').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('lib-all-painting').click();
+  await page.getByTestId('collection').waitFor();
+  const lockedTile = page.locator('[data-testid^="tile-"]', { hasText: 'Узоры+' }).first();
+  await lockedTile.waitFor({ timeout: 10_000 });
+  await lockedTile.click();
+  await page.getByTestId('picture-locked').waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page.getByTestId('picture-stitch').count()) === 0
+    && (await page.getByTestId('picture-locked').innerText().catch(() => '')).includes('Эта картинка — в «Узоры+»'),
+    '«Как в 1.0»: картинка «Узоры+» заперта — вместо «Вышивать» «Подробнее»');
+  await page.screenshot({ path: join(OUT, '06-plus-locked.png') });
+  await page.getByTestId('picture-more').click();
+  await page.getByTestId('plus-sample').waitFor();
+  await page.getByTestId('plus-preview-lock').click();
+  await page.getByTestId('back').click();
+  check(await page.getByTestId('picture-stitch').waitFor({ timeout: 5000 }).then(() => true, () => false), '«Как в 1.0» сняли — на карточке снова «Вышивать»');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-library').waitFor();
+
   // свой узор (docs/specs/2026-09-custom.md): снимок → кадр → размер → приговор → «Вышивать»
   await page.getByTestId('home-mine').click();
   const chooser = page.waitForEvent('filechooser');

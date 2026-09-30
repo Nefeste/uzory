@@ -1,7 +1,7 @@
 // Библиотека глазами экранов (docs/specs/2026-09-library.md): картинки встроенного набора и то,
 // что про каждую знает этот телефон, — доступ, «Новое», последняя работа. Правило доступа —
-// одна функция движка (src/engine/access.ts); подписки ещё нет (0.x), поэтому ничего не
-// запирается, но метка «Узоры+» стоит там, где запрёт этап подписки.
+// одна функция движка (src/engine/access.ts) с правами подписки (src/state/plus.tsx); сборки 0.x
+// для проверки ничего не запирают, но метка «Узоры+» стоит там, где запрёт сборка 1.0.
 import { useEffect, useMemo, useState } from 'react';
 import { type Access, access } from '../engine/access';
 import { daysBetween, maxDate } from '../engine/dates';
@@ -9,6 +9,7 @@ import { COLLECTIONS, type CollectionId } from '../engine/library';
 import type { PackPicture } from '../engine/pack';
 import { dailyCalendar, useLibrary } from './library';
 import { usePlayer } from './player';
+import { useGate, usePlus } from './plus';
 import { loadIndex, type WorkEntry } from './works';
 
 /** Сколько дней у картинки метка «Новое». */
@@ -28,8 +29,10 @@ export interface Catalog {
   /** вышита ли картинка хоть раз */
   done: (p: PackPicture) => boolean;
   access: (p: PackPicture) => Access;
-  /** метка «Узоры+»: без подписки эта картинка будет заперта */
+  /** метка «Узоры+»: без подписки эта картинка заперта (в сборке для проверки — будет) */
   plusOnly: (p: PackPicture) => boolean;
+  /** заперта ли картинка в этой сборке: без подписки её не вышить (src/state/plus.tsx, `useGate`) */
+  locked: (p: PackPicture) => boolean;
   isNew: (p: PackPicture) => boolean;
   /** перечитать работы — после возврата с канвы или удаления */
   reload: () => void;
@@ -49,6 +52,8 @@ export function useCatalog(): Catalog | null {
     };
   }, [tick]);
   const all = useLibrary();
+  const plus = usePlus();
+  const gate = useGate();
   const calendar = useMemo(() => dailyCalendar(player.pinned, all), [player.pinned, all]);
 
   return useMemo(() => {
@@ -64,7 +69,7 @@ export function useCatalog(): Catalog | null {
     const ids = new Set(works.map((w) => w.pattern.slice(0, w.pattern.lastIndexOf('@'))));
     const seen = maxDate(today, player.seen);
     const ctx = {
-      today, seen, installed: player.installed, plus: false,
+      today, seen, installed: player.installed, plus: plus.open,
       dailyFrom: (id: string) => calendar.dailyFrom(id, player.installed, seen),
       hasWork: (id: string) => ids.has(id),
     };
@@ -82,9 +87,10 @@ export function useCatalog(): Catalog | null {
       done: (p) => !!byKey.get(keyOf(p))?.some((w) => w.finished),
       access: accessOf,
       plusOnly: (p) => accessOf(p) === 'locked',
+      locked: (p) => gate && accessOf(p) === 'locked',
       // «Новое» — пришедшее после первого запуска: встроенный набор новым не бывает
       isNew: (p) => p.added > player.installed && daysBetween(p.added, today) < NEW_DAYS,
       reload: () => setTick((n) => n + 1),
     };
-  }, [loaded, works, today, player.seen, player.installed, calendar, all]);
+  }, [loaded, works, today, player.seen, player.installed, calendar, all, plus.open, gate]);
 }

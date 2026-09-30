@@ -1,10 +1,11 @@
 // Настройки (docs/08-game-design.md, «Настройки»; docs/specs/2026-09-first-picture.md, «Основа
-// приложения»): всё, что уже есть в игре. Чего ещё нет — «Узоры+», музыки в сборке без пьес, —
-// здесь не видно: скрыто, а не выключено. «Перенос» — docs/specs/2026-09-plus.md, «Перенос».
+// приложения»): всё, что уже есть в игре. Чего в этой сборке нет — «Узоры+» без магазина, музыки
+// в сборке без пьес, — здесь не видно: скрыто, а не выключено. «Перенос» — docs/specs/2026-09-plus.md, «Перенос».
 import { useState } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { T } from '../i18n';
 import { BackupError, exportWorks, importWorks } from '../state/backup';
+import { billing } from '../state/billing';
 import { logError } from '../state/crashlog';
 import { hasMusic } from '../state/music';
 import { pickFile, PickTooBig } from '../state/pick';
@@ -16,7 +17,7 @@ import { Button, Screen, SectionTitle, Segmented, ToggleRow, Txt } from '../ui/c
 /** Раздел «Узоры» политики студии (store/forms.md). */
 export const PRIVACY_URL = 'https://gornitsa.games/privacy.html#uzory';
 
-export function SettingsScreen({ onBack, onReport, onAbout }: { onBack: () => void; onReport: () => void; onAbout: () => void }) {
+export function SettingsScreen({ onBack, onReport, onAbout, onPlus }: { onBack: () => void; onReport: () => void; onAbout: () => void; onPlus: () => void }) {
   const { settings, update, theme } = useSettings();
   const player = usePlayer();
   const [busy, setBusy] = useState<'save' | 'load' | null>(null);
@@ -107,6 +108,15 @@ export function SettingsScreen({ onBack, onReport, onAbout }: { onBack: () => vo
             disabled={busy !== null} testID="set-load" />
           {said ? <Txt style={said.bad ? { color: theme.danger } : undefined} testID="set-transfer-said">{said.text}</Txt> : null}
         </View>
+        {/* «Узоры+» — только там, где её можно оформить: сборка для RuStore с RuStore Pay */}
+        {billing.available ? (
+          <>
+            <SectionTitle>{T.plus.title}</SectionTitle>
+            <View style={styles.buttons}>
+              <Button kind="secondary" label={T.plus.title} onPress={onPlus} testID="set-plus" />
+            </View>
+          </>
+        ) : null}
         <SectionTitle>{T.settings.help}</SectionTitle>
         <View style={styles.buttons}>
           <Button kind="secondary" label={T.report.button} onPress={onReport} testID="set-report" />

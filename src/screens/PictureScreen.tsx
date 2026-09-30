@@ -7,14 +7,22 @@ import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
+import { billing } from '../state/billing';
 import { percentOf, useCatalog } from '../state/catalog';
 import { patternOf } from '../state/library';
 import { useSettings } from '../state/settings';
 import { workStitched } from '../state/works';
 import { Button, Screen, Txt } from '../ui/components';
 import { hasAbout, PicAbout, whoMade } from '../ui/PicAbout';
+import { INTERNAL } from '../version';
 
-export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onBack: () => void; onStitch: (pic: PackPicture, workId?: string) => void }) {
+export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
+  pic: PackPicture;
+  onBack: () => void;
+  onStitch: (pic: PackPicture, workId?: string) => void;
+  /** «Подробнее» у запертой картинки — экран «Узоры+» */
+  onPlus: () => void;
+}) {
   const { theme } = useSettings();
   const cat = useCatalog();
   const pattern = patternOf(pic);
@@ -39,6 +47,10 @@ export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onB
     };
   }, [cat, pattern, started, done, key]);
 
+  // заперта — вместо «Вышивать» «Эта картинка — в „Узоры+“» и «Подробнее»; где подписки нет
+  // (APK 1.0 из Releases) — где её взять (docs/specs/2026-09-plus.md, «Неудачные случаи»)
+  const locked = !!cat?.locked(pic);
+  const canBuy = billing.available || INTERNAL;
   const who = whoMade(pic);
   const label = started ? T.picture.continue(percentOf(started)) : done ? T.picture.again : T.picture.stitch;
 
@@ -52,13 +64,19 @@ export function PictureScreen({ pic, onBack, onStitch }: { pic: PackPicture; onB
         {who ? <Txt dim>{who}</Txt> : null}
         <Txt testID="picture-meta">{T.common.picMeta(pic.size, pattern.threads.length, estimateMinutes(pattern))}</Txt>
         {done && !started ? <Txt dim>{T.picture.done}</Txt> : null}
-        {cat?.plusOnly(pic) ? (
+        {locked ? (
+          <View style={[styles.plus, { borderColor: theme.border }]} testID="picture-locked">
+            <Txt bold>{T.plus.locked}</Txt>
+            {canBuy ? <Button label={T.plus.more} onPress={onPlus} style={styles.go} testID="picture-more" />
+              : <Txt dim style={styles.small}>{T.plus.onlyRustore}</Txt>}
+          </View>
+        ) : cat?.plusOnly(pic) ? (
           <View style={[styles.plus, { borderColor: theme.border }]}>
             <Txt bold>{T.library.plusMark}</Txt>
             <Txt dim style={styles.small}>{T.picture.plusNote}</Txt>
           </View>
         ) : null}
-        {!cat ? <ActivityIndicator color={theme.accent} /> : (
+        {!cat ? <ActivityIndicator color={theme.accent} /> : locked ? null : (
           <Button label={label} onPress={() => onStitch(pic, started?.id)} style={styles.go} testID="picture-stitch" />
         )}
         {hasAbout(pic) ? (

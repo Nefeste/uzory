@@ -21,11 +21,13 @@ export interface Settings {
   haptics: boolean;
   sound: boolean;
   music: boolean;
+  /** сборка 0.x для проверки: запирать картинки «Узоры+», как в 1.0 (образец экрана подписки) */
+  previewLock: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true,
-  hints: true, haptics: true, sound: true, music: true,
+  hints: true, haptics: true, sound: true, music: true, previewLock: false,
 };
 
 interface Ctx {
