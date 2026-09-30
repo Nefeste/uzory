@@ -1,0 +1,31 @@
+# Кайма с ромбами и крестами — по мотивам народной вышивки: еловые ромбы и васильковые кресты между кумачовыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-romby-kresty
+title: Кайма с ромбами и крестами
+collection: ornaments
+order: 32
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#d9a441", медовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    .....................................
+    e...........e...........e...........e
+    ee.........eee.........eee.........ee
+    lee...v...eelee...v...eelee...v...eel
+    llee..v..eelllee..v..eelllee..v..eell
+    lllevvvveelllllevvvveelllllevvvveelll
+    llee..v..eelllee..v..eelllee..v..eell
+    lee...v...eelee...v...eelee...v...eel
+    ee.........eee.........eee.........ee
+    e...........e...........e...........e
+    .....................................
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk

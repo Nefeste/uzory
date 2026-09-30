@@ -1,0 +1,45 @@
+# Четыре ромба — по мотивам народной вышивки: четыре ромба кольцами в квадратной рамке.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: chetyre-romba
+title: Четыре ромба
+collection: ornaments
+order: 30
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ee.........................ee
+    ee......k...........k......ee
+    ee.....kkk.........kkk.....ee
+    ee....kklkk.......kklkk....ee
+    ee...kklllkk.....kklllkk...ee
+    ee..kkllkllkk...kkllkllkk..ee
+    ee.kkllkkkllkk.kkllkkkllkk.ee
+    ee..kkllkllkk...kkllkllkk..ee
+    ee...kklllkk.....kklllkk...ee
+    ee....kklkk.......kklkk....ee
+    ee.....kkk....v....kkk.....ee
+    ee......k....vvv....k......ee
+    ee..........vvvvv..........ee
+    ee......k....vvv....k......ee
+    ee.....kkk....v....kkk.....ee
+    ee....kklkk.......kklkk....ee
+    ee...kklllkk.....kklllkk...ee
+    ee..kkllkllkk...kkllkllkk..ee
+    ee.kkllkkkllkk.kkllkkkllkk.ee
+    ee..kkllkllkk...kkllkllkk..ee
+    ee...kklllkk.....kklllkk...ee
+    ee....kklkk.......kklkk....ee
+    ee.....kkk.........kkk.....ee
+    ee......k...........k......ee
+    ee.........................ee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
