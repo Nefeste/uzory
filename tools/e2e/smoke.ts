@@ -563,6 +563,13 @@ try {
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,
     '«Без отметки» — только неотмеченные');
   await page.getByTestId('sheet-filter-all').click();
+  // коллекции — по частям (0.10.2): «Цветы» — только цветы, «Все» — снова все
+  await page.getByTestId('sheet-coll-flowers').click();
+  await page.waitForTimeout(300);
+  const flowersOnly = (await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-van-gogh-podsolnukhi').count()) === 1;
+  await page.getByTestId('sheet-coll-all').click();
+  await page.waitForTimeout(300);
+  check(flowersOnly && (await page.getByTestId('sheet-first-picture').count()) === 1, 'в листе — коллекция «Цветы» отдельно, «Все» — снова все');
   await page.screenshot({ path: join(OUT, '05-sheet-picks.png') });
   await page.getByTestId('back').click();
 

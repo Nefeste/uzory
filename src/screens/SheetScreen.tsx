@@ -5,7 +5,8 @@
 // Превью и числа карточки считаются, когда карточка показывается (0.10.1): разом двести узоров
 // телефон разбирал бы десятки секунд.
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { COLLECTIONS, type CollectionId } from '../engine/library';
 import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { patternStats } from '../engine/stats';
@@ -53,6 +54,8 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const { today } = usePlayer();
   const { picks, setPick } = usePicks();
   const [filter, setFilter] = useState<Filter>('all');
+  // коллекция — чтобы отбирать по частям: двести картинок за раз не отметить
+  const [coll, setColl] = useState<CollectionId | 'all'>('all');
   const [copied, setCopied] = useState<{ ok: boolean; text: string } | null>(null);
   const [works, setWorks] = useState<WorkEntry[]>([]);
   // на широком окне (компьютер, docs/specs/2026-09-web.md) — несколько карточек в ряд;
@@ -70,7 +73,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
 
   const count = (v: Pick) => rows.filter((pic) => picks[pic.id] === v).length;
   const marked = rows.filter((pic) => picks[pic.id]).length;
-  const shown = filter === 'unmarked' ? rows.filter((pic) => !picks[pic.id]) : rows;
+  const inColl = coll === 'all' ? rows : rows.filter((pic) => pic.collection === coll);
+  const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pic.id]) : inColl;
+  const colls = COLLECTIONS.map((c) => ({ id: c, n: rows.filter((pic) => pic.collection === c).length })).filter((c) => c.n > 0);
   // «Название (id)»: владельцу — узнать картинку, ассистенту — найти карточку
   const copy = async () => {
     const text = T.sheet.picksText(APP_VERSION, today, PICKS.map((v) => [
@@ -85,6 +90,13 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
       <Txt bold testID="sheet-picked">{T.sheet.picked(marked, rows.length, count('yes'), count('no'), count('later'))}</Txt>
       <Segmented<Filter> value={filter} onChange={setFilter} testID="sheet-filter"
         options={[{ id: 'all', label: T.sheet.filter.all }, { id: 'unmarked', label: T.sheet.filter.unmarked }]} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colls} testID="sheet-colls">
+        {[{ id: 'all' as const, label: `${T.sheet.filter.all} · ${rows.length}` },
+          ...colls.map((c) => ({ id: c.id, label: `${T.library.collections[c.id]} · ${c.n}` }))].map((c) => (
+          <Button key={c.id} small kind={coll === c.id ? 'primary' : 'secondary'} label={c.label}
+            onPress={() => setColl(c.id)} testID={`sheet-coll-${c.id}`} />
+        ))}
+      </ScrollView>
       <Button kind="secondary" label={T.sheet.copy} disabled={!marked} onPress={() => void copy()} testID="sheet-copy" />
       {copied ? (
         <>
@@ -149,5 +161,6 @@ const styles = StyleSheet.create({
   small: { fontSize: 12, lineHeight: 17 },
   empty: { margin: 24 },
   head: { gap: 8, marginBottom: 4 },
+  colls: { gap: 8, paddingVertical: 2 },
   pick: { marginTop: 8 },
 });
