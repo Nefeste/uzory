@@ -5,6 +5,7 @@ title: Ёлочка
 collection: kids
 order: 3
 free: true
+day: "12-31"   # календарь: в канун Нового года (docs/09-content.md, §9)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

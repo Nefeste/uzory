@@ -5,6 +5,7 @@ title: Арбуз
 collection: kids
 order: 25
 free: true
+season: summer   # календарь: только в свой сезон (docs/09-content.md, §9)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)
