@@ -1,0 +1,26 @@
+# Кайма с косыми крестами: кумачовые и еловые кресты по очереди, между ними — ромбики.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-kosye-kresty
+title: Кайма с косыми крестами
+collection: ornaments
+order: 20
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    l: ["#d9a441", медовая]
+  grid: |
+    llllllllllllllllllllllllllllllllllllllll
+    ........................................
+    ........................................
+    ..kk..k...ee..e...kk..k...ee..e...kk..k.
+    ...kkkk.l..eeee.l..kkkk.l..eeee.l..kkkk.
+    ....kk.lll..ee.lll..kk.lll..ee.lll..kk..
+    ...kkkk.l..eeee.l..kkkk.l..eeee.l..kkkk.
+    ..kk..k...ee..e...kk..k...ee..e...kk..k.
+    ........................................
+    ........................................
+    llllllllllllllllllllllllllllllllllllllll

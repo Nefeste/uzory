@@ -1,0 +1,15 @@
+# Восемь лепестков-ромбов вокруг медовой сердцевины. Своя работа студии; в выпуск — после «да» владельца (В19).
+id: rozetka-bolshaya
+title: Большая розетка
+collection: ornaments
+order: 9
+source:
+  url: ""
+  basis: своя работа студии (генератор rosette, по мотивам солярных знаков вышивки)
+drawn:
+  generator: rosette
+  params: { size: 33, petal: 4, dist: 10 }
+  legend:
+    k: ["#3a5ba0", васильковая]
+    e: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]

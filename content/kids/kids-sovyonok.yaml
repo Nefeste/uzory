@@ -1,0 +1,34 @@
+# «Детям» (docs/09-content.md, §1): совёнок с круглыми жёлтыми глазами.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-sovyonok
+title: Совёнок
+collection: kids
+order: 17
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    b: ["#8a4b2a", ореховая]
+    y: ["#f2c230", солнечная]
+    k: ["#2b2b2b", угольная]
+    o: ["#e0712c", морковная]
+    t: ["#d9a441", медовая]
+  grid: |
+    .b...........b.
+    .bb.........bb.
+    .bbbbbbbbbbbbb.
+    bbyyyybbbyyyybb
+    byykkyybyykkyyb
+    byykkyybyykkyyb
+    bbyyyybobyyyybb
+    bbbbbbbobbbbbbb
+    bbbbtttttttbbbb
+    bbbttbbbbbttbbb
+    bbbbtttttttbbbb
+    bbbttbbbbbttbbb
+    .bbbtttttttbbb.
+    ..bbbbbbbbbbb..
+    ...oo.....oo...
+    ...oo.....oo...

@@ -1,0 +1,43 @@
+# Цветок-крест в рамке: сердцевина, четыре лепестка и листья по диагоналям.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: tsvetok-krest
+title: Цветок-крест
+collection: ornaments
+order: 18
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    vvvvvvvvvvvvvvvvvvvvvvvvvvv
+    vvvvvvvvvvvvvvvvvvvvvvvvvvv
+    vv.......................vv
+    vv.......................vv
+    vv...e.......k.......e...vv
+    vv..eee.....kkk.....eee..vv
+    vv...ee....kklkk....ee...vv
+    vv.....e..kklllkk..e.....vv
+    vv......e..kklkk..e......vv
+    vv.......e..kkk..e.......vv
+    vv.....k..e..k..e..k.....vv
+    vv....kkk..e.l.e..kkk....vv
+    vv...kklkk..lll..kklkk...vv
+    vv..kklllkkllkllkklllkk..vv
+    vv...kklkk..lll..kklkk...vv
+    vv....kkk..e.l.e..kkk....vv
+    vv.....k..e..k..e..k.....vv
+    vv.......e..kkk..e.......vv
+    vv......e..kklkk..e......vv
+    vv.....e..kklllkk..e.....vv
+    vv...ee....kklkk....ee...vv
+    vv..eee.....kkk.....eee..vv
+    vv...e.......k.......e...vv
+    vv.......................vv
+    vv.......................vv
+    vvvvvvvvvvvvvvvvvvvvvvvvvvv
+    vvvvvvvvvvvvvvvvvvvvvvvvvvv

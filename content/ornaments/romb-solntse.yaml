@@ -1,0 +1,15 @@
+# Ромб кольцами в тёплых нитях: солнечная, морковная, кумачовая. Своя работа студии; в выпуск — после «да» владельца (В19).
+id: romb-solntse
+title: Ромб-солнце
+collection: ornaments
+order: 11
+source:
+  url: ""
+  basis: своя работа студии (генератор rhombus-rings)
+drawn:
+  generator: rhombus-rings
+  params: { size: 29, rings: [2, 2, 0, 0, -1, 1, 1, -1] }
+  legend:
+    k: ["#e0712c", морковная]
+    e: ["#b3162f", кумачовая]
+    l: ["#f2c230", солнечная]

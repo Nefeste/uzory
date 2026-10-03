@@ -1,0 +1,15 @@
+# Ромб кольцами в две клетки: васильковый, небесный, кумачовый. Своя работа студии; в выпуск — после «да» владельца (В19).
+id: romby-vasilkovye
+title: Васильковые ромбы
+collection: ornaments
+order: 6
+source:
+  url: ""
+  basis: своя работа студии (генератор rhombus-rings)
+drawn:
+  generator: rhombus-rings
+  params: { size: 25, rings: [0, 0, 1, 1, -1, 2, 2, -1] }
+  legend:
+    k: ["#3a5ba0", васильковая]
+    e: ["#6fa8dc", небесная]
+    l: ["#b3162f", кумачовая]

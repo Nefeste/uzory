@@ -1,0 +1,15 @@
+# Кайма рушника в синих нитях с кумачовыми сердцевинками. Своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-sinyaya
+title: Синяя кайма
+collection: ornaments
+order: 12
+source:
+  url: ""
+  basis: своя работа студии (генератор border)
+drawn:
+  generator: border
+  params: { width: 44, height: 13, step: 11 }
+  legend:
+    k: ["#3a5ba0", васильковая]
+    e: ["#6fa8dc", небесная]
+    l: ["#b3162f", кумачовая]

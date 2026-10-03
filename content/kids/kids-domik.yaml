@@ -1,0 +1,34 @@
+# «Детям» (docs/09-content.md, §1): бревенчатый домик с красной крышей, окном и дверью.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-domik
+title: Домик
+collection: kids
+order: 1
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    b: ["#d9a441", медовая]
+    n: ["#6fa8dc", небесная]
+    d: ["#6b4226", шоколадная]
+    g: ["#5a9a3c", травяная]
+  grid: |
+    .......kk.......
+    ......kkkk......
+    .....kkkkkk.....
+    ....kkkkkkkk....
+    ...kkkkkkkkkk...
+    ..kkkkkkkkkkkk..
+    .kkkkkkkkkkkkkk.
+    kkkkkkkkkkkkkkkk
+    .bbbbbbbbbbbbbb.
+    .bbnnnbbbbdddbb.
+    .bbnnnbbbbdddbb.
+    .bbnnnbbbbdddbb.
+    .bbbbbbbbbdddbb.
+    .bbbbbbbbbdddbb.
+    gggggggggggggggg
+    gggggggggggggggg
