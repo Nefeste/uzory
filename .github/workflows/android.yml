@@ -4,8 +4,8 @@
 #
 # Сам — только на тег версии vX.Y.Z (устав студии, ADR 0019): слияние в main сборку не
 # запускает, проверки на PR — в pr.yml. Тег ставится на коммит main с этой версией в
-# app.json; релиз — на этот тег. Руками — Actions → Android → Run workflow: на любой ветке
-# проверки и веб-сценарий, а с «apk» — и сборка, файлом в артефактах запуска, без релиза.
+# app.json; релиз — на этот тег. Ручного запуска нет (решение владельца 03.10.2026): APK и
+# AAB — только на тег.
 #
 # Без секретов ключа релиза нет никогда: APK собирается только на проверку (манифест,
 # разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью не должен
@@ -15,20 +15,14 @@ name: Android
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      apk:
-        description: 'Собрать APK и AAB (файлом в артефактах запуска, без релиза)'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
 
-# тег собирается до конца; ручные запуски на ветке сменяют друг друга
+# тег собирается до конца
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: false
 
 jobs:
   checks:
@@ -130,11 +124,10 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CERT: ${{ vars.ANDROID_CERT_SHA256 }}
           TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          WANT: ${{ inputs.apk == true }}
         run: |
           set -euo pipefail
-          # сборка — на тег версии и по ручному запуску с «apk»
-          if [ "$TAG" = "true" ] || [ "$WANT" = "true" ]; then BUILD=yes; else BUILD=no; fi
+          # сборка — только на тег версии
+          if [ "$TAG" = "true" ]; then BUILD=yes; else BUILD=no; fi
           APK='{"target":"apk","task":"assembleRelease","file":"android/app/build/outputs/apk/release/app-release.apk"}'
           AAB='{"target":"aab","task":"bundleRelease","file":"android/app/build/outputs/bundle/release/app-release.aab"}'
           if [ -z "$KEYSTORE_B64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]; then
@@ -183,21 +176,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - run: npm ci
       # Бандл JS берёт встроенный набор из src/content/generated — его собирает сборка картинок.
-      # Релиз и файл в артефактах открытого репозитория видит кто угодно, поэтому в них — только
-      # картинки и пьесы с «да» владельца и правами (--release; docs/09-content.md). Все картинки,
-      # и «только для проверки», — лишь ручной запуск в закрытом репозитории. Нет ни одной
-      # картинки с «да» — сборка картинок останавливается: пустое приложение не собирается.
+      # Релиз видит кто угодно, поэтому в нём — только картинки и пьесы с «да» владельца и
+      # правами (--release; docs/09-content.md). Нет ни одной картинки с «да» — сборка картинок
+      # останавливается: пустое приложение не собирается.
       - name: Встроенный набор
-        env:
-          TRIAL: ${{ github.event.repository.private && !startsWith(github.ref, 'refs/tags/') }}
         run: |
-          if [ "$TRIAL" = "true" ]; then
-            echo "Ручной запуск в закрытом репозитории: все картинки, и «только для проверки»." | tee -a "$GITHUB_STEP_SUMMARY"
-            bun tools/content/build.ts
-          else
-            echo "Только картинки и пьесы с «да» владельца и правами (--release)." | tee -a "$GITHUB_STEP_SUMMARY"
-            bun tools/content/build.ts --release
-          fi
+          echo "Только картинки и пьесы с «да» владельца и правами (--release)." | tee -a "$GITHUB_STEP_SUMMARY"
+          bun tools/content/build.ts --release
       - name: Нативный проект (expo prebuild)
         run: npx expo prebuild --platform android --no-install
       - name: Больше памяти Gradle
@@ -337,7 +322,7 @@ jobs:
           if-no-files-found: error
 
   # Одна публикация на обе сборки — только на тег версии: релиз «Узоры X.Y.Z» на этот тег с
-  # разделом версии из README; 0.x — пре-релиз. Ручной запуск релиза не делает.
+  # разделом версии из README; 0.x — пре-релиз.
   release:
     name: Релиз
     needs: [checks, web, key, build]
