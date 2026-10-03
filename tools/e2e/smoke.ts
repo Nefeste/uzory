@@ -1275,6 +1275,45 @@ try {
   check(lateGap >= 100 && late1 === late0 - 1, `второй палец через ${lateGap} мс: стежок касания остался (осталось ${late0} → ${late1})`);
   await ctxTouch.close();
 
+  // подсказка про колёсико и два пальца (docs/specs/2026-09-first-picture.md, критерий 3): в
+  // основном сценарии колёсико приближало ещё до середины — подсказки там нет. Здесь камеру не
+  // трогают: заливками вышита больше чем половина первой картинки — все нити, кроме самой большой
+  // (у неё клеток с запасом, «Где ещё?» не пора), — и подсказка появляется; колёсико — уходит
+  const ctxZoom = await browser.newContext({ viewport: { width: 400, height: 860 } });
+  const zp = await ctxZoom.newPage();
+  zp.on('pageerror', (e) => errors.push(e.message));
+  await zp.goto(base);
+  await zp.getByTestId('first-stitch').click();
+  await zp.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+  await zp.waitForTimeout(1500);
+  const counts = first.threads.map((_, t) => first.cells.filter((c) => c === t).length);
+  const biggest = counts.indexOf(Math.max(...counts));
+  const zFilled = new Uint8Array(first.cells.length);
+  for (let t = 0; t < first.threads.length; t++) {
+    if (t === biggest) continue;
+    await zp.getByTestId(`thread-${t + 1}`).click();
+    for (let i = 0; i < first.cells.length; i++) {
+      if (first.cells[i] !== t || zFilled[i]) continue;
+      for (const c of fillRegion(first, zFilled, i)) zFilled[c] = 1;
+      const pt = await cellPoint(zp, first, i);
+      await zp.mouse.click(pt.x, pt.y);
+      await zp.waitForTimeout(80);
+      await zp.mouse.click(pt.x, pt.y);
+      await zp.waitForTimeout(400);
+    }
+  }
+  await zp.getByTestId(`thread-${biggest + 1}`).click();
+  const half = await zp.getByTestId('hint-zoom').waitFor({ timeout: 5000 }).then(() => true, () => false);
+  const halfPct = await zp.getByTestId('percent').innerText();
+  const zoomText = await zp.getByTestId('hint-zoom').innerText().catch(() => '');
+  const zb = (await zp.getByTestId('canvas').boundingBox())!;
+  await zp.mouse.move(zb.x + zb.width / 2, zb.y + zb.height / 2);
+  await zp.mouse.wheel(0, -100);
+  await zp.waitForTimeout(600);
+  check(half && zoomText.includes('Колёсико') && (await zp.getByTestId('hint-zoom').count()) === 0,
+    `на середине первой картинки (${halfPct}) — подсказка «${zoomText}», колёсико её убрало`);
+  await ctxZoom.close();
+
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
   await page.getByTestId('bench-canvas').waitFor();
