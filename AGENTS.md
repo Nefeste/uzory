@@ -98,7 +98,9 @@ label `ревью: ок` from a reviewer in another session — never put that l
 a new commit removes it. Owner paths are merged by the owner. Run typecheck, lint, tests and
 the web scenario locally (both builds — from the root and for `/uzory/test`) before every push
 anyway. APK and AAB are built only on a version tag `vX.Y.Z` (released on that tag) or on manual
-dispatch (artifacts, no release).
+dispatch (artifacts, no release), with `--release` content only — approved pictures and music;
+everything, trial pictures included, only on manual dispatch once the repository is private.
+Playwright screenshots are uploaded as artifacts only when the repository is private.
 
 **The closed web version** (`docs/specs/2026-09-web.md`) is the same app at
 `gornitsa.games/uzory/test/` behind a password the owner sets on the server
