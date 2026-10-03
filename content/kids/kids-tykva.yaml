@@ -1,0 +1,34 @@
+# «Детям» (docs/09-content.md, §1): тыква с хвостиком и листом; дольки и хвостик — одной нитью.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-tykva
+title: Тыква
+collection: kids
+order: 33
+free: true
+season: autumn   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    o: ["#e0712c", морковная]
+    d: ["#8a4b2a", ореховая]
+    g: ["#5a9a3c", травяная]
+  grid: |
+    .........dd..........
+    .........dd...ggg....
+    ........dd..ggggg....
+    ........dd.gggggg....
+    ....oodoooodoooo.....
+    ..oooodooooodoooooo..
+    .ooooodooooodooooooo.
+    ooooodoooooooodoooooo
+    ooooodoooooooodoooooo
+    ooooodoooooooodoooooo
+    ooooodoooooooodoooooo
+    ooooodoooooooodoooooo
+    ooooodoooooooodoooooo
+    .ooooodooooooodooooo.
+    .oooooodooooodoooooo.
+    ..oooooodooodoooooo..
+    ....ooooooooooooo....

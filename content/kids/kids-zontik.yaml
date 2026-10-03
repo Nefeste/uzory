@@ -1,0 +1,37 @@
+# «Детям» (docs/09-content.md, §1): зонтик под дождём.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-zontik
+title: Зонтик
+collection: kids
+order: 36
+free: true
+season: autumn   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    r: ["#e0242f", алая]
+    y: ["#f2c230", солнечная]
+    k: ["#2b2b2b", угольная]
+    l: ["#6fa8dc", небесная]
+  grid: |
+    ..l.................l.
+    .lll.......kk......lll
+    .lll...rryyyyrr....lll
+    .....rrrryyyyrrrr.....
+    ....rrrrryyyyrrrrr....
+    ...rrrrrryyyyrrrrrr...
+    ..rrrrrrryyyyrrrrrrr..
+    ..rrrrrrryyyyrrrrrrr..
+    .rrrrrrrryyyyrrrrrrrr.
+    .rrrr.rrryyyyrrr.rrrr.
+    .rr....rry..yrr....rr.
+    ...........k..........
+    .l.........k........l.
+    lll........k.......lll
+    lll........k.......lll
+    ...........k..........
+    ...........k..........
+    ........k..k..........
+    ........kkkk..........
