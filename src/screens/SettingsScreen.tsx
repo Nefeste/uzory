@@ -1,11 +1,12 @@
 // Настройки (docs/08-game-design.md, «Настройки»; docs/specs/2026-09-first-picture.md, «Основа
-// приложения»): всё, что уже есть в игре. Чего ещё нет — музыки, «Узоры+», — здесь не видно:
-// скрыто, а не выключено. «Перенос» — docs/specs/2026-09-plus.md, «Перенос».
+// приложения»): всё, что уже есть в игре. Чего ещё нет — «Узоры+», музыки в сборке без пьес, —
+// здесь не видно: скрыто, а не выключено. «Перенос» — docs/specs/2026-09-plus.md, «Перенос».
 import { useState } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { T } from '../i18n';
 import { BackupError, exportWorks, importWorks } from '../state/backup';
 import { logError } from '../state/crashlog';
+import { hasMusic } from '../state/music';
 import { pickFile, PickTooBig } from '../state/pick';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
@@ -86,6 +87,10 @@ export function SettingsScreen({ onBack, onReport, onAbout }: { onBack: () => vo
             if (v) player.update({ hints: [] });
           }} />
         <SectionTitle>{T.settings.feel}</SectionTitle>
+        {hasMusic ? (
+          <ToggleRow label={T.settings.music} note={T.settings.musicNote} value={settings.music}
+            onChange={(v) => update({ music: v })} testID="set-music" />
+        ) : null}
         <ToggleRow label={T.settings.sound} note={T.settings.soundNote} value={settings.sound}
           onChange={(v) => update({ sound: v })} testID="set-sound" />
         {/* вибрации в браузере нет */}

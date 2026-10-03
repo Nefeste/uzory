@@ -1,0 +1,52 @@
+# Музыка экрана вышивания (docs/08-game-design.md и docs/09-content.md, «Звук и музыка»).
+# Только записи, которые исполнитель сам отдал в общественное достояние (PD), CC0 или CC BY —
+# с упоминанием в «О программе». Страница `page` — где это сказано; `download` — откуда файл
+# (тот же, что на странице), `sha256` — его хеш. Пьеса — файл assets/music/<id>.webm: Opus,
+# моно, 32 кбит/с, громкость выровнена — `bun tools/audio/music.ts` (нужен ffmpeg).
+# approved — «да» владельца (В6): без него пьеса звучит только в сборках для проверки.
+tracks:
+  - id: borodin-nocturne
+    title: Ноктюрн из Второго струнного квартета
+    composer: Александр Бородин
+    performer: Musopen String Quartet
+    license: PD
+    page: https://commons.wikimedia.org/wiki/File:Borodin_-_String_Quartet_No._2_in_D_major_-_III._Notturno._Andante_(Musopen_String_Quartet).flac
+    download: https://archive.org/download/MusopenCollectionAsFlac/Borodin_StringQuartetNo.2inDMajor/AlexanderBorodin-StringQuartetNo.2InDMajor-03-NocturneAndante.flac
+    sha256: 74c334709f823179123cfe119eb7041cb00db3b780eb38a3d9fefcadd4f05abd
+    approved: false
+  - id: glazunov-minstrel
+    title: Песнь менестреля, соч. 71
+    composer: Александр Глазунов
+    performer: Musopen
+    license: PD
+    page: https://commons.wikimedia.org/wiki/File:Alexander_Glazunov_-_chant_du_menestrel,_op._71.ogg
+    download: https://archive.org/download/ChantDuMenestrelOp.71/Chant%20du%20m%C3%A9nestrel%20Op.%2071.ogg
+    sha256: d702e36d71f889cbf193cd190327f65d5008ea80212173f569e7eb2f1656edc5
+    approved: false
+  - id: chopin-nocturne
+    title: Ноктюрн соль мажор, соч. 37 № 2
+    composer: Фредерик Шопен
+    performer: Ольга Гуревич
+    license: CC0
+    page: https://commons.wikimedia.org/wiki/File:Chopin_Nocturne_Op_37_no_2_in_G_major_Olga_Gurevich.ogg
+    download: https://archive.org/download/parso-1c53a71e4ef6f47591ab605d801bc3780b27824a/000_Chopin_Nocturne_Op_37_no_2_in_G_major_Olga_Gurevich.opus
+    sha256: 271986f62c8a6b88e27f3fdb00c19eb8aaec8294946c394dec06c84ece24ea2e
+    approved: false
+  - id: bach-aria
+    title: Ария из «Гольдберг-вариаций»
+    composer: Иоганн Себастьян Бах
+    performer: Кимико Исидзака
+    license: CC0
+    page: https://commons.wikimedia.org/wiki/File:Goldberg_Variations_BWV_988_01_Aria.flac
+    download: https://archive.org/download/OpenGoldbergVariations/Kimiko%20Ishizaka%20-%20J.S.%20Bach-%20-Open-%20Goldberg%20Variations%2C%20BWV%20988%20%28Piano%29%20-%2001%20Aria.flac
+    sha256: ea6b2443f39a017ca9ca7306287a02c0e6df078c711b0a5dbe33adcb2784d89f
+    approved: false
+  - id: grieg-morning
+    title: Утро из сюиты «Пер Гюнт»
+    composer: Эдвард Григ
+    performer: Musopen Symphony Orchestra
+    license: PD
+    page: https://commons.wikimedia.org/wiki/File:Grieg_-_Peer_Gynt_Suite_No._1,_Op._46_-_I._Morning_Mood_(Musopen_Symphony).flac
+    download: https://archive.org/download/MusopenCollectionAsFlac/Greig_PeerGynt/EdvardGrieg-PeerGyntSuiteNo.1Op.46-01-Morning.flac
+    sha256: b667041ee4766e81b77e062e8fb1861c8aae418b4747fb0e3fec1dc0c80e3292
+    approved: false

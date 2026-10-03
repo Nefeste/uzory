@@ -1,10 +1,11 @@
 // Сборка картинок (docs/specs/2026-09-content-pipeline.md): карточки и исходники из
-// content/ → встроенный набор, отчёт и модуль для приложения. Детерминированно: те же
+// content/ → встроенный набор, отчёт и модуль для приложения; заодно — список пьес музыки
+// (assets/music/music.yaml → src/content/generated/music.ts). Детерминированно: те же
 // карточки — тот же набор до байта (дата набора — из content/pack.yaml, а не «сегодня»).
 //
 //   bun tools/content/build.ts               все картинки → dist/ и src/content/generated/
 //   bun tools/content/build.ts --check       только проверки, как в CI
-//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права)
+//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права; и музыка)
 //   bun tools/content/build.ts --only painting
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -20,6 +21,7 @@ import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid, toGrid } from './image';
 import { fromGrid, generate } from './ornaments';
+import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
 
@@ -186,6 +188,8 @@ if (import.meta.main) {
   const check = args.includes('--check');
   const release = args.includes('--release');
   const r = await buildAll({ only, release });
+  // пьесы музыки — рядом с набором: их список проверяется и в --check (docs/09-content.md, «Звук и музыка»)
+  const music = musicModule(readTracks(), release);
   const text = report(r);
   const sha = createHash('sha256').update(r.bytes).digest('hex');
   if (!check) {
@@ -196,6 +200,7 @@ if (import.meta.main) {
     const gen = join(ROOT, 'src', 'content', 'generated');
     mkdirSync(gen, { recursive: true });
     writeFileSync(join(gen, 'pack.ts'), `// Собрано tools/content/build.ts из content/ — не править руками.\n// ${r.meta.id}, ${r.built.length} картинок, SHA-256 ${sha}\nexport const BASE_PACK = '${base64Encode(r.bytes)}';\n`);
+    writeFileSync(join(gen, 'music.ts'), music);
   }
   console.log(text);
   console.log(`набор ${r.meta.id}: ${(r.bytes.length / 1024).toFixed(1)} КБ, SHA-256 ${sha}`);

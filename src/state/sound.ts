@@ -23,14 +23,18 @@ const players: Partial<Record<SoundName, AudioPlayer[]>> = {};
 const next: Record<SoundName, number> = { stitch: 0, thread: 0, done: 0 };
 let moded = false;
 
-function player(name: SoundName): AudioPlayer {
-  if (!moded) {
-    moded = true;
-    if (Platform.OS !== 'web') {
-      setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers', shouldPlayInBackground: false })
-        .catch((e: unknown) => logError('sound', e, 'mode'));
-    }
+/** Режим звука игры — один на звуки и музыку (src/state/music.ts): молчать в беззвучном режиме, не забирать чужую музыку, не играть свёрнутой. */
+export function audioMode() {
+  if (moded) return;
+  moded = true;
+  if (Platform.OS !== 'web') {
+    setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers', shouldPlayInBackground: false })
+      .catch((e: unknown) => logError('sound', e, 'mode'));
   }
+}
+
+function player(name: SoundName): AudioPlayer {
+  audioMode();
   let list = players[name];
   if (!list) {
     list = Array.from({ length: POOL[name] }, () => createAudioPlayer(SOURCES[name]));
