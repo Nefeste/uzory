@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акварель из «Флорилегия» — книги этюдов цветов. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: florilegiy-pion-s-butonom
+title: Пион с бутоном
+collection: flowers
+order: 42
+author: { name: "неизвестный художник, Франция", life: работал около 1608 }
+made: "1608"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: florilegiy-pion-s-butonom.jpg
+  url: https://clevelandart.org/art/1963.594.24.a
+  download: https://openaccess-cdn.clevelandart.org/1963.594.24.a/1963.594.24.a_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); работа 1608 года"
+pattern:
+  crop: [0.05, 0.12, 0.70, 0.79]   # цветок без полей книги и рамки
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#dbd2bd"      # бумага листа — фон, не вышивается
+  canvas_delta: 0.09   # и бледный отпечаток соседней страницы

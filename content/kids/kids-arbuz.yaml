@@ -1,0 +1,29 @@
+# «Детям» (docs/09-content.md, §1): долька арбуза с косточками.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-arbuz
+title: Арбуз
+collection: kids
+order: 25
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    g: ["#4d8a3a", лиственная]
+    s: ["#a6cf57", салатовая]
+    r: ["#d8404c", земляничная]
+    u: ["#2b2b2b", угольная]
+  grid: |
+    gsrrrrrrrrrrrrrrrrrrrrsg
+    gsrrrrrrrrrrrrrrrrrrrrsg
+    gsrrruurrrrrrrrrruurrrsg
+    ggsrruurrrruurrrruurrsgg
+    .gsrrrrrrrruurrrrrrrrsg.
+    .gssrrrrrrrrrrrrrrrrssg.
+    ..gssrrruurrrrruurrssg..
+    ..ggssrruurrrrruurssgg..
+    ...ggssrrrruurrrrssgg...
+    ....ggsssrruurrsssgg....
+    ......gggssssssggg......
+    ........gggggggg........

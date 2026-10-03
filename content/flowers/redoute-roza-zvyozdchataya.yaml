@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): цветная пунктирная гравюра из «Роз». Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+# Подпись на листе — «P. J. Redouté pinx.»; музей называет художником брата, Анри-Жозефа.
+id: redoute-roza-zvyozdchataya
+title: Роза индийская звёздчатая
+collection: flowers
+order: 31
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1817–1824"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: redoute-roza-zvyozdchataya.jpg
+  url: https://clevelandart.org/art/1943.140
+  download: https://openaccess-cdn.clevelandart.org/1943.140/1943.140_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.06, 0.04, 0.94, 0.86]   # лист без подписи внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#e1d9cd"      # бумага листа — фон, не вышивается

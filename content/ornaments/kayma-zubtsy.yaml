@@ -1,0 +1,27 @@
+# Кайма-зубцы — по мотивам народной вышивки: зубцы двух цветов навстречу друг другу между еловыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-zubtsy
+title: Кайма-зубцы
+collection: ornaments
+order: 72
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    .kkkk..kkkk..kkkk..kkkk..kkkk..kkkk..
+    ..kk....kk....kk....kk....kk....kk...
+    .....................................
+    .....................................
+    ..ll....ll....ll....ll....ll....ll...
+    .llll..llll..llll..llll..llll..llll..
+    lllllllllllllllllllllllllllllllllllll
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee

@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): гравюра с раскраской от руки из «Избранных растений» Трева. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: eret-magnoliya
+title: Магнолия
+collection: flowers
+order: 41
+author: { name: Георг Дионисий Эрет, life: 1708–1770 }
+made: "1750–1773"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: eret-magnoliya.jpg
+  url: https://clevelandart.org/art/1955.333
+  download: https://openaccess-cdn.clevelandart.org/1955.333/1955.333_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1770"
+pattern:
+  crop: [0.06, 0.04, 0.94, 0.86]   # лист без подписи внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#e9e8e3"      # бумага листа — фон, не вышивается

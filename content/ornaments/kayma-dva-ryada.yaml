@@ -1,0 +1,30 @@
+# Кайма в два ряда — по мотивам народной вышивки: кумачовые и медовые ромбики в два сдвинутых ряда.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-dva-ryada
+title: Кайма в два ряда
+collection: ornaments
+order: 75
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    .....................................
+    k.....k.....k.....k.....k.....k.....k
+    kk...kkk...kkk...kkk...kkk...kkk...kk
+    kkk.kkkkk.kkkkk.kkkkk.kkkkk.kkkkk.kkk
+    kk...kkk...kkk...kkk...kkk...kkk...kk
+    k..l..k..l..k..l..k..l..k..l..k..l..k
+    ..lll...lll...lll...lll...lll...lll..
+    .lllll.lllll.lllll.lllll.lllll.lllll.
+    ..lll...lll...lll...lll...lll...lll..
+    ...l.....l.....l.....l.....l.....l...
+    .....................................
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee

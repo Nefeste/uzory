@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): цветная пунктирная гравюра из «Роз»; подпись на листе — «P. J. Redouté pinx.» (музей называет художником брата, Анри-Жозефа). Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redoute-roza-voylochnaya
+title: Роза войлочная
+collection: flowers
+order: 53
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1817–1824"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: redoute-roza-voylochnaya.jpg
+  url: https://clevelandart.org/art/1965.296
+  download: https://openaccess-cdn.clevelandart.org/1965.296/1965.296_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.08, 0.03, 0.95, 0.84]   # лист без подписи внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#e2dcd0"      # бумага листа — фон, не вышивается

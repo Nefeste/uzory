@@ -1,0 +1,21 @@
+# «Цветы» (docs/09-content.md, §1): акварель на бумаге. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: holsteyn-tyulpan-rozochka
+title: Тюльпан «Розочка»
+collection: flowers
+order: 40
+author: { name: Питер Холстейн Младший, life: около 1612–1673 }
+made: "около 1645"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: holsteyn-tyulpan-rozochka.jpg
+  url: https://clevelandart.org/art/2020.132
+  download: https://openaccess-cdn.clevelandart.org/2020.132/2020.132_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1673"
+pattern:
+  crop: [0.16, 0.04, 0.84, 0.84]   # тюльпан крупнее: без пустой бумаги и подписи
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#d8cdc3"      # бумага листа — фон, не вышивается

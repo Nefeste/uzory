@@ -1,0 +1,45 @@
+# Косой крест — по мотивам народной вышивки: косой крест с ромбами на концах в еловой рамке.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kosoy-krest
+title: Косой крест
+collection: ornaments
+order: 67
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ee.........................ee
+    ee...v.................v...ee
+    ee..vvv...............vvv..ee
+    ee.vvvvv.............vvvvv.ee
+    ee..vvv...............vvv..ee
+    ee...vkk.............kkv...ee
+    ee.....kk...........kk.....ee
+    ee......kk.........kk......ee
+    ee.......kk.......kk.......ee
+    ee........kk.....kk........ee
+    ee.........kk.l.kk.........ee
+    ee..........klllk..........ee
+    ee..........lllll..........ee
+    ee...........lll...........ee
+    ee..........kklkk..........ee
+    ee.........kk...kk.........ee
+    ee........kk.....kk........ee
+    ee.......kk.......kk.......ee
+    ee......kk.........kk......ee
+    ee...v.kk...........kk.v...ee
+    ee..vvvk.............kvvv..ee
+    ee.vvvvv.............vvvvv.ee
+    ee..vvv...............vvv..ee
+    ee...v.................v...ee
+    ee.........................ee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeee

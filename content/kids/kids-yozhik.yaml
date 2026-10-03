@@ -1,0 +1,32 @@
+# «Детям» (docs/09-content.md, §1): ёжик с яблоком на иголках.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-yozhik
+title: Ёжик
+collection: kids
+order: 26
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    b: ["#5c3a24", коричневая]
+    t: ["#d8c09a", песочная]
+    u: ["#2b2b2b", угольная]
+    r: ["#e0242f", алая]
+    g: ["#6fa640", травяная]
+  grid: |
+    ........rrr..........
+    .......rrrrr.........
+    ....b...rrr...b......
+    ...bbb.bbbbb.bbb.....
+    ..bbbbbbbbbbbbbbbb...
+    .bbbbbbbbbbbbbbbbb...
+    .bbbbbbbbbbbbbbbbbb..
+    bbbbbbbbbbbbbbbuutt..
+    bbbbbbbbbbbbbbtuuttt.
+    .bbbbbbbbbbbbttttttuu
+    .bbbbbbbbbbbbttttttuu
+    ..bbbbbbbbbbbbtttttt.
+    .gggbbbbbbbbbbbttggg.
+    ggggggggggggggggggggg

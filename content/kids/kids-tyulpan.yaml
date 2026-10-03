@@ -1,0 +1,39 @@
+# «Детям» (docs/09-content.md, §1): красный тюльпан с листьями.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. В выпуск — после «да» (В19).
+id: kids-tyulpan
+title: Тюльпан
+collection: kids
+order: 24
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    r: ["#e0242f", алая]
+    k: ["#b3162f", кумачовая]
+    g: ["#6fa640", травяная]
+    l: ["#4d8a3a", лиственная]
+  grid: |
+    .r....rr....r.
+    .rr..rrrr..rr.
+    .rrr.rrrr.rrr.
+    .rrrrrrrrrrrr.
+    .rrrrkkkkrrrr.
+    .rrrrkkkkrrrr.
+    ..rrrkkkkrrr..
+    ..rrrrkkrrrr..
+    ...rrrrrrrr...
+    ......gg......
+    ......gg......
+    ......gg......
+    l.....gg.....l
+    ll....gg....ll
+    lll...gg...lll
+    .lll..gg..lll.
+    .llll.gg.llll.
+    ..llllgglllll.
+    ...lllggllll..
+    ....llgglll...
+    ......gg......
+    ......gg......

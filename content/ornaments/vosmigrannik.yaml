@@ -1,0 +1,43 @@
+# Восьмигранник — по мотивам народной вышивки: кольца восьмиугольником в четыре цвета.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: vosmigrannik
+title: Восьмигранник
+collection: ornaments
+order: 65
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    .......eeeeeeeeeeeee.......
+    ......eeeeeeeeeeeeeee......
+    .....eee...........eee.....
+    ....eee.kkkkkkkkkkk.eee....
+    ...eee.kkkkkkkkkkkkk.eee...
+    ..eee.kkk.........kkk.eee..
+    .eee.kkk..lllllll..kkk.eee.
+    eee.kkk..lllllllll..kkk.eee
+    ee.kkk..lll.....lll..kkk.ee
+    ee.kk..lll.vvvvv.lll..kk.ee
+    ee.kk.lll.vvvvvvv.lll.kk.ee
+    ee.kk.ll.vvv...vvv.ll.kk.ee
+    ee.kk.ll.vv..k..vv.ll.kk.ee
+    ee.kk.ll.vv.kkk.vv.ll.kk.ee
+    ee.kk.ll.vv..k..vv.ll.kk.ee
+    ee.kk.ll.vvv...vvv.ll.kk.ee
+    ee.kk.lll.vvvvvvv.lll.kk.ee
+    ee.kk..lll.vvvvv.lll..kk.ee
+    ee.kkk..lll.....lll..kkk.ee
+    eee.kkk..lllllllll..kkk.eee
+    .eee.kkk..lllllll..kkk.eee.
+    ..eee.kkk.........kkk.eee..
+    ...eee.kkkkkkkkkkkkk.eee...
+    ....eee.kkkkkkkkkkk.eee....
+    .....eee...........eee.....
+    ......eeeeeeeeeeeeeee......
+    .......eeeeeeeeeeeee.......

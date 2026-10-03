@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): пунктирная гравюра Ланглуа по рисунку П.-Ж. Редуте — подписи на листе
+# (музей называет художником брата, Анри-Жозефа). Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redoute-primula
+title: Примула ушковая
+collection: flowers
+order: 38
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1827"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: redoute-primula.jpg
+  url: https://clevelandart.org/art/1964.407
+  download: https://openaccess-cdn.clevelandart.org/1964.407/1964.407_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.06, 0.04, 0.94, 0.86]   # лист без подписи внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  canvas: "#d9c8b7"      # бумага листа — фон, не вышивается
