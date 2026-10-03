@@ -147,6 +147,19 @@ try {
 
   // библиотека (docs/specs/2026-09-library.md): коллекции рядами → «Все» → карточка картинки →
   // «Вышивать»; начатая работа — «Продолжить» на карточке и в «Моих работах»
+  // библиотека не держит экран (0.10.3): превью считаются по одному, между ними экран отвечает;
+  // при замедлении процессора в четыре раза «назад» срабатывает сразу, а не после всех превью
+  // (прежде — 3,4 с при замедлении в шесть раз)
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('lib-ornaments').waitFor({ timeout: 20_000 });
+  const backAt = Date.now();
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-library').waitFor({ timeout: 20_000 });
+  const backMs = Date.now() - backAt;
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  check(backMs < 2000, `библиотека не держит экран: «назад» при замедлении ×4 — за ${backMs} мс`);
   await page.getByTestId('home-library').click();
   await page.getByTestId('lib-ornaments').waitFor({ timeout: 10_000 });
   check((await page.locator('[data-testid^="lib-"]').count()) >= 3, 'библиотека: коллекции рядами');
@@ -407,7 +420,13 @@ try {
   await page.waitForTimeout(1200);
   const gone = (await music()).slice(heard.length);
   check(gone.some((e) => e.what === 'pause') && !gone.some((e) => e.what === 'play'), 'ушли с экрана вышивания — музыка затихла и встала на паузу');
+  // лист открывается сразу (0.10.1): превью и числа карточки считаются при показе — разом двести
+  // узоров открывались 2,3 с на компьютере и десятки секунд на слабом телефоне
+  const sheetAt = Date.now();
   await page.getByTestId('home-sheet').click();
+  await page.getByTestId('sheet-picked').waitFor();
+  const sheetMs = Date.now() - sheetAt;
+  check(sheetMs < 1500, `лист из ${built.length} картинок открылся за ${sheetMs} мс`);
   await page.getByTestId('sheet-work-first-picture').waitFor({ timeout: 5000 }).catch(() => {});
   const started = await page.getByTestId('sheet-work-first-picture').innerText().catch(() => '');
   check(started.includes('Вышито'), `в листе — начатая работа: «${started}»`);
@@ -557,6 +576,13 @@ try {
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,
     '«Без отметки» — только неотмеченные');
   await page.getByTestId('sheet-filter-all').click();
+  // коллекции — по частям (0.10.2): «Цветы» — только цветы, «Все» — снова все
+  await page.getByTestId('sheet-coll-flowers').click();
+  await page.waitForTimeout(300);
+  const flowersOnly = (await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-van-gogh-podsolnukhi').count()) === 1;
+  await page.getByTestId('sheet-coll-all').click();
+  await page.waitForTimeout(300);
+  check(flowersOnly && (await page.getByTestId('sheet-first-picture').count()) === 1, 'в листе — коллекция «Цветы» отдельно, «Все» — снова все');
   await page.screenshot({ path: join(OUT, '05-sheet-picks.png') });
   await page.getByTestId('back').click();
 
