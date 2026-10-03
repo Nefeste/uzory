@@ -40,6 +40,13 @@ export function uniformList(u: Uniforms): number[] {
   return [u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT];
 }
 
+/**
+ * Шейдер. Цвет номера на невышитой клетке — тёмный, чёрный или белый — выбирается по яркости
+ * клетки под ним, посчитанной точно по кривой sRGB (`wcag`): так контраст номера не ниже 4,5 : 1
+ * на любой нити и подсветке (docs/08-game-design.md, «Для старшей аудитории»). С приближением
+ * степенью 2,2 (`luma`, им считается далёкий вид) у порогов он падал до 4,4 : 1 —
+ * tools/test/contrast.test.ts. Внутри строки шейдера — только латиница (tools/test/i18n.test.ts).
+ */
 export const SKSL = `
 uniform shader cells;
 uniform shader palette;
@@ -65,6 +72,11 @@ const half3 DIGIT = half3(0.231, 0.243, 0.235);
 
 half luma(half3 c) {
   half3 l = pow(c, half3(2.2));
+  return dot(l, half3(0.2126, 0.7152, 0.0722));
+}
+
+half wcag(half3 c) {
+  half3 l = mix(c / 12.92, pow((c + 0.055) / 1.055, half3(2.4)), step(half3(0.04045), c));
   return dot(l, half3(0.2126, 0.7152, 0.0722));
 }
 
@@ -168,7 +180,7 @@ half4 main(float2 p) {
   }
   if (!done) {
     half a = number(f, idx + 1.0, sel ? 1.0 : 0.0);
-    half l = luma(o);
+    half l = wcag(o);
     half3 dc = l > 0.39 ? DIGIT : (l > 0.18 ? half3(0.0) : half3(1.0));
     o = mix(o, dc, a);
     if (sel && pulseT >= 0.0 && pulseT < 1.5 && cell.x >= pulse.x && cell.x <= pulse.z && cell.y >= pulse.y && cell.y <= pulse.w) {
