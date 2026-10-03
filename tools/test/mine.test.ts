@@ -5,11 +5,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { toGrid, type Raster } from '../../src/engine/build/grid';
-import { checkPatternWith } from '../../src/engine/build/checks';
-import { buildMine, defaultThreads, libraryCard, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
+import { type Checked, checkPatternWith } from '../../src/engine/build/checks';
+import { buildMine, defaultThreads, type Issue, libraryCard, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
 import { buildPattern } from '../../src/engine/build/palette';
 import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
+import type { Pattern } from '../../src/engine/pattern';
 import { hash32 } from '../../src/engine/seed';
+import { T } from '../../src/i18n';
 import { readCard } from '../content/cards';
 
 /** Снимок из функции цвета точки: (x, y) в долях → 0xRRGGBB. */
@@ -35,6 +37,23 @@ const scene = (x: number, y: number) => {
 
 /** Пёстрая листва: пятна пяти зелёных чуть больше клетки — без упрощения рассыпается. */
 const leaves = (x: number, y: number) => [0x2e5e3a, 0x4f8a3c, 0x7fb35a, 0x1d3b24, 0xa8c46a][hash32(`${Math.floor(x * 40)},${Math.floor(y * 30)}`) % 5];
+
+/**
+ * Приговор по готовым числам проверок (таблица docs/specs/2026-09-custom.md): узор из нитей `rgbs`
+ * поровну, одиночные и мелкие пятна — в процентах, `px` — точек снимка на клетку.
+ */
+function verdictWith(o: { singles?: number; small?: number; lonely?: number[]; rgbs?: number[]; px?: number }) {
+  const rgbs = o.rgbs ?? [0xc0392b, 0x2e86c1, 0xf4d03f];
+  const each = 100;
+  const p: Pattern = { key: 'proba@1', w: rgbs.length * 10, h: 10, threads: rgbs.map((rgb, i) => ({ rgb, name: `нить ${i + 1}` })), cells: new Uint8Array(rgbs.length * each) };
+  const checked: Checked = {
+    errors: [],
+    warnings: [],
+    size: 'S',
+    stats: { cells: rgbs.length * each, singles: o.singles ?? 0, small: o.small ?? 0, regions: rgbs.length, minDelta: 0.2, closest: [0, 1], lonely: o.lonely ?? [], counts: rgbs.map(() => each) },
+  };
+  return verdictOf(p, checked, o.px ?? 4);
+}
 
 /** Карточка во временной папке коллекции — так её читает tools/content. */
 function cardFile(id: string, yaml: string): string {
@@ -84,6 +103,45 @@ describe('свой узор', () => {
     const flat = buildMine(photo(300, 200, (x) => (x < 0.5 ? 0x2e5e3a : 0xf4f0e6)), { crop: [0, 0, 1, 1], side: 60, threads: 8 });
     expect(flat.verdict.issues).toContain('flat');
     expect(flat.verdict.level).toBe('warn');
+  });
+
+  test('приговор по таблице: «не подходит» — одиночных больше 1 %, мелких пятен больше 3 %, нить из одних одиночек', () => {
+    expect(verdictWith({ singles: 1.01 })).toEqual({ level: 'bad', issues: ['singles'] });
+    expect(verdictWith({ small: 3.01 })).toEqual({ level: 'bad', issues: ['small'] });
+    expect(verdictWith({ lonely: [2] })).toEqual({ level: 'bad', issues: ['lonely'] });
+    // «не подходит» не добавляет «почти на пределе», а советы «подходит, но» остаются
+    expect(verdictWith({ singles: 1.5, small: 2.6, px: 1.5 })).toEqual({ level: 'bad', issues: ['singles', 'blurry'] });
+  });
+
+  test('приговор по таблице: у порога — «подходит, но» (одиночных 0,8–1 %, мелких пятен 2,4–3 %), на самих границах — как в таблице', () => {
+    expect(verdictWith({ singles: 1 })).toEqual({ level: 'warn', issues: ['nearConfetti'] });
+    expect(verdictWith({ small: 3 })).toEqual({ level: 'warn', issues: ['nearConfetti'] });
+    expect(verdictWith({ singles: 0.81 })).toEqual({ level: 'warn', issues: ['nearConfetti'] });
+    expect(verdictWith({ small: 2.41 })).toEqual({ level: 'warn', issues: ['nearConfetti'] });
+    expect(verdictWith({ singles: 0.8, small: 2.4 })).toEqual({ level: 'ok', issues: [] });
+  });
+
+  test('приговор по таблице: тёмная — больше половины клеток темнее L 0,3; мелкий снимок — меньше двух точек на клетку; две нити — почти одноцветная', () => {
+    const dark = 0x161616;
+    const light = 0xe8e2d0;
+    expect(verdictWith({ rgbs: [dark, dark, light] })).toEqual({ level: 'warn', issues: ['dark'] });
+    expect(verdictWith({ rgbs: [dark, dark, light, light] })).toEqual({ level: 'ok', issues: [] });
+    expect(verdictWith({ px: 1.99 })).toEqual({ level: 'warn', issues: ['blurry'] });
+    expect(verdictWith({ px: 2 })).toEqual({ level: 'ok', issues: [] });
+    expect(verdictWith({ rgbs: [0xc0392b, 0x2e86c1] })).toEqual({ level: 'warn', issues: ['flat'] });
+  });
+
+  test('у каждой беды — совет из таблицы', () => {
+    const advice: Record<Issue, string> = {
+      singles: 'Сильнее упрощение, меньше нитей или больше клеток',
+      small: 'Сильнее упрощение, меньше нитей или больше клеток',
+      lonely: 'Меньше нитей',
+      nearConfetti: 'Сильнее упрощение или меньше нитей — узор станет спокойнее',
+      dark: 'кадр светлее',
+      blurry: 'Меньше клеток',
+      flat: 'другой кадр',
+    };
+    for (const [issue, words] of Object.entries(advice)) expect(T.mine.issues[issue as Issue]).toContain(words);
   });
 
   test('карточка для библиотеки проходит проверку карточек', () => {
