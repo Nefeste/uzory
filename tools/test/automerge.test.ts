@@ -15,8 +15,9 @@ describe('автослияние', () => {
   test('CODEOWNERS: пути владельца из устава и проекта — все за владельцем', () => {
     const patterns = ownerPatterns(codeowners);
     // из устава (ADR 0018) — убирать нельзя; политика конфиденциальности «Узоров» лежит
-    // в store/site/; app.json и eas.json — пути проекта
-    for (const p of ['/deploy/', '/.github/', '/server/', '/src/money/', '/store/forms.md', '/store/privacy*', '/store/site/privacy*', '/app.json', '/eas.json']) {
+    // в store/site/; план набора недели, app.json и eas.json — пути проекта
+    const project = ['/content/week.yaml', '/app.json', '/eas.json'];
+    for (const p of ['/deploy/', '/.github/', '/server/', '/src/money/', '/store/forms.md', '/store/privacy*', '/store/site/privacy*', ...project]) {
       expect(patterns).toContain(p);
     }
     const owners = codeowners

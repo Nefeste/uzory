@@ -93,3 +93,26 @@ describe('календарь сборки', () => {
     expect(autoCalendar(pics, '2026-10-01')).toEqual(autoCalendar(pics, '2026-10-01'));
   });
 });
+
+describe('календарь набора недели', () => {
+  test('не дальше заданных дней; первый день — не коллекция вчерашнего', () => {
+    const pics = [...many(20, 'ornaments'), ...many(20, 'flowers')];
+    const cal = autoCalendar(pics, '2026-10-01', {}, { days: 7, after: 'ornaments' });
+    const col = collectionOf(pics);
+    expect(cal).toHaveLength(7);
+    expect(cal.at(-1)!.date).toBe('2026-10-07');
+    expect(col.get(cal[0].picture)).toBe('flowers');
+    expect(autoCalendar(pics, '2026-10-01', {}, { days: 0 })).toEqual([]);
+  });
+
+  test('день из набора недели — ровно в свою дату, важнее праздника карточки', () => {
+    const pics = [...many(10, 'ornaments'), ...many(10, 'flowers'), pic('maslenitsa', 'kids'), pic('tyulpan', 'kids')];
+    const dates = new Map([['2026-10-04', 'maslenitsa'], ['2026-10-05', 'tyulpan']]);
+    const cal = autoCalendar(pics, '2026-10-01', { day: new Map([['tyulpan', '10-02']]), dates }, { days: 7 });
+    const on = new Map(cal.map((d) => [d.date, d.picture]));
+    expect(on.get('2026-10-04')).toBe('maslenitsa');
+    expect(on.get('2026-10-05')).toBe('tyulpan');
+    expect(on.get('2026-10-02')).not.toBe('tyulpan');
+    expect(cal.filter((d) => d.picture === 'maslenitsa' || d.picture === 'tyulpan')).toHaveLength(2);
+  });
+});
