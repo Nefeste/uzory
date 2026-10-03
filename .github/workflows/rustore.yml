@@ -1,7 +1,7 @@
 # из votchina: .github/workflows/rustore.yml @ 1242776
 name: RuStore
 
-# Выкладывает APK из пре-релиза в черновик новой версии RuStore (docs/05-process.md, «Выпуск версии»).
+# Выкладывает APK из релиза версии (тег vX.Y.Z, android.yml) в черновик новой версии RuStore (docs/05-process.md, «Выпуск версии»).
 # Запускается только руками: Actions → RuStore → Run workflow. На модерацию черновик уходит,
 # только если отмечено «submit»; иначе владелец проверяет его в консоли и отправляет сам.
 #
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Тег пре-релиза (пусто — последний)'
+        description: 'Тег релиза vX.Y.Z (пусто — последний)'
         required: false
         default: ''
       submit:
@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   upload:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: APK из пре-релиза
+      - name: APK из релиза
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -43,7 +43,7 @@ jobs:
           if [ -z "$TAG" ]; then
             TAG="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
           fi
-          echo "Пре-релиз: $TAG"
+          echo "Релиз: $TAG"
           gh release download "$TAG" --pattern 'uzory-*.apk' --dir dist
           ls -l dist
           echo "APK=$(ls dist/uzory-*.apk | head -1)" >> "$GITHUB_ENV"

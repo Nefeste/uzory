@@ -22,6 +22,12 @@ describe('версия', () => {
     expect(readme).toContain(`### ${APP_VERSION}`);
   });
 
+  test('STATUS.md — не длиннее 30 строк и называет ту же версию (устав, docs/04-process.md)', () => {
+    const status = readFileSync(join(root, 'STATUS.md'), 'utf8');
+    expect(status.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
+    expect(status.match(/\*\*Версия:\*\*\s*(\d+\.\d+\.\d+)/)?.[1]).toBe(read('package.json').version);
+  });
+
   test('идентификатор приложения — постоянный (ADR 0014)', () => {
     const app = read('app.json').expo;
     expect(app.android.package).toBe('games.gornitsa.uzory');

@@ -1,12 +1,3 @@
-This is an Expo/React Native mobile game for RuStore: «Узоры», a color-by-number game styled as
-digital cross-stitch (a grid of numbered cells, threads, stitches). Prioritize mobile-first
-patterns, smooth canvas performance on inexpensive Android phones, and calm, honest UX.
-
-**Status: stage 0 — prototypes 0.0.5** (`docs/specs/2026-09-spikes.md`): canvas, picture
-build, work file, Android CI, a closed web version for the owner's computer
-(`docs/specs/2026-09-web.md`); `store/` holds the RuStore listing materials (pre-order) that the
-studio site reuses.
-
 ## Studio charter — read first
 
 This project belongs to the «Горница» studio. Studio-wide rules live only in the public
@@ -16,9 +7,17 @@ reset — read the charter's `AGENTS.md`, then `docs/05-rules.md` (hard rules fo
 and `docs/04-process.md` (how work is done). Raw files:
 `https://raw.githubusercontent.com/Nefeste/gornitsa/main/<path>`.
 
+Current state of this project: `STATUS.md` (it is not repeated here).
+
 Precedence: the owner's recorded decision → the charter → this project's documents. A project
 rule may narrow a charter rule, never weaken it. If a document here restates or contradicts
 the charter, replace it with a link or report the contradiction to the owner.
+
+## The project
+
+This is an Expo/React Native mobile game for RuStore: «Узоры», a color-by-number game styled as
+digital cross-stitch (a grid of numbered cells, threads, stitches). Prioritize mobile-first
+patterns, smooth canvas performance on inexpensive Android phones, and calm, honest UX.
 
 ## Read `docs/` before changing anything
 
@@ -86,22 +85,28 @@ It runs only on manual dispatch — trigger it on your branch after adding cards
 to refresh candidates, `again` to re-download existing sources at up to 2000 px, `dims` for
 canvas sizes from Wikidata → `content/dimensions.json`), then pull the bot's commit.
 
-The repository is **public**. The owner's own photos for «Природа» and «Города» arrive as
+The repository is currently **public** (studio ADR 0017 makes games private; closing it is the
+owner's step). The owner's own photos for «Природа» and «Города» arrive as
 assets of a **draft release** (drafts are visible to maintainers only): list releases via the
 API, download assets with `Accept: application/octet-stream`. Only selected photos enter git
 (card + 800 px source) — never commit the rest, never post them in logs or comments.
 
-**CI runs only after merge** (studio rule, charter `docs/04-process.md`): `android.yml` runs on
-push to `main` and on manual dispatch. Run typecheck, lint, tests and the web scenario locally
-(both builds — from the root and for `/uzory/test`) before every push; the APK is built and
-released only from `main`.
+**CI and merging** (studio ADR 0018, 0019; `docs/05-process.md`, «Ветки»): `pr.yml` runs
+typecheck, lint and tests on every PR to `main` — a required check. A PR that touches no owner
+path from `.github/CODEOWNERS` merges by itself (`automerge.yml`) after green checks and the
+label `ревью: ок` from a reviewer in another session — never put that label on your own PR;
+a new commit removes it. Owner paths are merged by the owner. Run typecheck, lint, tests and
+the web scenario locally (both builds — from the root and for `/uzory/test`) before every push
+anyway. APK and AAB are built only on a version tag `vX.Y.Z` (released on that tag) or on manual
+dispatch (artifacts, no release).
 
 **The closed web version** (`docs/specs/2026-09-web.md`) is the same app at
 `gornitsa.games/uzory/test/` behind a password the owner sets on the server
-(`sudo uzory-password`) — never ask for it, never handle it. After a merge, CI encrypts the web
-build with the site server's age key and force-writes the orphan branch `vps` (CI only — never
-push there by hand). The build contains trial pictures: never upload it unencrypted anywhere
-(artifacts of a public repository are downloadable by anyone). Web-only input (mouse buttons,
+(`sudo uzory-password`) — never ask for it, never handle it. `site.yml` (nightly when `main`
+moved, and on manual dispatch) runs the browser scenario on the web build, encrypts it with the
+site server's age key and force-writes the orphan branch `vps` (CI only — never push there by
+hand). The build contains trial pictures: never upload it unencrypted anywhere (artifacts of a
+public repository are downloadable by anyone). Web-only input (mouse buttons,
 wheel, keys) lives behind `Platform.OS === 'web'`; the phone gesture tree stays as it is.
 
 Run lint, typecheck and tests before declaring any task done. Canvas changes are re-measured on

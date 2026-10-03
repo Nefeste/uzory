@@ -11,9 +11,10 @@ npx tsc --noEmit -p tools    # тесты и сборка картинок (Bun)
 npm run lint                 # ни ошибок, ни предупреждений
 ```
 
-Перед каждым push — у ассистента; в CI — после merge в `main` (до merge Actions сами не
-запускаются, [`05-process.md`](05-process.md), «Ветки»). Линтер держит границы слоёв, как у «Анамнеза»: `src/engine/` не
-импортирует ничего из React, Expo и `src/state/`; в движке нет `Date.now()` и `Math.random()`.
+Перед каждым push — у ассистента; в CI — на каждый PR (`pr.yml`, обязательная проверка) и на тег
+версии (`android.yml`, вместе со сборкой APK) — [`05-process.md`](05-process.md), «Ветки».
+Линтер держит границы слоёв, как у «Анамнеза»: `src/engine/` не импортирует ничего из React,
+Expo и `src/state/`; в движке нет `Date.now()` и `Math.random()`.
 
 ## 2. Движок
 

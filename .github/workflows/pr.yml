@@ -1,0 +1,74 @@
+# Проверки на PR (устав студии, ADR 0019): типы, линтер и тесты — те же команды, что в
+# AGENTS.md; без prebuild, Gradle и APK. Проверка обязательна для слияния в main (ADR 0018,
+# docs/05-process.md, «Ветки»), поэтому отвечает на каждом PR: PR только с документами
+# (docs/, research/) не исключается фильтром путей, а пропускает шаги внутри задачи — их
+# не читает ни один тест. Перед push ассистент всё равно прогоняет то же сам.
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# новый push в ту же ветку отменяет прежний запуск: минуты Actions общие на все закрытые
+# репозитории владельца
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Типы, линтер и тесты
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Что изменилось
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          FILES="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
+          printf '%s\n' "$FILES"
+          if [ -n "$FILES" ] && ! printf '%s\n' "$FILES" | grep -qvE '^(docs|research)/'; then
+            echo "docs=yes" >> "$GITHUB_OUTPUT"
+            echo "Только документы (docs/, research/): сборка картинок, типы, линтер и тесты пропущены — эти файлы не читает ни один тест." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "docs=no" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v5
+        if: steps.scope.outputs.docs != 'yes'
+      - uses: actions/setup-node@v5
+        if: steps.scope.outputs.docs != 'yes'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        if: steps.scope.outputs.docs != 'yes'
+        with:
+          bun-version: 1.3.11
+      - if: steps.scope.outputs.docs != 'yes'
+        run: npm ci
+      # встроенный набор (src/content/generated) нужен проверке типов и тестам
+      - name: Картинки — сборка и проверки
+        if: steps.scope.outputs.docs != 'yes'
+        run: bun tools/content/build.ts
+      - name: Типы приложения
+        if: steps.scope.outputs.docs != 'yes'
+        run: npx tsc --noEmit
+      - name: Типы инструментов и тестов
+        if: steps.scope.outputs.docs != 'yes'
+        run: npx tsc --noEmit -p tools
+      - name: Линтер
+        if: steps.scope.outputs.docs != 'yes'
+        run: npm run lint
+      - name: Тесты
+        if: steps.scope.outputs.docs != 'yes'
+        run: bun test tools/test
+      - name: Отчёт сборки картинок
+        if: always() && steps.scope.outputs.docs != 'yes'
+        run: test -f dist/report.md && cat dist/report.md >> "$GITHUB_STEP_SUMMARY" || true
