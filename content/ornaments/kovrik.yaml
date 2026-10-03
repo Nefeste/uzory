@@ -1,0 +1,51 @@
+# Коврик — по мотивам народной вышивки: девять ромбов в кумачовой рамке.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kovrik
+title: Коврик
+collection: ornaments
+order: 38
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#b3162f", кумачовая]
+    e: ["#1f3c34", еловая]
+    v: ["#3a5ba0", васильковая]
+    l: ["#d9a441", медовая]
+  grid: |
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kk...............................kk
+    kk...............................kk
+    kk......e........v........e......kk
+    kk.....eee......vvv......eee.....kk
+    kk....eelee....vvlvv....eelee....kk
+    kk...eelllee..vvlllvv..eelllee...kk
+    kk..eellllleevvlllllvveelllllee..kk
+    kk...eelllee..vvlllvv..eelllee...kk
+    kk....eelee....vvlvv....eelee....kk
+    kk.....eee......vvv......eee.....kk
+    kk......e........v........e......kk
+    kk......v........e........v......kk
+    kk.....vvv......eee......vvv.....kk
+    kk....vvlvv....eelee....vvlvv....kk
+    kk...vvlllvv..eelllee..vvlllvv...kk
+    kk..vvlllllvveellllleevvlllllvv..kk
+    kk...vvlllvv..eelllee..vvlllvv...kk
+    kk....vvlvv....eelee....vvlvv....kk
+    kk.....vvv......eee......vvv.....kk
+    kk......v........e........v......kk
+    kk......e........v........e......kk
+    kk.....eee......vvv......eee.....kk
+    kk....eelee....vvlvv....eelee....kk
+    kk...eelllee..vvlllvv..eelllee...kk
+    kk..eellllleevvlllllvveelllllee..kk
+    kk...eelllee..vvlllvv..eelllee...kk
+    kk....eelee....vvlvv....eelee....kk
+    kk.....eee......vvv......eee.....kk
+    kk......e........v........e......kk
+    kk...............................kk
+    kk...............................kk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk

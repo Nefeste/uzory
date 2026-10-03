@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): дерево, 67,3 × 48,9 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: monticelli-golubaya-vaza
+title: Цветы в голубой вазе
+collection: flowers
+order: 9
+author: { name: Адольф Монтичелли, life: 1824–1886 }
+made: "1879–1883"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: monticelli-golubaya-vaza.jpg
+  url: https://www.metmuseum.org/art/collection/search/437148
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT2791.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1886"
+pattern:
+  crop: [0.02, 0.015, 0.98, 0.985]   # без рамки скана
+  size: 100
+  threads: 24

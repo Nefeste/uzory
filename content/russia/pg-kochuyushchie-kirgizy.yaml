@@ -1,0 +1,19 @@
+# Россия в цвете, пачка 30.09.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
+# Библиотеки Конгресса (ppmsc — выправленная), найдена по списку собрания на loc.gov.
+# В выпуск — после «да» владельца в «Листе узоров» (В19).
+id: pg-kochuyushchie-kirgizy
+title: Кочующие киргизы
+collection: russia
+order: 56
+author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
+made: "1905–1915"
+place: "Голодная степь"
+source:
+  file: pg-kochuyushchie-kirgizy.jpg
+  url: https://www.loc.gov/item/2018680303/
+  download: https://tile.loc.gov/storage-services/service/pnp/ppmsc/03900/03979v.jpg
+  basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
+pattern:
+  crop: [0.05, 0.30, 0.85, 0.95]   # семья у кибитки крупнее: без пустого неба
+  size: 300
+  threads: 40

@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 49,5 × 40,3 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: van-veerendael-buket
+title: Букет в хрустальной вазе
+collection: flowers
+order: 22
+author: { name: Николас ван Верендал, life: 1640–1691 }
+made: "1662"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: van-veerendael-buket.jpg
+  url: https://www.metmuseum.org/art/collection/search/437867
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT202022.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1691"
+pattern:
+  crop: [0.03, 0.01, 0.97, 0.99]   # без рамки скана
+  size: 100
+  threads: 24

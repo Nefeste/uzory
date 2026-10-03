@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 73 × 92,4 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: sezann-primula
+title: Натюрморт с яблоками и примулой
+collection: flowers
+order: 25
+author: { name: Поль Сезанн, life: 1839–1906 }
+made: "около 1890"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: sezann-primula.jpg
+  url: https://www.metmuseum.org/art/collection/search/435882
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT47.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1906"
+pattern:
+  crop: [0.01, 0.01, 0.99, 0.99]   # без рамки скана
+  size: 100
+  threads: 24

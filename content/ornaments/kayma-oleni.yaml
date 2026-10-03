@@ -1,0 +1,32 @@
+# Кайма с оленями — по мотивам народной вышивки: три оленя между еловыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-oleni
+title: Кайма с оленями
+collection: ornaments
+order: 56
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ........................................
+    .........k.k.k........k.k.k........k.k.k
+    .........kkkk.........kkkk.........kkkk.
+    ..........kk...........kk...........kk..
+    ..........kk...........kk...........kk..
+    ..........kkk..........kkk..........kkk.
+    ..k......kkkkk.k......kkkkk.k......kkkkk
+    ..kkkkkkkkkk...kkkkkkkkkk...kkkkkkkkkk..
+    ..kkkllllkkk...kkkllllkkk...kkkllllkkk..
+    ..kkkkkkkkkk...kkkkkkkkkk...kkkkkkkkkk..
+    ..k.k....k.k...k.k....k.k...k.k....k.k..
+    ..k.k....k.k...k.k....k.k...k.k....k.k..
+    .ee.ee..ee.ee.ee.ee..ee.ee.ee.ee..ee.ee.
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee

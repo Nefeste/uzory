@@ -1,0 +1,55 @@
+# Салфетка — по мотивам народной вышивки: рамка с ромбами по краю, звёзды по углам, ромб кольцами в середине.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: salfetka
+title: Салфетка
+collection: ornaments
+order: 31
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+    v: ["#3a5ba0", васильковая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ee...v...........................v...ee
+    ee..vvv.....k......k......k.....vvv..ee
+    ee.vvlvv...kkk....kkk....kkk...vvlvv.ee
+    eevvlllvv.kkkkk..kkkkk..kkkkk.vvlllvvee
+    ee.vvlvv...kkk....kkk....kkk...vvlvv.ee
+    ee..vvv.....k......k......k.....vvv..ee
+    ee...v...........................v...ee
+    ee...................................ee
+    ee...k.............k.............k...ee
+    ee..kkk...........kkk...........kkk..ee
+    ee.kkkkk.........kk.kk.........kkkkk.ee
+    ee..kkk.........kk.l.kk.........kkk..ee
+    ee...k.........kk.lll.kk.........k...ee
+    ee............kk.llkll.kk............ee
+    ee...........kk.llkkkll.kk...........ee
+    ee...k......kk.llkkvkkll.kk......k...ee
+    ee..kkk....kk.llkkvvvkkll.kk....kkk..ee
+    ee.kkkkk..kk.llkkvvvvvkkll.kk..kkkkk.ee
+    ee..kkk....kk.llkkvvvkkll.kk....kkk..ee
+    ee...k......kk.llkkvkkll.kk......k...ee
+    ee...........kk.llkkkll.kk...........ee
+    ee............kk.llkll.kk............ee
+    ee...k.........kk.lll.kk.........k...ee
+    ee..kkk.........kk.l.kk.........kkk..ee
+    ee.kkkkk.........kk.kk.........kkkkk.ee
+    ee..kkk...........kkk...........kkk..ee
+    ee...k.............k.............k...ee
+    ee...................................ee
+    ee...v...........................v...ee
+    ee..vvv.....k......k......k.....vvv..ee
+    ee.vvlvv...kkk....kkk....kkk...vvlvv.ee
+    eevvlllvv.kkkkk..kkkkk..kkkkk.vvlllvvee
+    ee.vvlvv...kkk....kkk....kkk...vvlvv.ee
+    ee..vvv.....k......k......k.....vvv..ee
+    ee...v...........................v...ee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee

@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 59,4 × 35,2 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: manet-piony
+title: Пионы
+collection: flowers
+order: 5
+author: { name: Эдуар Мане, life: 1832–1883 }
+made: "1864–1865"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: manet-piony.jpg
+  url: https://www.metmuseum.org/art/collection/search/436961
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP123836.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1883"
+pattern:
+  crop: [0.05, 0.035, 0.95, 0.98]   # без рамки скана
+  size: 100
+  threads: 24

@@ -1,6 +1,7 @@
 # Россия в цвете, пачка 29.09.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
 # Библиотеки Конгресса (ppmsc — выправленная, prokc — сырая с каймой от сдвига трёх негативов),
 # найден по content/candidates.json. В выпуск — после «да» владельца в «Листе узоров» (В19).
+# 30.09.2026: файл — ppem, та же сборка, выправленная для Библиотеки (цвет, без каймы).
 id: pg-vodyanye-lilii
 title: Водяные лилии
 collection: russia
@@ -10,9 +11,9 @@ made: "1905–1915"
 source:
   file: pg-vodyanye-lilii.jpg
   url: https://www.loc.gov/item/2018679866/
-  download: https://tile.loc.gov/storage-services/service/pnp/prokc/21500/21584v.jpg
+  download: https://tile.loc.gov/storage-services/service/pnp/ppem/02000/02032v.jpg
   basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
 pattern:
-  crop: [0.06, 0.07, 0.95, 0.86]   # края сборки — цветная кайма от сдвига трёх негативов
+  crop: [0.02, 0.02, 0.98, 0.98]   # сборка выправлена, края — на всякий случай
   size: 300
   threads: 40

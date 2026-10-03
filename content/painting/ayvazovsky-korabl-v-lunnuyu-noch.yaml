@@ -1,0 +1,19 @@
+# «Живопись» (docs/09-content.md, §1): холст 15,9 × 23,5 см. Оригинал — в Метрополитен-музее, за рубежом:
+# музейного вопроса (В12) нет; изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: ayvazovsky-korabl-v-lunnuyu-noch
+title: Корабль в лунную ночь
+collection: painting
+order: 30
+author: { name: Иван Айвазовский, life: 1817–1900 }
+made: "до 1900"   # у музея без даты; автор ум. 1900
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: ayvazovsky-korabl-v-lunnuyu-noch.jpg
+  url: https://www.metmuseum.org/art/collection/search/437979
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP-23290-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1900"
+pattern:
+  crop: [0.05, 0.065, 0.955, 0.935]   # без чёрного поля скана вокруг холста
+  size: 94   # четыре клетки на сантиметр: холст 15,9 × 23,5 см (по музею)
+  threads: 24

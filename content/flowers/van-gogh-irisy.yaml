@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 73,7 × 92,1 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: van-gogh-irisy
+title: Ирисы
+collection: flowers
+order: 1
+author: { name: Винсент Ван Гог, life: 1853–1890 }
+made: "1890"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: van-gogh-irisy.jpg
+  url: https://www.metmuseum.org/art/collection/search/436528
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP346474.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1890"
+pattern:
+  crop: [0.01, 0.01, 0.99, 0.99]   # без рамки скана
+  size: 110
+  threads: 28

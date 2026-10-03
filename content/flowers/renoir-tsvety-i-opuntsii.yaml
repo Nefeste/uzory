@@ -1,0 +1,19 @@
+# «Цветы» (docs/09-content.md, §1): холст 73,3 × 59,4 см. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: renoir-tsvety-i-opuntsii
+title: Цветы и опунции
+collection: flowers
+order: 20
+author: { name: Огюст Ренуар, life: 1841–1919 }
+made: "около 1885"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: renoir-tsvety-i-opuntsii.jpg
+  url: https://www.metmuseum.org/art/collection/search/441104
+  download: https://images.metmuseum.org/CRDImages/ep/original/DP257756.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1919"
+pattern:
+  crop: [0.02, 0.01, 0.98, 0.99]   # без рамки скана
+  size: 100
+  threads: 24

@@ -1,0 +1,19 @@
+# «Живопись» (docs/09-content.md, §1): холст 134,6 × 188 см. Оригинал — в Метрополитен-музее, за рубежом:
+# музейного вопроса (В12) нет; изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: kuindzhi-krasnyy-zakat
+title: Красный закат
+collection: painting
+order: 29
+author: { name: Архип Куинджи, life: 1841–1910 }
+made: "1905–1908"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: kuindzhi-krasnyy-zakat.jpg
+  url: https://www.metmuseum.org/art/collection/search/436833
+  download: https://images.metmuseum.org/CRDImages/ep/original/DT2557.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1910"
+pattern:
+  crop: [0.015, 0.025, 0.985, 0.98]   # без края холста на скане
+  size: 736   # четыре клетки на сантиметр: холст 134,6 × 188 см (по музею), кадр без края
+  threads: 40

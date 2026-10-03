@@ -1,0 +1,20 @@
+# «Цветы» (docs/09-content.md, §1): цветная пунктирная гравюра из «Роз». Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). В выпуск — после «да» владельца (В19).
+id: redoute-roza-zhozefina
+title: Роза «Императрица Жозефина»
+collection: flowers
+order: 2
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1817–1824"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: redoute-roza-zhozefina.jpg
+  url: https://www.metmuseum.org/art/collection/search/762055
+  download: https://images.metmuseum.org/CRDImages/dp/original/DP-24399-001.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.05, 0.06, 0.95, 0.86]   # без рамки скана и подписи
+  size: 70
+  threads: 16
+  canvas: "#ece5e0"      # бумага листа — фон, не вышивается

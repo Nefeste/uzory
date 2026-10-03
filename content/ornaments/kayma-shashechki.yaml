@@ -1,0 +1,27 @@
+# Кайма-шашечки — по мотивам народной вышивки: шахматка в два цвета между еловыми полосами.
+# Рисунок по клеткам — своя работа студии; в выпуск — после «да» владельца (В19).
+id: kayma-shashechki
+title: Кайма-шашечки
+collection: ornaments
+order: 52
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    e: ["#1f3c34", еловая]
+    k: ["#b3162f", кумачовая]
+    l: ["#d9a441", медовая]
+  grid: |
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    ....................................
+    kkllkkllkkllkkllkkllkkllkkllkkllkkll
+    kkllkkllkkllkkllkkllkkllkkllkkllkkll
+    llkkllkkllkkllkkllkkllkkllkkllkkllkk
+    llkkllkkllkkllkkllkkllkkllkkllkkllkk
+    kkllkkllkkllkkllkkllkkllkkllkkllkkll
+    kkllkkllkkllkkllkkllkkllkkllkkllkkll
+    ....................................
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
