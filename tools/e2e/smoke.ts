@@ -9,13 +9,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Download, type Page } from 'playwright';
-import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, wheelFactor, zoomAround } from '../../src/canvas/camera';
+import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, OPEN_DP, openCamera, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { BASE_PACK } from '../../src/content/generated/pack';
 import { base64Decode } from '../../src/engine/base64';
+import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
-import { openPack } from '../../src/engine/pack';
+import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
-import { fillRegion } from '../../src/engine/regions';
+import { fillRegion, nearestGroup } from '../../src/engine/regions';
 import { newKeyPair } from '../../src/engine/sign';
 import { APP_VERSION } from '../../src/version';
 import { utf8Encode } from '../../src/engine/utf8';
@@ -89,15 +90,167 @@ const check = (ok: boolean, what: string) => {
   if (!ok) failures.push(what);
 };
 
-/** Центр клетки на экране: камера открытия маленькой картинки — «весь узор» по центру. */
+/**
+ * Центр клетки на экране при камере открытия новой работы (src/canvas/camera.ts, `openCamera`):
+ * маленькая картинка — «весь узор» по центру, большая — масштаб открытия, середина узора в середине экрана.
+ */
 async function cellPoint(page: Page, p: Pattern, cell: number) {
   const box = (await page.getByTestId('canvas').boundingBox())!;
-  const s = fitScale(p.w, p.h, box.width, box.height);
-  const tx = (box.width - p.w * s) / 2;
-  const ty = (box.height - p.h * s) / 2;
+  const c = openCamera(p.w, p.h, box.width, box.height, false);
   const x = cell % p.w;
   const y = (cell - x) / p.w;
-  return { x: box.x + tx + (x + 0.5) * s, y: box.y + ty + (y + 0.5) * s, s };
+  return { x: box.x + c.tx + (x + 0.5) * c.s, y: box.y + c.ty + (y + 0.5) * c.s, s: c.s };
+}
+
+/**
+ * Клетка у середины экрана при камере открытия новой работы — не у края, не под строкой подсказок,
+ * не на мини-карте: ближайшая к середине клетка первой нити (она выбрана сразу), а если первой
+ * нити на экране нет — ближайшая клетка любой нити.
+ */
+async function openCell(page: Page, p: Pattern): Promise<number> {
+  const box = (await page.getByTestId('canvas').boundingBox())!;
+  const c = openCamera(p.w, p.h, box.width, box.height, false);
+  const map = mapRect(p.w, p.h, box.width, box.height, c.s);
+  let any = -1;
+  let anyD = Infinity;
+  let own = -1;
+  let ownD = Infinity;
+  for (let i = 0; i < p.cells.length; i++) {
+    if (p.cells[i] === CANVAS) continue;
+    const x = c.tx + ((i % p.w) + 0.5) * c.s;
+    const y = c.ty + (Math.floor(i / p.w) + 0.5) * c.s;
+    if (x < 40 || y < 40 || x > box.width - 40 || y > box.height - 80 || inMap(map, x, y)) continue;
+    const d = (x - box.width / 2) ** 2 + (y - box.height / 2) ** 2;
+    if (p.cells[i] === 0 && d < ownD) {
+      own = i;
+      ownD = d;
+    }
+    if (d < anyD) {
+      any = i;
+      anyD = d;
+    }
+  }
+  return own >= 0 ? own : any;
+}
+
+/**
+ * «Далеко» (docs/specs/2026-09-canvas.md, «Жесты») у большой картинки, только что открытой новой
+ * работой (камера открытия, выбрана нить `t`, вышита одна клетка `done`): колёсиком отъехали, пока
+ * номера не скрылись. Щелчок по клетке выбранной нити не вышивает, а приближает это место до масштаба
+ * открытия — следующий щелчок вышивает клетку, посчитанную по новой камере (по прежней там другая
+ * нить). Перетаскивание с клетки выбранной нити двигает канву: кисти далеко нет. И «Где ещё?» со всего
+ * узора: камера летит к ближайшей к середине экрана группе невышитых клеток нити и приближает.
+ */
+async function farAway(page: Page, p: Pattern, t: number, done: number) {
+  const box = (await page.getByTestId('canvas').boundingBox())!;
+  const W = box.width;
+  const H = box.height;
+  const left = async () => Number((await page.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+  const cellAt = (c: Camera, x: number, y: number) => {
+    const cx = Math.floor((x - c.tx) / c.s);
+    const cy = Math.floor((y - c.ty) / c.s);
+    return cx < 0 || cy < 0 || cx >= p.w || cy >= p.h ? -1 : cy * p.w + cx;
+  };
+  const used = new Set<number>([done]);
+  // невышитая клетка выбранной нити (из `only`, если задано), видная при камере `good` — не у края,
+  // не под строкой подсказок, не на мини-карте; при камере `bad` на её месте — клетка другой нити
+  const pick = (good: Camera, bad?: Camera, only?: ReadonlySet<number>) => {
+    for (let i = 0; i < p.cells.length; i++) {
+      if (p.cells[i] !== t || used.has(i) || (only && !only.has(i))) continue;
+      const x = good.tx + ((i % p.w) + 0.5) * good.s;
+      const y = good.ty + (Math.floor(i / p.w) + 0.5) * good.s;
+      if (x < 40 || y < 40 || x > W - 40 || y > H - 80 || inMap(mapRect(p.w, p.h, W, H, good.s), x, y)) continue;
+      if (bad) {
+        const j = cellAt(bad, x, y);
+        if (inMap(mapRect(p.w, p.h, W, H, bad.s), x, y) || (j >= 0 && p.cells[j] === t)) continue;
+      }
+      used.add(i);
+      return { x, y, i };
+    }
+    return null;
+  };
+  const leftTo = (n: number) => page.waitForFunction((k) => Number(document.querySelector('[data-testid="where"]')?.textContent?.match(/(\d+)\s*$/)?.[1]) === k,
+    n, { timeout: 5000 }).catch(() => {});
+  // четыре щелчка колёсика от себя над серединой канвы; сколько точек в щелчке — по событиям браузера
+  await page.evaluate(() => {
+    const w = window as unknown as { wheels: [number, number, boolean][] };
+    window.addEventListener('wheel', (e) => w.wheels.push([e.deltaY, e.deltaMode, e.ctrlKey]), { capture: true });
+  });
+  const away = async (from: Camera) => {
+    await page.evaluate(() => { (window as unknown as { wheels: unknown[] }).wheels = []; });
+    await page.mouse.move(box.x + W / 2, box.y + H / 2);
+    for (let k = 0; k < 4; k++) {
+      await page.mouse.wheel(0, 100);
+      await page.waitForTimeout(60);
+    }
+    await page.waitForTimeout(300);
+    let c = from;
+    for (const [dy, mode, ctrl] of await page.evaluate(() => (window as unknown as { wheels: [number, number, boolean][] }).wheels)) {
+      c = zoomAround(c, W / 2, H / 2, wheelFactor(dy, mode, ctrl, H), p.w, p.h, W, H);
+    }
+    return c;
+  };
+  const open = openCamera(p.w, p.h, W, H, false);
+  const far = await away(open);
+  const tap = pick(far);
+  const l0 = await left();
+  if (tap) await page.mouse.click(box.x + tap.x, box.y + tap.y);
+  await page.waitForTimeout(600);
+  const l1 = await left();
+  // это место — в середине экрана, в масштабе открытия
+  const cx = tap ? (tap.x - far.tx) / far.s : 0;
+  const cy = tap ? (tap.y - far.ty) / far.s : 0;
+  const near: Camera = { s: OPEN_DP, tx: clampX(W / 2 - cx * OPEN_DP, OPEN_DP, p.w, W), ty: clampY(H / 2 - cy * OPEN_DP, OPEN_DP, p.h, H) };
+  const hit = tap ? pick(near, open) : null;
+  if (hit) await page.mouse.click(box.x + hit.x, box.y + hit.y);
+  await leftTo(l1 - 1);
+  const l2 = await left();
+  check(far.s < NUMBERS_DP && !!tap && l1 === l0 && !!hit && l2 === l1 - 1,
+    `далеко (${far.s.toFixed(1)} точки на клетку): щелчок не вышил, а приблизил это место до масштаба открытия — следующий вышил (осталось ${l0} → ${l1} → ${l2})`);
+  // перетаскивание далеко — с клетки выбранной нити: кисть вышила бы её сразу, на касании
+  await page.waitForTimeout(300);
+  const far2 = await away(near);
+  const from = pick(far2);
+  const l3 = await left();
+  if (from) {
+    await page.mouse.move(box.x + from.x, box.y + from.y);
+    await page.mouse.down();
+    for (let k = 1; k <= 10; k++) {
+      await page.mouse.move(box.x + from.x - 8 * k, box.y + from.y - 5 * k);
+      await page.waitForTimeout(16);
+    }
+    await page.waitForTimeout(150);
+    await page.mouse.up();
+  }
+  await page.waitForTimeout(800);
+  const l4 = await left();
+  check(far2.s < NUMBERS_DP && !!from && l4 === l3, `далеко: перетаскивание двигает канву — кисти нет, ни одного стежка (осталось ${l3} → ${l4})`);
+
+  // «Где ещё?» (docs/specs/2026-09-canvas.md, «Камера»): «0» — весь узор, номера не видны. Группа — по
+  // движку (`nearestGroup`) от середины экрана; вышиты пока две клетки. Камера летит к группе в масштабе
+  // открытия: щелчок по клетке группы вышивает, а при приближении к середине узора на её месте была бы
+  // другая нить (если группа не у самой середины)
+  await page.keyboard.press('0');
+  await page.waitForTimeout(600);
+  const ws = fitScale(p.w, p.h, W, H);
+  const whole: Camera = { s: ws, tx: (W - p.w * ws) / 2, ty: (H - p.h * ws) / 2 };
+  const stitched = new Uint8Array(p.cells.length);
+  stitched[done] = 1;
+  if (hit) stitched[hit.i] = 1;
+  const g = nearestGroup(p, stitched, t, (W / 2 - whole.tx) / whole.s, (H / 2 - whole.ty) / whole.s);
+  const at = (cx: number, cy: number): Camera => ({ s: OPEN_DP, tx: clampX(W / 2 - cx * OPEN_DP, OPEN_DP, p.w, W), ty: clampY(H / 2 - cy * OPEN_DP, OPEN_DP, p.h, H) });
+  const flown = g ? at(g.cx, g.cy) : whole;
+  const middle = at(p.w / 2, p.h / 2);
+  const apart = Math.abs(flown.tx - middle.tx) >= OPEN_DP || Math.abs(flown.ty - middle.ty) >= OPEN_DP;
+  const l5 = await left();
+  await page.getByTestId('where').click();
+  await page.waitForTimeout(800);
+  const inGroup = pick(flown, apart ? middle : undefined, new Set(g?.cells ?? []));
+  if (inGroup) await page.mouse.click(box.x + inGroup.x, box.y + inGroup.y);
+  await leftTo(l5 - 1);
+  const l6 = await left();
+  check(whole.s < NUMBERS_DP && !!g && !!inGroup && l6 === l5 - 1,
+    `«Где ещё?»: со всего узора — к ближайшей группе нити (${g?.cells.length ?? 0} кл.) в масштабе открытия, щелчок по ней вышил (осталось ${l5} → ${l6})`);
 }
 
 const { built } = await buildAll();
@@ -225,6 +378,16 @@ try {
   await page.mouse.click(fp.x, fp.y);
   await page.waitForFunction(() => document.querySelector('[data-testid="hint"]')?.textContent?.includes('Эта клетка'), null, { timeout: 5000 }).catch(() => {});
   check((await page.getByTestId('hint').innerText().catch(() => '')).includes('Эта клетка'), 'касание чужой клетки показывает её нить');
+
+  // пипетка: долгое касание чужой клетки выбирает её нить — «Где ещё?» считает клетки этой нити
+  const own2 = first.cells.filter((c) => c === 1).length;
+  await page.mouse.move(fp.x, fp.y);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const pipetted = Number((await page.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+  check(pipetted === own2 || pipetted === own2 - 1, `пипетка: долгое касание выбрало нить клетки — «Где ещё?» ${pipetted} из ${own2}`);
 
   // заливка: двойное касание по клетке выбранной нити — вся её связная область. Первое
   // касание уже вышивает клетку; второе — через 80 мс, пока штрих ещё ждёт второго пальца
@@ -392,6 +555,26 @@ try {
     const closer = zoom(moved, W / 2, H / 2, 1.25);
     await page.waitForTimeout(200);
     check(await stitchAt(target(closer, moved)), `«+» приблизил: ${moved.s.toFixed(1)} → ${closer.s.toFixed(1)}`);
+
+    // смена стиля посреди работы (docs/specs/2026-09-canvas.md, критерий 5): канва перерисована
+    // за 0,3 с, процент и нить на месте, и работа не открывалась заново — камера осталась
+    // приближенной: щелчок по клетке, которая при камере открытия была бы клеткой другой нити, вышивает
+    const styleSwitch = async (to: 'mosaic' | 'cross') => {
+      await page.getByTestId('menu').click();
+      await page.getByTestId('menu-panel').waitFor({ timeout: 5000 });
+      await page.getByTestId(`menu-style-${to}`).click();
+      await page.getByTestId('panel-close').click({ position: { x: 20, y: 400 } });
+      await page.waitForTimeout(300);
+    };
+    const pctBefore = await page.getByTestId('percent').innerText();
+    const leftBefore = await whereLeft();
+    const shotCross = await page.getByTestId('canvas').screenshot();
+    await styleSwitch('mosaic');
+    const shotMosaic = await page.getByTestId('canvas').screenshot();
+    const same = (await page.getByTestId('percent').innerText()) === pctBefore && (await whereLeft()) === leftBefore;
+    check(same && !shotCross.equals(shotMosaic) && await stitchAt(target(closer, fit)),
+      `смена стиля посреди работы: канва перерисована, работа, нить и камера на месте (${pctBefore}, «Где ещё?» ${leftBefore})`);
+    await styleSwitch('cross');
 
     // мини-карта (docs/specs/2026-09-canvas.md): узор уже не весь на экране — щелчок по мини-карте
     // у правого нижнего угла узора переносит камеру туда
@@ -676,7 +859,24 @@ try {
     `карточка для библиотеки: ${downloads.map((d) => d.suggestedFilename()).join(', ')}`);
   await page.getByTestId('mine-stitch').click();
   await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
-  check(true, 'свой узор открылся на канве');
+  // заливки в трёх местах канвы: чужая клетка — «Выбрать» её нить, потом двойное касание
+  await page.waitForTimeout(1500);
+  const mb = (await page.getByTestId('canvas').boundingBox())!;
+  for (const fx of [0.3, 0.5, 0.7]) {
+    const at = { x: mb.x + mb.width * fx, y: mb.y + mb.height / 2 };
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(400);
+    if (await page.getByTestId('pick').count()) {
+      await page.getByTestId('pick').click();
+      await page.waitForTimeout(200);
+    }
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(80);
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(400);
+  }
+  const minePercent = await page.getByTestId('percent').innerText();
+  check(/^[1-9]\d* %$/.test(minePercent), `свой узор открылся на канве и вышивается: ${minePercent}`);
   await page.getByTestId('back').click();
   await page.locator('[data-testid^="mine-item-"]').first().waitFor();
   // от выбора снимка до сих пор страница не просила у сервера ничего: снимок никуда не ушёл
@@ -687,7 +887,9 @@ try {
   await page.getByTestId('home-mine').click();
   await page.locator('[data-testid^="mine-open-"]').first().click();
   await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
-  check(true, 'после перезагрузки свой узор продолжается');
+  await page.waitForTimeout(1000);
+  const mineAgain = await page.getByTestId('percent').innerText();
+  check(mineAgain === minePercent, `после перезагрузки свой узор продолжается: ${minePercent} → ${mineAgain}`);
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
@@ -753,7 +955,9 @@ try {
     await page3.getByTestId('home-mine').click();
     await page3.locator('[data-testid^="mine-open-"]').first().click();
     await page3.getByTestId('canvas').waitFor({ timeout: 30_000 });
-    check(true, 'свой узор из файла открылся на канве');
+    await page3.waitForTimeout(1000);
+    const moved = await page3.getByTestId('percent').innerText();
+    check(moved === minePercent, `свой узор из файла открылся на канве с той же работой: ${moved}`);
     await ctx3.close();
   }
 
@@ -888,6 +1092,20 @@ try {
   const fb = (await page2.getByTestId('done-frame').boundingBox())!;
   check(shareBox.y >= replayBox.y + replayBox.height - 1 && replayBox.width > 300 && fb.x >= 0 && fb.x + fb.width <= 360,
     `узкий экран: «Как вышивалось» и «Поделиться» одна под другой, рамка в экране (${Math.round(fb.width)} × ${Math.round(fb.height)})`);
+  // «Как вышивалось» большой картины (docs/specs/2026-09-library.md, критерий 3): от 8 до 12 секунд —
+  // от появления «Пропустить» до возвращения «Как вышивалось», по кадрам страницы; в конце на канве —
+  // все стежки, как до показа
+  const frameBefore = await page2.getByTestId('done-frame').screenshot();
+  const shown = (id: string) => page2.waitForFunction((t) => !!document.querySelector(`[data-testid="${t}"]`), id, { polling: 'raf', timeout: 20_000 })
+    .then(() => Date.now(), () => NaN);
+  await page2.getByTestId('replay').click();
+  const playFrom = await shown('skip');
+  const playMs = (await shown('replay')) - playFrom;
+  const playing = !Number.isNaN(playMs);
+  await page2.waitForTimeout(300);
+  const frameAfter = await page2.getByTestId('done-frame').screenshot();
+  check(playing && playMs >= 8000 && playMs <= 12_500 && frameBefore.equals(frameAfter),
+    `«Как вышивалось» большой картины (${girls.w} × ${girls.h}) — ${(playMs / 1000).toFixed(1)} с, в конце все стежки на месте`);
   await page2.getByTestId('done-about').click();
   const aboutText = await page2.getByTestId('done-about-panel').innerText().catch(() => '');
   check(aboutText.includes('Прокудин-Горский (1863–1944), 1909') && aboutText.includes('Источник: www.loc.gov')
@@ -906,6 +1124,196 @@ try {
   check((await page2.getByTestId('picture').count()) === 1, '«Дальше» после картины — карточка следующей картинки');
   await ctx2.close();
 
+  // без сети, с чистой установки (docs/specs/2026-09-library.md, критерий 1; ADR 0007): сервер
+  // картинок недоступен — до первого стежка два касания (docs/specs/2026-09-first-picture.md,
+  // критерий 1), главная без строки о сети; картинка дня из календаря и первая картинка «России
+  // в цвете» (большая) из библиотеки открываются и вышиваются, на их карточках после этого —
+  // «Продолжить»; в консоли — только отказы сети
+  const ctxOff = await browser.newContext({ viewport: { width: 400, height: 860 } });
+  await ctxOff.route('**/uzory/v1/**', (r) => r.abort('internetdisconnected'));
+  const off = await ctxOff.newPage();
+  const offErrors: string[] = [];
+  off.on('pageerror', (e) => offErrors.push(e.message));
+  off.on('console', (m) => { if (m.type() === 'error' && !/ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(m.text())) offErrors.push(m.text()); });
+  const offLeft = async () => Number((await off.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+  // новая работа открылась (полоса нитей — когда работа прочитана): касание клетки у середины экрана
+  // (если она не первой нити — сперва её нить в полосе), «Где ещё?» — на одну меньше
+  const offStitch = async (p: Pattern) => {
+    await off.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+    await off.waitForTimeout(1500);
+    const cell = await openCell(off, p);
+    const t = p.cells[cell];
+    if (t !== 0) await off.getByTestId(`thread-${t + 1}`).click();
+    const before = await offLeft();
+    const pt = await cellPoint(off, p, cell);
+    await off.mouse.click(pt.x, pt.y);
+    await off.waitForFunction((n) => Number(document.querySelector('[data-testid="where"]')?.textContent?.match(/(\d+)\s*$/)?.[1]) === n - 1,
+      before, { timeout: 5000 }).catch(() => {});
+    return { before, after: await offLeft(), t, cell };
+  };
+  // со стежка — назад на карточку: начатая работа сохранилась, на кнопке «Продолжить»
+  const offCard = async () => {
+    await off.getByTestId('back').click();
+    await off.waitForFunction(() => document.querySelector('[data-testid="picture-stitch"]')?.textContent?.startsWith('Продолжить'), null, { timeout: 5000 }).catch(() => {});
+    return off.getByTestId('picture-stitch').innerText().catch(() => '');
+  };
+  await off.goto(base);
+  await off.getByTestId('first-stitch').click();
+  const one = await offStitch(first);
+  check(one.t === 0 && one.after === one.before - 1, `без сети, с чистой установки: до первого стежка — два касания (осталось ${one.before} → ${one.after})`);
+  await off.getByTestId('back').click();
+  await off.getByTestId('home-library').waitFor();
+  const offNet = await off.getByTestId('home-net').count();
+
+  // картинка дня — та, что по календарю встроенного набора на сегодня
+  const builtin = openPack(basePack);
+  const picOf = (id: string | undefined) => builtin.json.pictures.find((p) => p.id === id);
+  const daily = picOf(new Daily({ calendar: mergedCalendar([builtin]), pictures: builtin.json.pictures }).on(todayStr));
+  await off.getByTestId('home-calendar').click();
+  await off.getByTestId('calendar').waitFor({ timeout: 10_000 });
+  await off.getByTestId(`day-pic-${todayStr}`).click();
+  await off.getByTestId('picture').waitFor({ timeout: 5000 });
+  const dailyCard = await off.getByTestId('picture').innerText();
+  await off.getByTestId('picture-stitch').click();
+  const two = daily ? await offStitch(packPattern(builtin, daily)) : { before: 0, after: 0, t: 0, cell: -1 };
+  const dailyAgain = await offCard();
+  check(!!daily && dailyCard.includes(daily.title) && two.after === two.before - 1 && dailyAgain.startsWith('Продолжить'),
+    `без сети: картинка дня «${daily?.title}» из календаря вышивается (осталось ${two.before} → ${two.after}), на карточке — «${dailyAgain}»`);
+  await off.getByTestId('back').click();
+  await off.getByTestId('calendar').waitFor();
+  await off.getByTestId('back').click();
+
+  // любая картинка встроенного набора — первая в «России в цвете» (большая; не картинка дня). В сборке
+  // для проверки открыто всё: метка «Узоры+» на плитке не запирает
+  await off.getByTestId('home-library').click();
+  await off.getByTestId('library').waitFor({ timeout: 15_000 });
+  await off.getByTestId('lib-all-russia').click();
+  await off.getByTestId('collection').waitFor({ timeout: 10_000 });
+  await off.locator('[data-testid^="tile-"]').first().waitFor({ timeout: 10_000 });
+  const tiles = await off.locator('[data-testid^="tile-"]').evaluateAll((els) => els.map((e) => (e.getAttribute('data-testid') ?? '').slice('tile-'.length)));
+  const ru = picOf(tiles.find((id) => id !== daily?.id));
+  const ruPattern = ru ? packPattern(builtin, ru) : null;
+  await off.getByTestId(`tile-${ru?.id}`).click();
+  await off.getByTestId('picture-stitch').click();
+  const three = ruPattern ? await offStitch(ruPattern) : { before: 0, after: 0, t: 0, cell: -1 };
+  check(!!ru && three.after === three.before - 1,
+    `без сети: «${ru?.title}» (${ru?.size}) из библиотеки открылась и вышивается (осталось ${three.before} → ${three.after})`);
+  // заодно «далеко»: большая картинка открыта новой работой, вышита одна клетка
+  if (ruPattern) await farAway(off, ruPattern, three.t, three.cell);
+  const ruAgain = await offCard();
+  check(ruAgain.startsWith('Продолжить'), `без сети: работа над «${ru?.title}» сохранилась — на карточке «${ruAgain}»`);
+  await off.getByTestId('back').click();
+  await off.getByTestId('collection').waitFor();
+  await off.getByTestId('back').click();
+  await off.getByTestId('library').waitFor();
+  await off.getByTestId('back').click();
+  await off.getByTestId('home-library').waitFor();
+  check(offNet === 0 && offErrors.length === 0,
+    `без сети: главная без строки о сети, в консоли — только отказы сети${offErrors.length ? `; ошибки: ${offErrors.slice(0, 3).join(' | ')}` : ''}`);
+  await ctxOff.close();
+
+  // пальцы (docs/specs/2026-09-canvas.md, «Жесты», критерий 2) — касания через CDP: касание клетки
+  // вышивает её сразу; второй палец в первые 100 мс — это был масштаб: стежка нет, канва как была;
+  // второй палец позже — стежок остаётся. Промежуток между пальцами — по событиям страницы: если на
+  // медленной машине «сразу» опоздало, ещё попытка на другой клетке
+  const ctxTouch = await browser.newContext({ viewport: { width: 400, height: 860 }, hasTouch: true });
+  const tp = await ctxTouch.newPage();
+  tp.on('pageerror', (e) => errors.push(e.message));
+  await tp.addInitScript(() => {
+    const w = window as unknown as { downs: number[] };
+    w.downs = [];
+    window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') w.downs.push(e.timeStamp); }, { capture: true });
+  });
+  await tp.goto(base);
+  await tp.getByTestId('first-stitch').click();
+  await tp.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+  await tp.waitForTimeout(1500);
+  const tcdp = await ctxTouch.newCDPSession(tp);
+  const fingers = (type: 'touchStart' | 'touchEnd', points: { x: number; y: number }[]) =>
+    tcdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map((q, id) => ({ x: q.x, y: q.y, id })) });
+  const tLeft = async () => Number((await tp.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+  const gap = async () => {
+    const d = await tp.evaluate(() => (window as unknown as { downs: number[] }).downs.splice(0));
+    return d.length === 2 ? Math.round(d[1] - d[0]) : NaN;
+  };
+  const tb = (await tp.getByTestId('canvas').boundingBox())!;
+  const aside = { x: tb.x + tb.width * 0.75, y: tb.y + tb.height * 0.8 };
+  const own = [...first.cells.keys()].filter((i) => first.cells[i] === 0);
+  const tap0 = await tLeft();
+  await fingers('touchStart', [await cellPoint(tp, first, own[0])]);
+  await fingers('touchEnd', []);
+  await tp.waitForTimeout(600);
+  const tap1 = await tLeft();
+  check(tap1 === tap0 - 1, `палец: касание клетки — стежок сразу (осталось ${tap0} → ${tap1})`);
+  // второй палец «сразу», без движения: до 3 попыток, пока он не придёт раньше 100 мс
+  let early = { gap: NaN, before: 0, after: 0, same: false };
+  for (let k = 1; k <= 3 && !(early.gap < 100); k++) {
+    await gap();
+    const at = await cellPoint(tp, first, own[k]);
+    const before = await tLeft();
+    const shot = await tp.getByTestId('canvas').screenshot();
+    await fingers('touchStart', [at]);
+    await fingers('touchStart', [at, aside]);
+    await tp.waitForTimeout(30);
+    await fingers('touchEnd', []);
+    await tp.waitForTimeout(800);
+    early = { gap: await gap(), before, after: await tLeft(), same: shot.equals(await tp.getByTestId('canvas').screenshot()) };
+  }
+  check(early.gap < 100 && early.after === early.before && early.same,
+    `второй палец через ${early.gap} мс: это был масштаб — стежка нет, канва как была (осталось ${early.before} → ${early.after})`);
+  await gap();
+  const late0 = await tLeft();
+  const lateAt = await cellPoint(tp, first, own[4]);
+  await fingers('touchStart', [lateAt]);
+  await tp.waitForTimeout(250);
+  await fingers('touchStart', [lateAt, aside]);
+  await tp.waitForTimeout(30);
+  await fingers('touchEnd', []);
+  await tp.waitForTimeout(800);
+  const lateGap = await gap();
+  const late1 = await tLeft();
+  check(lateGap >= 100 && late1 === late0 - 1, `второй палец через ${lateGap} мс: стежок касания остался (осталось ${late0} → ${late1})`);
+  await ctxTouch.close();
+
+  // подсказка про колёсико и два пальца (docs/specs/2026-09-first-picture.md, критерий 3): в
+  // основном сценарии колёсико приближало ещё до середины — подсказки там нет. Здесь камеру не
+  // трогают: заливками вышита больше чем половина первой картинки — все нити, кроме самой большой
+  // (у неё клеток с запасом, «Где ещё?» не пора), — и подсказка появляется; колёсико — уходит
+  const ctxZoom = await browser.newContext({ viewport: { width: 400, height: 860 } });
+  const zp = await ctxZoom.newPage();
+  zp.on('pageerror', (e) => errors.push(e.message));
+  await zp.goto(base);
+  await zp.getByTestId('first-stitch').click();
+  await zp.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+  await zp.waitForTimeout(1500);
+  const counts = first.threads.map((_, t) => first.cells.filter((c) => c === t).length);
+  const biggest = counts.indexOf(Math.max(...counts));
+  const zFilled = new Uint8Array(first.cells.length);
+  for (let t = 0; t < first.threads.length; t++) {
+    if (t === biggest) continue;
+    await zp.getByTestId(`thread-${t + 1}`).click();
+    for (let i = 0; i < first.cells.length; i++) {
+      if (first.cells[i] !== t || zFilled[i]) continue;
+      for (const c of fillRegion(first, zFilled, i)) zFilled[c] = 1;
+      const pt = await cellPoint(zp, first, i);
+      await zp.mouse.click(pt.x, pt.y);
+      await zp.waitForTimeout(80);
+      await zp.mouse.click(pt.x, pt.y);
+      await zp.waitForTimeout(400);
+    }
+  }
+  await zp.getByTestId(`thread-${biggest + 1}`).click();
+  const half = await zp.getByTestId('hint-zoom').waitFor({ timeout: 5000 }).then(() => true, () => false);
+  const halfPct = await zp.getByTestId('percent').innerText();
+  const zoomText = await zp.getByTestId('hint-zoom').innerText().catch(() => '');
+  const zb = (await zp.getByTestId('canvas').boundingBox())!;
+  await zp.mouse.move(zb.x + zb.width / 2, zb.y + zb.height / 2);
+  await zp.mouse.wheel(0, -100);
+  await zp.waitForTimeout(600);
+  check(half && zoomText.includes('Колёсико') && (await zp.getByTestId('hint-zoom').count()) === 0,
+    `на середине первой картинки (${halfPct}) — подсказка «${zoomText}», колёсико её убрало`);
+  await ctxZoom.close();
+
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
   await page.getByTestId('bench-canvas').waitFor();
@@ -917,7 +1325,9 @@ try {
   await page.getByTestId('bench-run').click();
   await page.getByTestId('bench-result').waitFor({ timeout: 90_000 });
   const result = await page.getByTestId('bench-result').innerText();
-  check(/Кисть: \d+ кадров/.test(result) && !/стежков: 0/.test(result), 'замер прошёл все три фазы, кисть вышивала');
+  // во время штриха React не перерисовывает экран (docs/specs/2026-09-spikes.md, критерий 4)
+  check(/Кисть: \d+ кадров/.test(result) && !/стежков: 0/.test(result) && /коммитов React: 0\b/.test(result),
+    'замер прошёл все три фазы, кисть вышивала, коммитов React во время кисти — 0');
   console.log(result);
   // путь Б — «слои»
   await page.getByTestId('bench-path-layers').click();

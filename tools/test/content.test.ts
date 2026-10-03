@@ -3,8 +3,10 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildAll } from '../content/build';
-import { readCard, releasable } from '../content/cards';
+import type { SizeClass } from '../../src/engine/pattern';
+import { buildAll, buildLimitMs, slowPictures } from '../content/build';
+import { type Card, readCard, releasable } from '../content/cards';
+import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
 
 const FIX = join(import.meta.dir, 'fixtures');
@@ -34,6 +36,15 @@ describe('карточки', () => {
     expect(releasable(c)).toContain('В12');
     expect(releasable({ ...c, museum: 'abroad' })).toBeNull();
     expect(releasable({ ...c, approved: undefined })).toContain('approved');
+  });
+});
+
+describe('время сборки (docs/specs/2026-09-content-pipeline.md, критерий 4)', () => {
+  test('дольше предела — картинка дольше 2 с, огромная дольше 10 с: в отчёт, предупреждением', () => {
+    const b = (id: string, size: SizeClass, ms: number) => ({ card: { id, path: `content/x/${id}.yaml` } as Card, checked: { size } as Checked, ms });
+    expect([buildLimitMs('S'), buildLimitMs('M'), buildLimitMs('L'), buildLimitMs('XL')]).toEqual([2000, 2000, 2000, 10_000]);
+    const slow = slowPictures([b('s', 'S', 1999), b('s-slow', 'S', 2001), b('l-slow', 'L', 2500), b('xl', 'XL', 9999), b('xl-slow', 'XL', 10_001)]);
+    expect(slow.map((x) => x.card.id)).toEqual(['s-slow', 'l-slow', 'xl-slow']);
   });
 });
 

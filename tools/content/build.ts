@@ -16,7 +16,7 @@ import { base64Encode } from '../../src/engine/base64';
 import { addDays, daysBetween } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
-import { CANVAS, dailySize, type Pattern, parseHex } from '../../src/engine/pattern';
+import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../../src/engine/pattern';
 import { type Card, CONTENT, listCards, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
@@ -28,6 +28,16 @@ import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
 
 /** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
 export const PACK_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Предел времени сборки картинки (docs/specs/2026-09-content-pipeline.md, критерий 4): огромная —
+ * 10 с, остальные — 2 с. Время зависит от машины, поэтому дольше предела — предупреждение в отчёте,
+ * а не ошибка: в CI отчёт попадает в итоги прогона.
+ */
+export const buildLimitMs = (size: SizeClass) => (size === 'XL' ? 10_000 : 2_000);
+
+/** Картинки, собиравшиеся дольше своего предела. */
+export const slowPictures = (built: readonly Pick<Built, 'card' | 'checked' | 'ms'>[]) => built.filter((b) => b.ms > buildLimitMs(b.checked.size));
 
 export interface Built {
   card: Card;
@@ -253,12 +263,12 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
   const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
   const calendar = autoCalendar(built.map((b) => b.picture), meta.calendar_from ?? meta.created, { season, day });
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: built.map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
-  return { meta, built, failed, skipped, bytes, calendar };
+  return { meta, built, failed, skipped, bytes, calendar, ms: built.reduce((sum, b) => sum + b.ms, 0) };
 }
 
 function report(r: Awaited<ReturnType<typeof buildAll>>): string {
   const lines: string[] = [`# Сборка картинок: ${r.meta.id}`, ''];
-  lines.push(`Картинок в наборе: ${r.built.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}.`, '');
+  lines.push(`Картинок в наборе: ${r.built.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с.`, '');
   if (r.failed.length) {
     lines.push('## Ошибки', '');
     for (const f of r.failed) lines.push(`- \`${f.path}\`: ${f.errors.join('; ')}`);
@@ -268,6 +278,12 @@ function report(r: Awaited<ReturnType<typeof buildAll>>): string {
   if (warn.length) {
     lines.push('## Предупреждения', '');
     for (const b of warn) lines.push(`- \`${b.card.path}\`: ${b.checked.warnings.join('; ')}`);
+    lines.push('');
+  }
+  const slow = slowPictures(r.built);
+  if (slow.length) {
+    lines.push('## Дольше предела', '');
+    for (const b of slow) lines.push(`- \`${b.card.path}\`: ${(b.ms / 1000).toFixed(1)} с при пределе ${buildLimitMs(b.checked.size) / 1000} с`);
     lines.push('');
   }
   lines.push('## Картинки', '', '| id | размер | клеток | нитей (заказано → после слияния → итог) | одиночных | в мелких пятнах | различимость | не в выпуск | мс |', '|---|---|---|---|---|---|---|---|---|');
