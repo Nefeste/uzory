@@ -18,3 +18,4 @@ pattern:
   size: 70
   threads: 16
   canvas: "#ece5e0"      # бумага листа — фон, не вышивается
+approved: 2026-10-03
