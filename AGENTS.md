@@ -97,7 +97,7 @@ path from `.github/CODEOWNERS` merges by itself (`automerge.yml`) after green ch
 label `ревью: ок` from a reviewer in another session — never put that label on your own PR;
 a new commit removes it. Owner paths are merged by the owner. Run typecheck, lint, tests and
 the web scenario locally (both builds — from the root and for `/uzory/test`) before every push
-anyway. APK and AAB are built only on a version tag `vX.Y.Z` and released on that tag — no manual
+anyway. The APK (no AAB until Google Play — owner's decision, 03.10.2026) is built only on a version tag `vX.Y.Z` and released on that tag — no manual
 dispatch (owner's decision, 03.10.2026) — with `--release` content only: approved pictures and
 music. Trial pictures live only in the closed web version. Playwright screenshots are uploaded as
 artifacts only when the repository is private.

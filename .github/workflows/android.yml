@@ -1,11 +1,13 @@
 # из anamnez: .github/workflows/android.yml @ 3d76cf5
-# Проверки, веб-сценарий, сборка APK и AAB, подписанных постоянным ключом (ADR 0014), и
+# Проверки, веб-сценарий, сборка APK, подписанного постоянным ключом (ADR 0014), и
 # публикация в Releases (docs/05-process.md, «Автоматика»).
 #
 # Сам — только на тег версии vX.Y.Z (устав студии, ADR 0019): слияние в main сборку не
 # запускает, проверки на PR — в pr.yml. Тег ставится на коммит main с этой версией в
-# app.json; релиз — на этот тег. Ручного запуска нет (решение владельца 03.10.2026): APK и
-# AAB — только на тег.
+# app.json; релиз — на этот тег. Ручного запуска нет (решение владельца 03.10.2026): APK —
+# только на тег. AAB не собирается, пока нет Google Play (решение владельца 03.10.2026);
+# вернуть — второй строкой матрицы в задании «Ключ подписи» (target aab, задача Gradle для
+# бандла): шаги сборки, проверок и релиза AAB понимают.
 #
 # Без секретов ключа релиза нет никогда: APK собирается только на проверку (манифест,
 # разрешения, 16 КБ, размер) и выбрасывается — файл с отладочной подписью не должен
@@ -129,7 +131,6 @@ jobs:
           # сборка — только на тег версии
           if [ "$TAG" = "true" ]; then BUILD=yes; else BUILD=no; fi
           APK='{"target":"apk","task":"assembleRelease","file":"android/app/build/outputs/apk/release/app-release.apk"}'
-          AAB='{"target":"aab","task":"bundleRelease","file":"android/app/build/outputs/bundle/release/app-release.aab"}'
           if [ -z "$KEYSTORE_B64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]; then
             echo "ready=no" >> "$GITHUB_OUTPUT"
             echo "matrix={\"include\":[$APK]}" >> "$GITHUB_OUTPUT"
@@ -147,10 +148,10 @@ jobs:
           fi
           echo "ready=yes" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          echo "matrix={\"include\":[$APK,$AAB]}" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":[$APK]}" >> "$GITHUB_OUTPUT"
 
-  # APK — Releases и RuStore, AAB — на будущее (Google Play, 1.2). Две сборки из одного
-  # коммита параллельно: Gradle не считает переменные окружения входом сборки JS.
+  # Матрица сборок: сейчас только APK (Releases и RuStore). AAB, если вернётся, — вторая сборка
+  # из того же коммита, параллельно: Gradle не считает переменные окружения входом сборки JS.
   build:
     name: Сборка ${{ matrix.target }}
     needs: [key]
@@ -359,7 +360,9 @@ jobs:
             echo
             echo "---"
             echo "**uzory-${{ github.run_number }}.apk** — для телефона: скачайте и откройте. Этот же файл — для RuStore."
-            echo "**uzory-${{ github.run_number }}.aab** — только для загрузки в магазины, принимающие AAB (на телефон не ставится)."
+            if compgen -G 'dist/*.aab' > /dev/null; then
+              echo "**uzory-${{ github.run_number }}.aab** — только для загрузки в магазины, принимающие AAB (на телефон не ставится)."
+            fi
             echo "Подписаны ${{ steps.sig.outputs.label }}, SHA-256 сертификата: \`${{ steps.sig.outputs.sha }}\`."
             echo "Собрано из коммита ${{ github.sha }} (тег ${{ github.ref_name }}), сборка ${{ github.run_number }}."
           } > release.md
