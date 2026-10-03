@@ -7,6 +7,7 @@ status: dev
 lead: "Вышивка крестиком по номерам: выбираете нить и вышиваете — касанием или проводя пальцем."
 icon: graphics/icon-512.png
 feature: graphics/feature-ru.png
+cover: graphics/cover.png
 shots:
   - file: screenshots/ru/01-stitch.png
     caption: Вышивание

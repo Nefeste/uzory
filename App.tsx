@@ -15,6 +15,7 @@ import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
 import { PlusProvider } from './src/state/plus';
+import { installSessions } from './src/state/sessions';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
@@ -37,6 +38,7 @@ import { FONT_FILES } from './src/ui/fonts';
 import { whoMade } from './src/ui/PicAbout';
 
 installCrashHandlers();
+installSessions();
 
 type Route =
   | { name: 'home' }

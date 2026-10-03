@@ -45,4 +45,6 @@ export const KEYS = {
   picks: 'uzory.picks.v1',
   /** подписка «Узоры+»: последний ответ RuStore Pay и когда спрашивали (src/state/plus.tsx) */
   plus: 'uzory.plus.v1',
+  /** запуски и оборвавшиеся сессии — строкой в отчёт об ошибке; никуда не уходит сам (src/state/sessions.ts) */
+  sessions: 'uzory.sessions.v1',
 };

@@ -387,6 +387,13 @@ export const ru = {
       log: 'Последние ошибки',
       noLog: 'ошибок не было',
       logUnread: 'журнал не прочитался',
+      /** для закрытого теста: сколько раз открывали и сколько раз игра оборвалась, не уйдя в фон */
+      sessions: (since: string, done: number, unclean: number) => {
+        const [, m, d] = since.split('-').map(Number);
+        return `Запусков с ${d} ${MONTHS[m - 1]}: ${done}, из них оборвались: ${unclean}`;
+      },
+      sessionsUnread: 'Запуски: счёт не прочитался',
+      finished: (n: number) => `Законченных картинок: ${n}`,
     },
   },
 };
