@@ -16,6 +16,7 @@ import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
+import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
 import { newKeyPair } from '../../src/engine/sign';
 import { APP_VERSION } from '../../src/version';
@@ -24,6 +25,7 @@ import { buildAll } from '../content/build';
 import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
 import { E2E_SECRET, e2ePack } from './net';
 import { allButLast, seed, seedWork } from './seed';
+import { lookAtShare } from './share';
 
 const ROOT = join(import.meta.dir, '../..');
 const DIST = join(ROOT, process.env.E2E_DIST ?? 'dist-web');
@@ -648,8 +650,9 @@ try {
   await page.getByTestId('share').click();
   const png = await shared.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
   const dims = png && png.bytes.subarray(1, 4).toString() === 'PNG' ? [png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)] : [0, 0];
-  check(png?.name === 'uzory-first-picture.png' && dims.every((n) => n >= 1100 && n <= 2000) && dims[1] > dims[0],
-    `«Поделиться»: ${png?.name ?? 'файл не скачался'} ${dims.join(' × ')}`);
+  const firstShare = shareLayout(first.w, first.h);
+  check(png?.name === 'uzory-first-picture.png' && dims[0] === firstShare.width && dims[1] === firstShare.height,
+    `«Поделиться»: ${png?.name ?? 'файл не скачался'} ${dims.join(' × ')} (по раскладке ${firstShare.width} × ${firstShare.height})`);
   if (png) writeFileSync(join(OUT, '03-share.png'), png.bytes);
   await page.getByTestId('replay').click();
   await page.waitForTimeout(3000);
@@ -1117,12 +1120,58 @@ try {
   await page2.getByTestId('share').click();
   const png2 = await shared2.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
   const dims2 = png2 ? [png2.bytes.readUInt32BE(16), png2.bytes.readUInt32BE(20)] : [0, 0];
-  check(png2?.name === 'uzory-pg-krestyanskie-devushki.png' && dims2.every((n) => n >= 1100 && n <= 2000),
-    `«Поделиться» большой картины: ${png2?.name ?? 'файл не скачался'} ${dims2.join(' × ')}`);
+  // мелкая клетка (меньше NUMBERS_DP) — цветом в любом стиле; под рамкой — название, автор и год,
+  // «Вышито в „Узорах“ по мотивам снимка»
+  const look2 = png2 ? await lookAtShare(png2.bytes, girls) : null;
+  check(png2?.name === 'uzory-pg-krestyanskie-devushki.png' && !!look2?.size && look2.frame && !look2.stitches
+    && look2.tile >= 0.95 * look2.cells && look2.lines.title > 400 && look2.lines.caption > 400 && look2.lines.mark > 200,
+    `«Поделиться» большой картины: ${png2?.name ?? 'файл не скачался'} ${dims2.join(' × ')}, рамка ${look2?.frame ? 'на месте' : 'не та'}, `
+    + `клетки цветом ${look2?.tile}/${look2?.cells}, строки подписи ${look2 ? `${look2.lines.title}/${look2.lines.caption}/${look2.lines.mark}` : '—'} точек`);
   await page2.getByTestId('next').click();
   await page2.getByTestId('picture').waitFor({ timeout: 5000 }).catch(() => {});
   check((await page2.getByTestId('picture').count()) === 1, '«Дальше» после картины — карточка следующей картинки');
   await ctx2.close();
+
+  // «Поделиться» в выбранном стиле (docs/specs/2026-09-library.md, «Готово», критерий приёмки 3): одна
+  // и та же законченная работа — в «Крестике» и в «Мозаике», каждая в чистой вкладке. Клетка
+  // на картинке — 64 точки, шейдер рисует стежки: в «Крестике» у середины стороны клетки — канва,
+  // в середине — нить; в «Мозаике» вся клетка — нить. Под рамкой — название и «Вышито в „Узорах“»:
+  // это своя работа студии, подписи картины нет
+  const gribok = built.find((b) => b.card.id === 'kids-gribok')!.pattern;
+  const gTail = allButLast(gribok);
+  const shareIn = async (style: 'cross' | 'mosaic') => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const pg = await ctx.newPage();
+    pg.on('pageerror', (e) => errors.push(e.message));
+    pg.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    await pg.goto(base);
+    const lx = gTail.last % gribok.w;
+    await seedWork(pg, seed(`w-e2e-share-${style}`, gribok, gTail.strokes, { x: lx + 0.5, y: (gTail.last - lx) / gribok.w + 0.5 }),
+      { 'uzory.settings.v1': JSON.stringify({ style }) });
+    await pg.getByTestId('continue').click();
+    await pg.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pg.waitForTimeout(1500);
+    const pt = await cellPoint(pg, gribok, gTail.last);
+    await pg.mouse.click(pt.x, pt.y);
+    const done = await pg.getByTestId('replay').waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    const dl = done ? pg.waitForEvent('download', { timeout: 15_000 }) : null;
+    if (done) await pg.getByTestId('share').click();
+    const bytes = dl ? await dl.then(async (d) => readFileSync((await d.path())!)).catch(() => null) : null;
+    await ctx.close();
+    if (bytes) writeFileSync(join(OUT, `03-share-${style}.png`), bytes);
+    return bytes ? lookAtShare(bytes, gribok) : null;
+  };
+  const crossLook = await shareIn('cross');
+  const tileLook = await shareIn('mosaic');
+  const studioCaption = (l: typeof crossLook) => !!l && l.lines.title > 400 && l.lines.mark > 200 && l.lines.caption < 100;
+  check(!!crossLook?.size && crossLook.frame && crossLook.stitches && crossLook.cells >= 20
+    && crossLook.cross >= 0.95 * crossLook.cells && crossLook.tile === 0 && studioCaption(crossLook),
+    `«Поделиться» в «Крестике»: крестиками ${crossLook?.cross}/${crossLook?.cells} клеток, плиткой ${crossLook?.tile}, `
+    + `рамка ${crossLook?.frame ? 'на месте' : 'не та'}, подпись ${crossLook ? `${crossLook.lines.title}/${crossLook.lines.caption}/${crossLook.lines.mark}` : '—'} точек`);
+  check(!!tileLook?.size && tileLook.frame && tileLook.stitches && tileLook.cells >= 20
+    && tileLook.tile >= 0.95 * tileLook.cells && tileLook.cross === 0 && studioCaption(tileLook),
+    `«Поделиться» в «Мозаике»: плиткой ${tileLook?.tile}/${tileLook?.cells} клеток, крестиками ${tileLook?.cross}, `
+    + `рамка ${tileLook?.frame ? 'на месте' : 'не та'}, подпись ${tileLook ? `${tileLook.lines.title}/${tileLook.lines.caption}/${tileLook.lines.mark}` : '—'} точек`);
 
   // без сети, с чистой установки (docs/specs/2026-09-library.md, критерий 1; ADR 0007): сервер
   // картинок недоступен — до первого стежка два касания (docs/specs/2026-09-first-picture.md,
