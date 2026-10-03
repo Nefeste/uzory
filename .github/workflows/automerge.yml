@@ -1,0 +1,54 @@
+# Автослияние (устав студии, ADR 0018; docs/05-process.md, «Ветки»): PR сливается сам, когда
+# на нём метка «ревью: ок» (её ставит Ревьюер — другая сессия, не автор PR), проверки на PR
+# (pr.yml) зелёные на последнем коммите и в PR нет путей владельца из .github/CODEOWNERS.
+# Тогда workflow включает auto-merge GitHub (squash) — сливает GitHub, а не агент. PR с путями
+# владельца сливает владелец. Новый коммит в PR снимает метку и auto-merge: нужно новое ревью.
+# Решение — .github/scripts/automerge.ts (проверки — tools/test/automerge.test.ts).
+#
+# pull_request_target и workflow_run идут от main: код PR здесь не запускается, из репозитория
+# читаются только CODEOWNERS и скрипт ветки main. Права на запись — чтобы включить auto-merge
+# и снять метку. Слияние, включённое этим токеном (GITHUB_TOKEN), не запускает workflow на
+# push в main — поэтому после слияния ничего не должно ждать события push (docs/05-process.md).
+name: Автослияние
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows: [PR]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: automerge-${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    name: Автослияние
+    # метка ревью поставлена; новый коммит или переоткрытие PR с меткой; проверки на PR прошли
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+        ((github.event.action == 'labeled' && github.event.label.name == 'ревью: ок') ||
+         (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'ревью: ок')))) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Условия и auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun .github/scripts/automerge.ts

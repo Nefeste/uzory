@@ -1,0 +1,14 @@
+# Пути владельца (устав студии, ADR 0018): PR, который трогает хоть один из них, сливает только
+# владелец — защита ветки main требует его ревью, а автослияние такие PR не берёт
+# (.github/workflows/automerge.yml читает этот файл из main). Добавлять пути можно, убирать
+# перечисленные в уставе — нельзя.
+/deploy/ @Nefeste
+/.github/ @Nefeste
+/server/ @Nefeste
+/src/money/ @Nefeste
+/store/forms.md @Nefeste
+/store/privacy* @Nefeste
+# политика конфиденциальности «Узоров» — страница для сайта
+/store/site/privacy* @Nefeste
+/app.json @Nefeste
+/eas.json @Nefeste
