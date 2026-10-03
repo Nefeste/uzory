@@ -1,7 +1,7 @@
 ---
 name: Uzory
-title: Uzory — cross-stitch by numbers
-description: "Color by number as cross-stitch: folk ornaments, paintings and old Russia in colour — from five-minute patterns to paintings for several evenings. Offline, without ads."
+title: Uzory — cross-stitch by numbers on your phone
+description: "Color by number as cross-stitch for Android: folk ornaments, paintings and old photographs, with a free picture every day. Works offline, no ads."
 kind: Color by number
 status: dev
 lead: "Cross-stitch by numbers: pick a thread and stitch — tap a cell or brush your finger across the canvas."
