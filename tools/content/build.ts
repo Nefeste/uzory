@@ -5,7 +5,8 @@
 //
 //   bun tools/content/build.ts               все картинки → dist/ и src/content/generated/
 //   bun tools/content/build.ts --check       только проверки, как в CI
-//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права; и музыка)
+//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права; и музыка);
+//                                            ни одной такой картинки — ошибка
 //   bun tools/content/build.ts --only painting
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -209,5 +210,8 @@ if (import.meta.main) {
   console.log(`набор ${r.meta.id}: ${(r.bytes.length / 1024).toFixed(1)} КБ, SHA-256 ${sha}`);
   const over = r.bytes.length > PACK_MAX_BYTES;
   if (over) console.log(`${release ? 'ошибка' : 'предупреждение'}: набор больше ${PACK_MAX_BYTES / 1048576} МБ — бюджет встроенного набора (docs/02-architecture.md, «Ограничения»)`);
-  if (r.failed.length || (over && release)) process.exit(1);
+  // выпуск без единой картинки — пустое приложение: его не собирают (docs/09-content.md, §8)
+  const empty = release && !r.built.length;
+  if (empty) console.log('ошибка: в выпуск не попала ни одна картинка — нужны «да» владельца (approved; docs/09-content.md, §8)');
+  if (r.failed.length || (over && release) || empty) process.exit(1);
 }
