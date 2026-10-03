@@ -13,6 +13,8 @@ import { installCrashHandlers } from './src/state/crashlog';
 import { FIRST_PICTURE, patternOf } from './src/state/library';
 import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
+import { billing } from './src/state/billing';
+import { PlusProvider } from './src/state/plus';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
@@ -24,6 +26,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { MineScreen } from './src/screens/MineScreen';
 import { PictureScreen } from './src/screens/PictureScreen';
+import { PlusScreen } from './src/screens/PlusScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
@@ -51,6 +54,7 @@ type Route =
   | { name: 'picture'; pic: PackPicture }
   | { name: 'works' }
   | { name: 'calendar' }
+  | { name: 'plus'; sample: boolean }
   | { name: 'report'; from: string };
 
 /** Экран в стеке: `k` — свой ключ, чтобы два одинаковых экрана подряд не делили состояние. */
@@ -69,6 +73,8 @@ function Root() {
   const go = (r: Route) => setStack((s) => [...s, entry(r)]);
   const back = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
   const home = () => setStack([entry({ name: 'home' })]);
+  /** «Узоры+»: с магазином — настоящий экран, без него (сборка 0.x для проверки) — образец. */
+  const plus = () => go({ name: 'plus', sample: !billing.available });
   /** Поменять данные экрана на вершине, не пересоздавая его. */
   const patch = (k: number, p: Partial<Route>) => setStack((s) => s.map((e) => (e.k === k ? ({ ...e, ...p } as Entry) : e)));
 
@@ -95,6 +101,7 @@ function Root() {
           onBench={() => go({ name: 'bench' })}
           onFile={() => go({ name: 'file' })}
           onMine={() => go({ name: 'mine' })}
+          onPlusSample={() => go({ name: 'plus', sample: true })}
         />
       );
       break;
@@ -133,7 +140,8 @@ function Root() {
       const { pic } = route;
       screen = (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
-          onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())} />
+          onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
+          onPlus={plus} />
       );
       break;
     }
@@ -147,7 +155,7 @@ function Root() {
       screen = <FileScreen onBack={back} onReplay={(pattern, workId) => go({ name: 'done', pattern, title: pattern.key, workId })} />;
       break;
     case 'settings':
-      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} />;
+      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} onPlus={plus} />;
       break;
     case 'about':
       screen = <AboutScreen onBack={back} />;
@@ -159,13 +167,16 @@ function Root() {
       screen = <CollectionScreen id={route.id} onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
       break;
     case 'picture':
-      screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })} />;
+      screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })} onPlus={plus} />;
       break;
     case 'works':
       screen = <WorksScreen onBack={back} onOpen={(pic, workId) => go(workId ? { name: 'stitch', pic, workId } : { name: 'picture', pic })} />;
       break;
     case 'calendar':
       screen = <CalendarScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
+      break;
+    case 'plus':
+      screen = <PlusScreen sample={route.sample} onBack={back} />;
       break;
     case 'report':
       screen = <ReportScreen from={route.from} onBack={back} />;
@@ -205,7 +216,9 @@ export default function App() {
       <SafeAreaProvider>
         <SettingsProvider>
           <PlayerProvider>
-            {fonts ? <Gate /> : <Splash />}
+            <PlusProvider>
+              {fonts ? <Gate /> : <Splash />}
+            </PlusProvider>
           </PlayerProvider>
         </SettingsProvider>
       </SafeAreaProvider>

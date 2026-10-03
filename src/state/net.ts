@@ -9,6 +9,7 @@ import { AppState } from 'react-native';
 import { type Catalog, packsToFetch, readCatalog, versionLess } from '../engine/catalog';
 import { isDate } from '../engine/dates';
 import { openPack, type Pack, packError } from '../engine/pack';
+import { normalizePlus, plusOpen } from '../engine/plus';
 import { sha256Hex, verifyCatalog } from '../engine/sign';
 import { utf8Decode } from '../engine/utf8';
 import { APP_VERSION } from '../version';
@@ -152,8 +153,9 @@ async function sync(today: string, installed: string, now: number): Promise<void
   if (state.okDay === today) return;
   if (state.triedAt !== undefined && now >= state.triedAt && now - state.triedAt < HOUR) return;
   await save({ ...state, triedAt: now });
-  // счётчики — только в первой попытке дня (docs/03-server-api.md, «Счётчики»); подписки ещё нет
-  const q = await counterQuery(today, installed, false);
+  // счётчики — только в первой попытке дня (docs/03-server-api.md, «Счётчики»); подписка —
+  // по последнему ответу RuStore Pay (src/state/plus.tsx)
+  const q = await counterQuery(today, installed, plusOpen(normalizePlus(await loadJson<unknown>(KEYS.plus)), now));
   let text: Uint8Array;
   let sig: string;
   try {

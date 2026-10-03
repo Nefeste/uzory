@@ -13,13 +13,16 @@ import { canStitch } from '../engine/access';
 import { nextPicture } from '../engine/library';
 import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
+import { offerOnDone } from '../engine/plus';
 import { replayMs, stitchOrder } from '../engine/work';
 import { T } from '../i18n';
 import { shareImage } from '../render/share';
+import { billing } from '../state/billing';
 import { useCatalog } from '../state/catalog';
 import { logError } from '../state/crashlog';
 import { dailyCalendar, FIRST_PICTURE, pictureById } from '../state/library';
 import { usePlayer } from '../state/player';
+import { useGate, usePlus } from '../state/plus';
 import { useSettings } from '../state/settings';
 import { shareFile } from '../state/share';
 import { openWork, type WorkSession } from '../state/works';
@@ -55,7 +58,7 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlus }: {
   pattern: Pattern;
   title: string;
   caption?: string;
@@ -64,9 +67,13 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
   pic?: PackPicture;
   /** «Дальше»: карточка следующей картинки или главная */
   onNext: (next: PackPicture | null) => void;
+  /** строка «Вся библиотека — в „Узоры+“» — экран подписки */
+  onPlus: () => void;
 }) {
   const { settings, theme } = useSettings();
-  const { player, today } = usePlayer();
+  const { player, today, update: updatePlayer } = usePlayer();
+  const plus = usePlus();
+  const gate = useGate();
   const { width, fontScale } = useWindowDimensions();
   const stacked = width < ROW_MIN_DP * Math.max(1, fontScale);
   const cat = useCatalog();
@@ -95,6 +102,18 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
   useEffect(() => () => {
     if (timer.current) clearInterval(timer.current);
   }, []);
+
+  // строка «Узоры+» (docs/08-game-design.md, «„Узоры+“ глазами игрока»): только где подписку
+  // можно оформить, у игрока без неё, после бесплатной картинки, не в первые три дня после
+  // установки и не чаще раза в сутки; день прошлого показа запомнен при открытии экрана —
+  // отметка сегодняшнего показа строку на этом же экране не прячет
+  const [shownOn] = useState(player.plusOfferShownOn);
+  const offerAccess = cat && pic ? cat.access(pic) : null;
+  const offer = gate && billing.available && !plus.open && offerAccess !== null
+    && offerOnDone({ today, installed: player.installed, shownOn, free: offerAccess === 'free' || offerAccess === 'daily' });
+  useEffect(() => {
+    if (offer && player.plusOfferShownOn !== today) updatePlayer({ plusOfferShownOn: today });
+  }, [offer, player.plusOfferShownOn, today, updatePlayer]);
 
   const order = session ? stitchOrder(session.strokes) : [];
   const minutes = session ? Math.max(1, Math.round(((session.finished ?? session.started) - session.started) / 60000)) : 0;
@@ -179,6 +198,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext }: {
           </View>
           {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
           <Button label={T.done.next} onPress={() => onNext(next())} testID="next" />
+          {offer ? <Button kind="ghost" small label={T.plus.offer} onPress={onPlus} testID="done-plus" /> : null}
         </View>
         {/* «О картине» — поверх всего экрана, а не только работы: на узком телефоне ей там тесно */}
         {about && pic ? (

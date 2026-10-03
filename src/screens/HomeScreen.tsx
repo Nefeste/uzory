@@ -15,15 +15,15 @@ import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
 import { loadIndex, type WorkEntry, workStitched } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
-import { APP_BUILD, APP_VERSION } from '../version';
+import { APP_BUILD, APP_VERSION, INTERNAL } from '../version';
 
 /** Проверки для владельца — только во внутренних сборках 0.x (docs/05-process.md, «Версии»). */
-export const CHECKS = APP_VERSION.startsWith('0.');
+export const CHECKS = INTERNAL;
 
 const keyOf = (p: PackPicture) => `${p.id}@${p.v}`;
 const percentOf = (w: WorkEntry) => Math.floor((w.done * 100) / Math.max(1, w.total));
 
-export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onFile, onMine }: {
+export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onFile, onMine, onPlusSample }: {
   onStitch: (pic: PackPicture, workId?: string) => void;
   onSettings: () => void;
   onLibrary: () => void;
@@ -34,6 +34,8 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   onFile: () => void;
   /** «Свой узор» — пока только в веб-версии (docs/specs/2026-09-custom.md) */
   onMine: () => void;
+  /** образец экрана «Узоры+» — в разделе «Для проверки» */
+  onPlusSample: () => void;
 }) {
   const { theme } = useSettings();
   const { player, today, loaded, update } = usePlayer();
@@ -148,6 +150,10 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
             <Card onPress={onFile} testID="home-file">
               <Txt bold style={styles.h3}>{T.home.file}</Txt>
               <Txt dim>{T.home.fileNote}</Txt>
+            </Card>
+            <Card onPress={onPlusSample} testID="home-plus">
+              <Txt bold style={styles.h3}>{T.home.plusSample}</Txt>
+              <Txt dim>{T.home.plusSampleNote}</Txt>
             </Card>
           </View>
         ) : null}

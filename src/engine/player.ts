@@ -17,6 +17,8 @@ export interface Player {
   firstDone: boolean;
   /** сделанные подсказки (src/engine/hints.ts) */
   hints: HintId[];
+  /** когда на «Готово» показывали строку «Узоры+» — не чаще раза в сутки (src/engine/plus.ts) */
+  plusOfferShownOn?: string;
 }
 
 /** Запись из хранилища — в порядок: чужое и испорченное отбрасывается, не хватает — сегодня. */
@@ -29,6 +31,7 @@ export function normalizePlayer(raw: unknown, today: string): Player {
     for (const [d, id] of Object.entries(r.pinned as Record<string, unknown>)) if (date(d) && typeof id === 'string') pinned[d] = id;
   }
   const hints = Array.isArray(r.hints) ? HINTS.filter((h) => (r.hints as unknown[]).includes(h)) : [];
+  const offered = date(r.plusOfferShownOn);
   return {
     // часы перевели назад до первого запуска — календарь всё равно начинается с первого запуска
     installed,
@@ -36,5 +39,6 @@ export function normalizePlayer(raw: unknown, today: string): Player {
     pinned,
     firstDone: r.firstDone === true,
     hints,
+    ...(offered ? { plusOfferShownOn: offered } : {}),
   };
 }

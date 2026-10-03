@@ -43,4 +43,6 @@ export const KEYS = {
   counters: 'uzory.counters.v1',
   /** отбор картинок владельцем в листе: id → «да», «нет», «позже» (src/state/picks.ts, только 0.x) */
   picks: 'uzory.picks.v1',
+  /** подписка «Узоры+»: последний ответ RuStore Pay и когда спрашивали (src/state/plus.tsx) */
+  plus: 'uzory.plus.v1',
 };
