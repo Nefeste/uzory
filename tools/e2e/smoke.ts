@@ -1325,7 +1325,9 @@ try {
   await page.getByTestId('bench-run').click();
   await page.getByTestId('bench-result').waitFor({ timeout: 90_000 });
   const result = await page.getByTestId('bench-result').innerText();
-  check(/Кисть: \d+ кадров/.test(result) && !/стежков: 0/.test(result), 'замер прошёл все три фазы, кисть вышивала');
+  // во время штриха React не перерисовывает экран (docs/specs/2026-09-spikes.md, критерий 4)
+  check(/Кисть: \d+ кадров/.test(result) && !/стежков: 0/.test(result) && /коммитов React: 0\b/.test(result),
+    'замер прошёл все три фазы, кисть вышивала, коммитов React во время кисти — 0');
   console.log(result);
   // путь Б — «слои»
   await page.getByTestId('bench-path-layers').click();
