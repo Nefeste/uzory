@@ -1,0 +1,19 @@
+# Россия в цвете, пачка 04.10.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
+# Библиотеки Конгресса (ppem), найдена поиском по собранию (content/wanted.yaml).
+# В выпуск — после «да» владельца в «Листе узоров».
+id: pg-ozero-sterzh
+title: Озеро Стерж
+collection: russia
+order: 61
+author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
+made: "1910"
+place: "верхняя Волга, Тверская губерния"
+source:
+  file: pg-ozero-sterzh.jpg
+  url: https://www.loc.gov/item/2018680348/
+  download: https://tile.loc.gov/storage-services/service/pnp/ppem/01700/01749v.jpg
+  basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
+pattern:
+  crop: [0.02, 0.02, 0.98, 0.98]   # сборка выправлена, края — на всякий случай
+  size: 300
+  threads: 40
