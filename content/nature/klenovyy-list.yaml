@@ -1,0 +1,17 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: klenovyy-list
+title: Кленовый лист
+collection: nature
+order: 14
+made: "2025"
+place: "сквер Алые паруса, Киров"
+source:
+  file: klenovyy-list.jpg
+  url: ""
+  basis: "снимок автора игры, 03.09.2025, сквер Алые паруса, Киров"
+season: autumn
+pattern:
+  size: 70
+  threads: 20
+approved: 2026-10-04

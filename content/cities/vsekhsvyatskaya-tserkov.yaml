@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: vsekhsvyatskaya-tserkov
+title: Всехсвятская церковь
+collection: cities
+order: 21
+made: "2025"
+place: "Кирово-Чепецк"
+source:
+  file: vsekhsvyatskaya-tserkov.jpg
+  url: ""
+  basis: "снимок автора игры, 17.09.2025, Кирово-Чепецк"
+pattern:
+  size: 120
+  threads: 32
+approved: 2026-10-04

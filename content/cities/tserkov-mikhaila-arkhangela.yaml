@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: tserkov-mikhaila-arkhangela
+title: Церковь Михаила Архангела
+collection: cities
+order: 26
+made: "2024"
+place: "село Русское, Киров"
+source:
+  file: tserkov-mikhaila-arkhangela.jpg
+  url: ""
+  basis: "снимок автора игры, 18.09.2024, село Русское, Киров"
+pattern:
+  size: 120
+  threads: 32
+approved: 2026-10-04

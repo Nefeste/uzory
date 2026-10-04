@@ -1,0 +1,20 @@
+# Россия в цвете, пачка 04.10.2026 (docs/05-process.md, «Второй поток»): файл — цветная сборка
+# Библиотеки Конгресса (prokc — сырая, с каймой от сдвига трёх негативов), найдена поиском
+# по собранию (content/wanted.yaml).
+# В выпуск — после «да» владельца в «Листе узоров».
+id: pg-beshenaya-balka
+title: Бешеная балка
+collection: russia
+order: 62
+author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
+made: "1905"
+place: "Боржоми"
+source:
+  file: pg-beshenaya-balka.jpg
+  url: https://www.loc.gov/item/2018679857/
+  download: https://tile.loc.gov/storage-services/service/pnp/prokc/21500/21586v.jpg
+  basis: "Библиотека Конгресса США, собрание Прокудина-Горского: без известных ограничений на публикацию; автор ум. 1944 — в России срок истёк"
+pattern:
+  crop: [0.09, 0.06, 0.90, 0.82]   # без цветной каймы от сдвига трёх негативов
+  size: 300
+  threads: 40

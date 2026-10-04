@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: dom-vo-dvore-muzeya
+title: Дом во дворе музея Салтыкова-Щедрина
+collection: cities
+order: 27
+made: "2024"
+place: "Киров"
+source:
+  file: dom-vo-dvore-muzeya.jpg
+  url: ""
+  basis: "снимок автора игры, 21.09.2024, Киров"
+pattern:
+  size: 120
+  threads: 32
+approved: 2026-10-04
