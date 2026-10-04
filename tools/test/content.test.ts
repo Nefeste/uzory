@@ -49,8 +49,8 @@ describe('время сборки (docs/specs/2026-09-content-pipeline.md, кр�
 });
 
 describe('сборка', () => {
-  // полная сборка идёт около минуты (картины в четыре клетки на сантиметр, старинные схемы):
-  // первая общая для обоих тестов
+  // полная сборка идёт минуты (картины в четыре клетки на сантиметр, старинные схемы; 331 картинка —
+  // около трёх минут у ассистента, 04.10.2026): первая общая для обоих тестов, предел — с запасом на рост набора
   let first: ReturnType<typeof buildAll> | null = null;
   const once = () => (first ??= buildAll());
 
@@ -59,7 +59,7 @@ describe('сборка', () => {
     const b = await buildAll();
     expect(a.failed).toEqual([]);
     expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
-  }, 300_000);
+  }, 900_000);
 
   test('выпущенные узоры не изменились (tools/test/fixtures/released.json)', async () => {
     const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;

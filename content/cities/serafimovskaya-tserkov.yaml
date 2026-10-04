@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: serafimovskaya-tserkov
+title: Серафимовская церковь
+collection: cities
+order: 13
+made: "2025"
+place: "Киров"
+source:
+  file: serafimovskaya-tserkov.jpg
+  url: ""
+  basis: "снимок автора игры, 06.01.2025, Киров"
+pattern:
+  size: 120
+  threads: 32
+approved: 2026-10-04

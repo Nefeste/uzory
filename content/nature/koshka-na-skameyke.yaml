@@ -1,0 +1,16 @@
+# Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
+# «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
+id: koshka-na-skameyke
+title: Кошка на скамейке
+collection: nature
+order: 21
+made: "2025"
+place: "Киров"
+source:
+  file: koshka-na-skameyke.jpg
+  url: ""
+  basis: "снимок автора игры, 26.11.2025, Киров"
+pattern:
+  size: 70
+  threads: 20
+approved: 2026-10-04
