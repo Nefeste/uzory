@@ -2,10 +2,9 @@
 // атлас цифр. Все — растровые изображения Skia: их можно передавать на UI-поток.
 import { AlphaType, ColorType, Skia, type SkFont, type SkImage } from '@shopify/react-native-skia';
 import { CANVAS, type Pattern } from '../engine/pattern';
+import { GLYPH_H, GLYPH_W } from './glyphs';
 
-/** Ячейка атласа цифр, точки. Цифра — белая, прозрачный фон. */
-export const GLYPH_W = 32;
-export const GLYPH_H = 48;
+export { DIGIT_FONT_SIZE, GLYPH_H, GLYPH_W } from './glyphs';
 
 /** Клетки: R — нить, G — вышита (255), B — «возраст» для анимаций, A — 255. */
 export function cellBytes(p: Pattern, stitched: Uint8Array): Uint8Array {
@@ -72,6 +71,3 @@ export function digitAtlas(font: SkFont): SkImage | null {
   const shift = bottom >= top ? GLYPH_H / 2 - (top + bottom + 1) / 2 : 0;
   return draw(guess + shift)?.makeNonTextureImage() ?? null;
 }
-
-/** Размер шрифта цифр для атласа: высота цифры — 0,75 ячейки. */
-export const DIGIT_FONT_SIZE = 50;
