@@ -55,8 +55,10 @@ jobs:
         if: always()
         run: test -f dist/report.md && cat dist/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
-  # Веб-сборка и сценарий Playwright (docs/06-testing.md, §5): от корня — стенд проверок,
-  # для папки /uzory/test — закрытая веб-версия на сайте (docs/specs/2026-09-web.md).
+  # Веб-сборка и сценарий Playwright (docs/06-testing.md, §5) от корня — стенд проверок. Сборку
+  # для папки /uzory/test (закрытая веб-версия, docs/specs/2026-09-web.md) и сценарий на ней
+  # гоняет site.yml перед каждой выкладкой на сайт: в APK её нет, а второй прогон здесь — ещё
+  # 4,5 минуты и ещё один повод упасть.
   web:
     name: Веб-сборка и сценарий
     runs-on: ubuntu-24.04
@@ -76,15 +78,6 @@ jobs:
       - name: Chromium для Playwright
         run: npx playwright install --with-deps chromium
       - name: Сценарий
-        run: bun tools/e2e/smoke.ts
-      - name: Сборка для папки сайта /uzory/test
-        env:
-          UZORY_WEB_BASE: /uzory/test
-        run: npx expo export --platform web --output-dir dist-site
-      - name: Сценарий на сборке для сайта
-        env:
-          E2E_DIST: dist-site
-          E2E_BASE: /uzory/test
         run: bun tools/e2e/smoke.ts
       # снимки сценария — с картинками «только для проверки»: артефакты открытого репозитория
       # скачивает кто угодно, поэтому снимки выкладываются, только когда репозиторий закрыт
@@ -109,14 +102,16 @@ jobs:
         with:
           sparse-checkout: app.json
           sparse-checkout-cone-mode: false
-      # тег — ровно версия коммита: иначе релиз с чужим номером, а Gradle — зря
+      # тег — ровно версия коммита: иначе релиз с чужим номером, а Gradle — зря. Точка после «v»
+      # (v.0.14.2 — так тег поставили 04.10.2026) — та же версия
       - name: Тег и версия
         if: startsWith(github.ref, 'refs/tags/')
         env:
           TAG: ${{ github.ref_name }}
         run: |
           V="$(node -p "require('./app.json').expo.version")"
-          if [ "v$V" != "$TAG" ]; then echo "::error::Тег $TAG, а в app.json этого коммита версия $V: тег ставится на коммит main с версией $V как v$V."; exit 1; fi
+          T="${TAG#v}"; T="${T#.}"
+          if [ "$T" != "$V" ]; then echo "::error::Тег $TAG — это версия $T, а в app.json этого коммита — $V. Тег ставится на коммит main с версией $V: v$V."; exit 1; fi
           echo "Тег $TAG — версия $V"
       - id: k
         env:
