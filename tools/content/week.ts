@@ -9,8 +9,10 @@
 //       и новый каталог → dist/v1/ (выкладывает content.yml)
 //   … --check     только золотой тест, даже при новом week.yaml
 //   … --base      первый каталог: встроенный набор этой версии (один раз, к выпуску 1.0)
-//   … --freeze    в PR недели (и с --base — к 1.0): узоры набора — в список выпущенного у золотого
-//                 теста tools/test/fixtures/released.json; ничего не подписывает и не выкладывает
+//   … --freeze    в PR недели: узоры набора — в список выпущенного у золотого теста
+//                 tools/test/fixtures/released.json; ничего не подписывает и не выкладывает
+//   bun tools/content/week.ts --base --freeze   в PR с «да» владельца (и к 1.0): туда же — узоры
+//                 встроенного набора этой версии, с которым соберётся APK; сервер не нужен
 //   bun tools/content/week.ts --verify https://gornitsa.games/uzory/v1/   выложено ли то, что в dist/v1/
 //
 // Подпись — закрытым ключом из переменной CATALOG_SIGNING_KEY (секрет CI); его открытая половина
@@ -247,7 +249,7 @@ export async function loadReleased(read: (path: string) => Promise<Uint8Array | 
 
 /** Список выпущенного у золотого теста до слияния (tools/test/content.test.ts; ADR 0010). */
 export const RELEASED_FIXTURE = join(ROOT, 'tools', 'test', 'fixtures', 'released.json');
-const RELEASED_NOTE = 'Выпущенные узоры (ADR 0010): ключ → SHA-256 клеток и палитры. Пополняет bun tools/content/week.ts --freeze в PR набора недели (docs/05-process.md, «Выкладывание наборов»).';
+const RELEASED_NOTE = 'Выпущенные узоры (ADR 0010): ключ → SHA-256 клеток и палитры. Пополняют bun tools/content/week.ts --base --freeze в PR с «да» владельца и --freeze в PR набора недели (docs/05-process.md, «Выкладывание наборов»).';
 
 /** SHA-256 клеток и палитры узора — как его считает золотой тест. */
 export const patternDigest = (p: Pattern) =>
@@ -310,13 +312,14 @@ async function main() {
   }
 
   const src = opt('--released');
-  if (!src) throw new Error('нужно --released <адрес сервера или папка>');
   const check = args.includes('--check');
   const base = args.includes('--base');
   const freeze = args.includes('--freeze');
+  // узоры встроенного набора закрепляются и без сервера: так в PR с «да» владельца
+  if (!src && !(base && freeze)) throw new Error('нужно --released <адрес сервера или папка> (без него — только --base --freeze)');
   // подпись выпущенного проверяется всегда, когда есть чем; без ключей — только для сверки
   const keys = secret ? [...new Set([...CATALOG_KEYS, publicKeyOf(secret)])] : CATALOG_KEYS;
-  const released = await loadReleased(reader(src), keys, true);
+  const released = src ? await loadReleased(reader(src), keys, true) : NOTHING_RELEASED;
 
   // набор недели — если в content/week.yaml ещё не выпущенный id
   let plan: WeekPlan | null = null;

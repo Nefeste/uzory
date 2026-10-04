@@ -69,4 +69,13 @@ describe('сборка', () => {
       expect(b ? patternDigest(b.pattern) : `узора ${key} нет`).toBe(sha);
     }
   }, 300_000);
+
+  test('узоры выпуска закреплены: у каждой картинки с «да» — строка в released.json', async () => {
+    const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;
+    const { built } = await once();
+    // с «да» узор уходит в APK по тегу версии, и на нём начинают работы; закрепляет его тот же PR:
+    // bun tools/content/week.ts --base --freeze (docs/05-process.md, «Выкладывание наборов»)
+    const loose = built.filter((b) => !b.trial && released[b.pattern.key] === undefined).map((b) => b.pattern.key);
+    expect(loose).toEqual([]);
+  }, 300_000);
 });
