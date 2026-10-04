@@ -37,6 +37,10 @@ export function allButLast(p: Pattern): { strokes: Stroke[]; last: number } {
  * Начата 42 минуты назад — «Готово» покажет правдоподобное время.
  */
 export async function seedWork(page: Page, s: Seed, local: Record<string, string>) {
+  // страница догружает CanvasKit: перезагрузка посреди загрузки wasm оставляет в консоли
+  // «wasm streaming compile failed», и сценарий падает на проверке консоли (у ассистента —
+  // 2 перезагрузки из 52; с ожиданием — ни одной)
+  await page.waitForLoadState('networkidle');
   const started = Date.now() - 42 * 60_000;
   const bytes = encodeWork(s.key, started, s.strokes);
   const index = [{ id: s.id, pattern: s.key, started, done: s.done, total: s.total, opened: started + 40 * 60_000, at: s.at }];

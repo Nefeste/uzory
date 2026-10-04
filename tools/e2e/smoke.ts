@@ -660,8 +660,17 @@ try {
   await page.getByTestId('skip').click().catch(() => {});
   await page.getByTestId('next').click();
   await page.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});
-  check((await page.getByTestId('daily-stitch').innerText().catch(() => '')).includes('Вышивать') && (await page.getByTestId('first-stitch').count()) === 0,
-    'первая картинка вышита — на главной картинка дня');
+  // сегодняшняя картинка дня — по календарю встроенного набора; если это «Розетка», начатая выше,
+  // на её кнопке «Продолжить» (так и вышло 4 октября 2026 года)
+  const todayStr = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const builtinPack = openPack(basePack);
+  const dailyToday = new Daily({ calendar: mergedCalendar([builtinPack]), pictures: builtinPack.json.pictures }).on(todayStr);
+  const dailyButton = dailyToday === 'rozetka' ? 'Продолжить' : 'Вышивать';
+  check((await page.getByTestId('daily-stitch').innerText().catch(() => '')).includes(dailyButton) && (await page.getByTestId('first-stitch').count()) === 0,
+    `первая картинка вышита — на главной картинка дня, на кнопке «${dailyButton}»`);
 
   // мои работы: готовая первая картинка; начатую «Розетку» — долгим касанием удалить
   await page.getByTestId('home-works').click();
@@ -686,10 +695,6 @@ try {
   const dailyTitle = await page.locator('[data-testid="home-daily"]').innerText();
   await page.getByTestId('home-calendar').click();
   await page.getByTestId('calendar').waitFor({ timeout: 10_000 });
-  const todayStr = await page.evaluate(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
   await page.getByTestId(`day-pic-${todayStr}`).click();
   await page.getByTestId('picture').waitFor({ timeout: 5000 });
   const calTitle = await page.locator('[data-testid="picture"]').innerText();
