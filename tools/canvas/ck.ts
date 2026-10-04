@@ -3,6 +3,7 @@
 import CanvasKitInit from 'canvaskit-wasm/bin/full/canvaskit.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { DIGIT_FONT_SIZE, GLYPH_H, GLYPH_W } from '../../src/canvas/glyphs';
 import { SKSL, uniformList, type Uniforms } from '../../src/canvas/shader';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 
@@ -12,8 +13,8 @@ export type CK = any;
 let ck: Promise<CK> | null = null;
 export const canvasKit = (): Promise<CK> => (ck ??= CanvasKitInit({ locateFile: (f: string) => join(dir, f) }));
 
-export const GW = 32;
-export const GH = 48;
+export const GW = GLYPH_W;
+export const GH = GLYPH_H;
 
 /**
  * Атлас цифр шрифтом приложения (Onest SemiBold), как src/canvas/textures.ts: проба, затем
@@ -23,7 +24,7 @@ export async function fontDigitBytes(): Promise<Uint8Array> {
   const CK = await canvasKit();
   const file = join(dirname(require.resolve('@expo-google-fonts/onest/package.json')), '600SemiBold', 'Onest_600SemiBold.ttf');
   const tf = CK.Typeface.MakeTypefaceFromData(readFileSync(file).buffer);
-  const font = new CK.Font(tf, 50);
+  const font = new CK.Font(tf, DIGIT_FONT_SIZE);
   const W = GW * 10;
   const draw = (baseline: number) => {
     const surface = CK.MakeSurface(W, GH);

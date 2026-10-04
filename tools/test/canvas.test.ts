@@ -1,6 +1,9 @@
-// Кисть и камера (docs/06-testing.md, «Канва»): обход сетки против перебора, пределы камеры.
+// Кисть и камера (docs/06-testing.md, «Канва»): обход сетки против перебора, пределы камеры,
+// размер номера на клетке.
 import { describe, expect, test } from 'bun:test';
-import { clampScale, clampX, fitScale, MAX_DP, NUMBERS_DP, openCamera, wheelFactor, zoomAround } from '../../src/canvas/camera';
+import { clampScale, clampX, fitScale, MAX_DP, NUMBERS_DP, OPEN_BIG_DP, openCamera, wheelFactor, zoomAround } from '../../src/canvas/camera';
+import { DIGIT_FONT_SIZE, GLYPH_H } from '../../src/canvas/glyphs';
+import { SKSL } from '../../src/canvas/shader';
 import { traverse } from '../../src/canvas/traverse';
 import { rng } from '../../src/engine/seed';
 
@@ -97,5 +100,19 @@ describe('камера', () => {
     expect(wheelFactor(1, 2, false, 700)).toBeCloseTo(wheelFactor(700, 0, false, 700));
     // щипок на тачпаде: мелкие шаги с Ctrl
     expect(wheelFactor(-10, 0, true, 700)).toBeCloseTo(Math.exp(0.1));
+  });
+});
+
+describe('номер на клетке (docs/08-game-design.md, «Для старшей аудитории»)', () => {
+  // Номер рисует шейдер: ячейка атласа (GLYPH_H точек, шрифт DIGIT_FONT_SIZE) встаёт в долю gh
+  // высоты клетки. Номера видны с клетки NUMBERS_DP, и мельче всего номер на ней. Здесь dp — это sp:
+  // номера на канве растут с масштабом, а не со шрифтом телефона.
+  const gh = Number(/float gh = ([\d.]+);/.exec(SKSL)?.[1]);
+  const sp = (cell: number) => (DIGIT_FONT_SIZE * gh * cell) / GLYPH_H;
+
+  test('в рабочем масштабе номер не мельче 13 sp; «Крупные номера» — клетка 36 dp', () => {
+    expect(gh).toBeGreaterThan(0);
+    expect(sp(NUMBERS_DP)).toBeGreaterThanOrEqual(13);
+    expect(OPEN_BIG_DP).toBe(36);
   });
 });
