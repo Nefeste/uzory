@@ -126,7 +126,11 @@ and are not repeated here. This project's own rules:
   same pattern, byte for byte.
 - **A work is a list of stitches** (ADR 0005); progress is derived, never stored as truth.
   **A released pattern never changes** and picture ids are eternal (ADR 0010); the golden test
-  `tools/test/fixtures/released.json` must stay green — fix a picture by a new pattern version.
+  `tools/test/fixtures/released.json` must stay green. APK patterns are released since the closed
+  test (`v0.14.2`): a PR that gives pictures the owner's «да» freezes their patterns too
+  (`bun tools/content/week.ts --base --freeze`; a test checks it). Fix a picture by a new pattern
+  version only after 1.0: until then the next APK carries no earlier versions, and a new version of a
+  frozen pattern loses the testers' works on it.
 - **Pictures only from allowed sources** (`docs/09-content.md`, ADR 0006): public-domain works by
   the rules there, the owner's own photos, ornaments drawn by code or by hand. Never AI-generated
   images, never other coloring apps' pictures, never stock photos under restrictive licenses.
