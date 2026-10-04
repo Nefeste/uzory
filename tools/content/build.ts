@@ -269,6 +269,8 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
 function report(r: Awaited<ReturnType<typeof buildAll>>): string {
   const lines: string[] = [`# Сборка картинок: ${r.meta.id}`, ''];
   lines.push(`Картинок в наборе: ${r.built.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с.`, '');
+  // к выпуску 1.0 — на 120 дней вперёд от дня выхода (docs/specs/2026-09-v1.md, ворота, п. 4)
+  if (r.calendar.length) lines.push(`Календарь картинок дня: ${r.calendar.length} дн., ${r.calendar[0].date} — ${r.calendar[r.calendar.length - 1].date}.`, '');
   if (r.failed.length) {
     lines.push('## Ошибки', '');
     for (const f of r.failed) lines.push(`- \`${f.path}\`: ${f.errors.join('; ')}`);
