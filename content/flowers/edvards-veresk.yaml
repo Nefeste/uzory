@@ -19,3 +19,4 @@ pattern:
   simplify: 1   # тонкие стебли без «конфетти»
   threads: 16
   canvas: "#ddcbb1"      # бумага листа — фон, не вышивается
+approved: 2026-10-03

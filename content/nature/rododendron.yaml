@@ -14,3 +14,4 @@ pattern:
   crop: [0.05, 0, 0.95, 1]
   size: 160
   threads: 40
+approved: 2026-10-03
