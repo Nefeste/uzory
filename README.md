@@ -43,10 +43,8 @@ bun tools/content/sheet.ts          # лист превью картинок →
 FFMPEG=/путь/к/ffmpeg bun tools/audio/music.ts   # пьесы из assets/music/music.yaml → .webm
 ```
 
-На каждый PR CI проверяет типы, линтер и тесты (`.github/workflows/pr.yml`); PR без путей
-владельца из `.github/CODEOWNERS` сливается сам после зелёных проверок и метки `ревью: ок`
-от Ревьюера (`automerge.yml`), с путями владельца — его сливает владелец
-([`docs/05-process.md`](docs/05-process.md), «Ветки»). APK (AAB — нет, пока нет Google Play) CI (`android.yml`) собирает
+На каждый PR CI проверяет типы, линтер и тесты (`.github/workflows/pr.yml`); кто сливает —
+по уставу ([`docs/05-process.md`](docs/05-process.md), «Ветки»). APK (AAB — нет, пока нет Google Play) CI (`android.yml`) собирает
 на тег версии `vX.Y.Z` — только с картинками и пьесами с «да» владельца (`--release`) и
 с постоянным ключом из секретов репозитория (там же, «Секреты»);
 без ключа APK для телефона нет: файл только проверяется (размер, 16 КБ, разрешения) и не

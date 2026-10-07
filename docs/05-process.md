@@ -55,13 +55,11 @@
 в `main` — через PR. Кто сливает — по классу изменения (устав,
 ADR [0018](https://github.com/Nefeste/gornitsa/blob/main/adr/0018-change-classes-automerge.md)):
 
-- PR без путей владельца из [`.github/CODEOWNERS`](../.github/CODEOWNERS) сливается сам:
-  `automerge.yml` включает auto-merge GitHub (squash), когда проверки на PR зелёные, а Ревьюер —
-  другая сессия, не автор PR, — поставил метку `ревью: ок`. Новый коммит в PR снимает метку
-  и auto-merge: нужно новое ревью.
-- PR с путями владельца — `deploy/`, `.github/`, `server/`, `src/money/`, `store/forms.md`,
+- Классы, метка `ревью: ок` и auto-merge — по уставу (ссылка выше), здесь не пересказываются.
+  В проекте это `automerge.yml`; список путей владельца — [`.github/CODEOWNERS`](../.github/CODEOWNERS).
+- Пути владельца в этом проекте — `deploy/`, `.github/`, `server/`, `src/money/`, `store/forms.md`,
   политика конфиденциальности (`store/privacy*`, `store/site/privacy*`), `app.json`,
-  `eas.json` — сливает только владелец; защита `main` требует его ревью. Код покупки
+  `eas.json`, `content/week.yaml`. Код покупки
   (RuStore Pay), когда появится, — в `src/money/`.
 
 **На каждый PR — проверки** (`pr.yml`; устав,
