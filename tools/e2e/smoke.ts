@@ -1125,7 +1125,7 @@ try {
   await page2.getByTestId('share').click();
   const png2 = await shared2.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
   const dims2 = png2 ? [png2.bytes.readUInt32BE(16), png2.bytes.readUInt32BE(20)] : [0, 0];
-  // мелкая клетка (меньше NUMBERS_DP) — цветом в любом стиле; под рамкой — название, автор и год,
+  // мелкая клетка (меньше SHARE_STITCHES_FROM) — цветом в любом стиле; под рамкой — название, автор и год,
   // «Вышито в „Узорах“ по мотивам снимка»
   const look2 = png2 ? await lookAtShare(png2.bytes, girls) : null;
   check(png2?.name === 'uzory-pg-krestyanskie-devushki.png' && !!look2?.size && look2.frame && !look2.stitches

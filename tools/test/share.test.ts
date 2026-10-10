@@ -3,7 +3,7 @@
 // паспарту и работа вложены друг в друга, подпись — под рамкой.
 import { describe, expect, test } from 'bun:test';
 import { MAX_SIDE } from '../../src/engine/pattern';
-import { SHARE_CELL_MAX, SHARE_PICTURE_MAX, shareLayout, type ShareRect } from '../../src/engine/share';
+import { SHARE_CELL_MAX, SHARE_PICTURE_MAX, SHARE_STITCHES_FROM, shareLayout, type ShareRect } from '../../src/engine/share';
 
 const inside = (a: ShareRect, b: ShareRect) => a.x > b.x && a.y > b.y && a.x + a.w < b.x + b.w && a.y + a.h < b.y + b.h;
 
@@ -27,6 +27,13 @@ describe('картинка «Поделиться»', () => {
       expect([at, below < L.title && L.title < L.caption && L.caption < L.mark && L.mark < L.height]).toEqual([at, true]);
       expect([at, L.title < L.markAlone && L.markAlone < L.mark]).toEqual([at, true]);
     }
+  });
+
+  test('стежки — с клетки 14 точек: у узоров до 114 клеток по длинной стороне', () => {
+    // решение владельца 09.10.2026 — по образцам; на канве стиль виден с 18 dp, вместе с номерами
+    expect(SHARE_STITCHES_FROM).toBe(14);
+    expect(shareLayout(114, 60).cell).toBeGreaterThanOrEqual(SHARE_STITCHES_FROM);
+    expect(shareLayout(115, 60).cell).toBeLessThan(SHARE_STITCHES_FROM);
   });
 
   test('клетка — наибольшая, при которой работа помещается в 1600 точек', () => {
