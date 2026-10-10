@@ -151,9 +151,12 @@ jobs:
           SSH: ${{ steps.ssh.outputs.ssh }}
           HOST: ${{ secrets.DEPLOY_HOST }}
         run: rsync -v --chmod=F644 -e "$SSH" server/stats/fold.ts "deploy@$HOST:/srv/gornitsa/uzory/stats/"
-      # прежний каталог — для отката: вернуть его и его подпись на место
+      # прежний каталог — для отката: вернуть его и его подпись на место. Выкладка к этому шагу
+      # уже прошла, поэтому без места под артефакты (docs/05-process.md, «Место под артефакты»)
+      # запуск не краснеет: шаг помечается, копии у этого запуска нет.
       - uses: actions/upload-artifact@v4
         if: always() && steps.what.outputs.run == 'yes'
+        continue-on-error: true
         with:
           name: catalog-${{ github.run_number }}
           path: |
