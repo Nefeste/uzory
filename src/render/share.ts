@@ -3,11 +3,10 @@
 // рамкой — название, подпись картины и мелко «Вышито в „Узорах“». Сторона — до 2000 точек.
 // Где что лежит и каких цветов — src/engine/share.ts: по нему же сценарий проверяет картинку.
 import { ImageFormat, Skia, type SkFont, TileMode, FilterMode, MipmapMode } from '@shopify/react-native-skia';
-import { NUMBERS_DP } from '../canvas/camera';
 import { SKSL, uniformList } from '../canvas/shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from '../canvas/textures';
 import type { Pattern } from '../engine/pattern';
-import { SHARE_COLORS, shareLayout, type ShareRect } from '../engine/share';
+import { SHARE_COLORS, SHARE_STITCHES_FROM, shareLayout, type ShareRect } from '../engine/share';
 
 export interface ShareText {
   title: string;
@@ -47,7 +46,7 @@ export function shareImage(p: Pattern, stitched: Uint8Array, mosaic: boolean,
   m.translate(wr.x, wr.y);
   m.scale(cell, cell);
   const shader = effect.makeShaderWithChildren(uniformList({
-    w: p.w, h: p.h, gw: GLYPH_W, gh: GLYPH_H, cellPx: cell, near: cell >= NUMBERS_DP ? 1 : 0, selected: -1,
+    w: p.w, h: p.h, gw: GLYPH_W, gh: GLYPH_H, cellPx: cell, near: cell >= SHARE_STITCHES_FROM ? 1 : 0, selected: -1,
     mosaic: mosaic ? 1 : 0, hatch: 0, gap: 0.5 / cell, px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1,
   }), [
     cells.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None),

@@ -3,7 +3,9 @@
 import { describe, expect, test } from 'bun:test';
 import { CANVAS } from '../../src/engine/pattern';
 import { rng } from '../../src/engine/seed';
+import { SHARE_STITCHES_FROM } from '../../src/engine/share';
 import { renderFrame } from '../canvas/ck';
+import { stitchStyles } from '../e2e/share';
 import { randomPattern } from './helpers';
 
 const p = randomPattern(11, 24, 30, 32, 0.08);
@@ -40,4 +42,27 @@ describe('шейдер канвы', () => {
   test('далеко: вышитое — цветом нити', () => check({ s: 6, near: false }));
   test('«Крестик» близко: в центре клетки — цвет нити', () => check({ s: 30, near: true }));
   test('«Мозаика» близко: в центре клетки — цвет нити', () => check({ s: 30, near: true, mosaic: true }));
+});
+
+describe('картинка «Поделиться» на самой мелкой клетке со стежками', () => {
+  // законченная работа тем же шейдером, клетка SHARE_STITCHES_FROM точек: стиль ещё различим —
+  // тот же разбор клеток, что у сценария (tools/e2e/share.ts)
+  const all = Uint8Array.from(p.cells, () => 1);
+  const look = async (mosaic: boolean) => {
+    const s = SHARE_STITCHES_FROM;
+    const f = await renderFrame(p, all, { width: p.w * s, height: p.h * s, tx: 0, ty: 0, s, near: true, mosaic });
+    const px = (x: number, y: number): [number, number, number] => {
+      const o = (Math.floor(y) * p.w * s + Math.floor(x)) * 4;
+      return [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
+    };
+    return stitchStyles(p, px, 0, 0, s);
+  };
+
+  test('«Крестик» — крестиками, «Мозаика» — плиткой', async () => {
+    const c = await look(false);
+    const m = await look(true);
+    expect(c.cells).toBeGreaterThan(100);
+    expect([c.cross >= 0.95 * c.cells, c.tile]).toEqual([true, 0]);
+    expect([m.tile >= 0.95 * m.cells, m.cross]).toEqual([true, 0]);
+  });
 });
