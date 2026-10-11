@@ -3,6 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import type { CollectionId } from '../../src/engine/library';
+import { readTracks } from '../audio/tracks';
+import { listCards, readCard, releasable } from '../content/cards';
 
 const STORE = join(import.meta.dir, '..', '..', 'store');
 const read = (f: string) => readFileSync(join(STORE, f), 'utf8');
@@ -60,6 +63,58 @@ describe('карточка RuStore', () => {
     const bad: string[] = [];
     for (const f of TEXTS) for (const r of FORBIDDEN) if (r.test(read(f))) bad.push(`${f}: ${r}`);
     expect(bad).toEqual([]);
+  });
+});
+
+/**
+ * Обещания — по выпуску (docs/specs/2026-09-v1.md, «Карточка RuStore»: ни одного обещания, которого нет
+ * в игре). Тексты магазина и сайта, памятка тестировщику (у них APK выпуска) и надписи баннера не называют
+ * коллекцию, в которой нет ни одной картинки с «да» владельца и правами, и музыку, пока ни у одной пьесы
+ * нет «да» (В6). Появятся в выпуске — их можно вписать.
+ */
+describe('обещания — по выпуску', () => {
+  const NAMED: Record<CollectionId, RegExp> = {
+    ornaments: /орнамент|ornament/i,
+    painting: /живопис|painting/i,
+    tales: /(?<![а-яё])сказк|fairy|\btales?\b/i, // не «подсказки»
+    russia: /росси\S* в цвете|russia in colou?r/i,
+    flowers: /цветы|flowers/i,
+    nature: /природ|\bnature\b/i, // не «signature»
+    cities: /города|cities/i,
+    kids: /детям|для детей|for kids/i,
+    schemes: /старинн\S* схем|old charts/i,
+  };
+  // правила в начале карточек и частых вопросов — для нас, не для игроков
+  const body = (f: string) => read(f).slice(Math.max(0, read(f).indexOf('\n## ')));
+  const banner = /const TEXT = \{[\s\S]*?\n\}(?: as const)?;/.exec(readFileSync(join(STORE, '..', 'tools', 'store', 'graphics.ts'), 'utf8'))?.[0] ?? '';
+  const texts: [string, string][] = [
+    ...['listing.ru.md', 'listing.en.md', 'faq.ru.md'].map((f): [string, string] => [f, body(f)]),
+    ...['closed-test.md', 'site/page.ru.md', 'site/page.en.md'].map((f): [string, string] => [f, read(f)]),
+    ['баннер (tools/store/graphics.ts)', banner],
+  ];
+
+  test('надписи баннера найдены', () => {
+    expect(banner).toContain('Вышивка крестиком по номерам');
+  });
+
+  test('коллекции без картинок в выпуске не названы', () => {
+    const released = new Set<string>();
+    for (const f of listCards()) {
+      const { card } = readCard(f);
+      if (card && releasable(card) === null) released.add(card.collection);
+    }
+    expect(released.size).toBeGreaterThan(0);
+    const bad: string[] = [];
+    for (const [id, named] of Object.entries(NAMED)) {
+      if (released.has(id)) continue;
+      for (const [f, text] of texts) if (named.test(text)) bad.push(`${f}: ${id} — в выпуске ни одной картинки`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  test('музыка — только когда у пьес есть «да» владельца (В6)', () => {
+    if (readTracks().some((t) => t.approved)) return;
+    expect(texts.filter(([, text]) => /музык|music/i.test(text)).map(([f]) => f)).toEqual([]);
   });
 });
 
