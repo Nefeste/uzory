@@ -15,18 +15,18 @@ shots:
   - file: screenshots/ru/02-far.png
     caption: A large work from afar
     alt: "A large work from afar: stitched cells in thread colours, the rest as a pale chart"
-  - file: screenshots/ru/03-close.png
-    caption: Large numbers
-    alt: "An ornament up close: the selected thread is highlighted, numbers on unstitched cells"
-  - file: screenshots/ru/04-mosaic.png
-    caption: Mosaic style
-    alt: "Mosaic style: even squares with a thin gap instead of crosses"
-  - file: screenshots/ru/05-done.png
+  - file: screenshots/ru/03-done.png
     caption: Finished
-    alt: "A finished work: Prokudin-Gorsky's Peasant Girls, 116,640 stitches, with the replay button"
-  - file: screenshots/ru/06-replay.png
-    caption: Replay
-    alt: "Replay: the work fills in stitch by stitch in the order it was stitched"
+    alt: "A finished work in a frame: Prokudin-Gorsky's Peasant Girls, 116,640 stitches in 8.5 hours"
+  - file: screenshots/ru/04-library.png
+    caption: Library
+    alt: "The library: ornaments, paintings and Russia in colour in rows; finished pictures in colour with a tick, a started one with its percentage"
+  - file: screenshots/ru/05-calendar.png
+    caption: Picture of the day
+    alt: "The picture-of-the-day calendar: finished days ticked, today highlighted, missed days waiting"
+  - file: screenshots/ru/06-about.png
+    caption: About the picture
+    alt: "About the picture: Red Sunset — the painter's name and dates, where the painting hangs, a short story and the source"
 card:
   text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day, calm music and no rush."
   points:
@@ -70,7 +70,6 @@ started can be finished after it ends.
 
 ## When
 
-The game is in development; the screenshots are from a test build, which is in Russian, though the
-canvas and the finished screen already look as they will in 1.0. Uzory is being prepared for
-release in RuStore for Android; when pre-orders open, a button will appear here. Questions:
-hello@gornitsa.games.
+The game is in development; the screenshots are from a test build, which is in Russian, with
+pictures that will be in the release. Uzory is being prepared for release in RuStore for Android;
+when pre-orders open, a button will appear here. Questions: hello@gornitsa.games.

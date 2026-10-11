@@ -2,7 +2,7 @@
 // «Сохранение»): штрихи копятся в памяти, файл пишется целиком не чаще раза в секунду
 // и сразу при уходе с экрана. Испорченный файл — откат к `.bak`.
 import type { Pattern } from '../engine/pattern';
-import { replay, Stitching, type Stroke } from '../engine/work';
+import { addMinute, replay, Stitching, type StitchMinutes, type Stroke } from '../engine/work';
 import { decodeWork, encodeWork, WorkFileError, workFileMisfit } from '../engine/workfile';
 import { utf8Decode, utf8Encode } from '../engine/utf8';
 import { noteFinished, noteStitch } from './counters';
@@ -18,6 +18,8 @@ export interface WorkEntry {
   total: number;
   /** когда открывали в последний раз — для «Продолжить» */
   opened: number;
+  /** минут со стежками (src/engine/work.ts, `addMinute`); у работ, начатых до того, как их стали считать, — нет */
+  minutes?: number;
   /** где вышивали в прошлый раз, в клетках */
   at?: { x: number; y: number };
 }
@@ -56,6 +58,8 @@ export class WorkSession {
   readonly strokes: Stroke[];
   finished: number | undefined;
   at: { x: number; y: number } | undefined;
+  /** минуты со стежками; нет — работа начата до того, как их стали считать, и время на «Готово» не показывается */
+  private time: StitchMinutes | undefined;
   /** не записано на диск */
   private dirty = false;
   /** последний штрих ещё идёт: канва шлёт долгий штрих частями раз в секунду */
@@ -65,11 +69,16 @@ export class WorkSession {
   private writing: Promise<void> = Promise.resolve();
   onSaveError: ((e: unknown) => void) | null = null;
 
-  constructor(readonly id: string, readonly pattern: Pattern, readonly started: number, strokes: Stroke[], finished?: number) {
+  constructor(readonly id: string, readonly pattern: Pattern, readonly started: number, strokes: Stroke[], finished?: number, minutes?: number) {
     const r = replay(pattern, strokes);
     this.state = r.state;
     this.strokes = r.strokes;
     this.finished = finished;
+    this.time = minutes !== undefined && Number.isSafeInteger(minutes) && minutes >= 0 ? { minutes, last: -1 } : undefined;
+  }
+
+  get minutes(): number | undefined {
+    return this.time?.minutes;
   }
 
   /** Штрих из канвы: движок проверяет стежки и дописывает принятые в работу. */
@@ -82,6 +91,7 @@ export class WorkSession {
     if (cont) last.cells.push(...ok);
     else this.strokes.push({ thread, cells: ok });
     noteStitch(now);
+    if (this.time) this.time = addMinute(this.time, now);
     if (this.state.finished && this.finished === undefined) {
       this.finished = now;
       noteFinished(now);
@@ -111,7 +121,7 @@ export class WorkSession {
     const bytes = encodeWork(this.pattern.key, this.started, this.strokes);
     const entry: WorkEntry = {
       id: this.id, pattern: this.pattern.key, started: this.started, finished: this.finished,
-      done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at,
+      done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at, minutes: this.time?.minutes,
     };
     this.writing = this.writing.then(async () => {
       try {
@@ -148,7 +158,7 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
       const misfit = workFileMisfit(pattern, f);
       if (misfit) throw new WorkFileError(misfit);
       const entry = (await loadIndex()).find((w) => w.id === id);
-      const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished);
+      const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished, entry?.minutes);
       s.at = entry?.at;
       return s;
     } catch (e) {
@@ -165,7 +175,7 @@ export async function workStitched(pattern: Pattern, id: string): Promise<Uint8A
 }
 
 export async function startWork(pattern: Pattern, now: number): Promise<WorkSession> {
-  const s = new WorkSession(newWorkId(now), pattern, now, []);
+  const s = new WorkSession(newWorkId(now), pattern, now, [], undefined, 0);
   // пустая работа тоже записывается: «Продолжить» появляется сразу
   await s.flush(true);
   return s;

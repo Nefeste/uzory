@@ -644,6 +644,11 @@ try {
   check(whereHint.includes('Где ещё?'), 'у нити меньше десяти клеток — подсказка про «Где ещё?»');
   await page.getByTestId('replay').waitFor({ timeout: 15_000 });
   check(await page.getByTestId('done-frame').isVisible(), 'последний стежок — экран «Готово», работа в рамке');
+  // время на «Готово» — минуты со стежками, а не от начала работы до конца (docs/08-game-design.md,
+  // «Готово»): между заходами на первую картинку сценарий слушал музыку и открывал лист
+  const doneStats = await page.getByTestId('done-stats').innerText();
+  const firstStitches = first.cells.filter((c) => c !== CANVAS).length;
+  check(new RegExp(`^${firstStitches} стеж(ок|ка|ков) · \\d+ минут[аы]?$`).test(doneStats), `«Готово»: «${doneStats}» — стежки и минуты со стежками`);
   await page.screenshot({ path: join(OUT, '03-done.png') });
   // «Поделиться» в вебе — файл PNG: работа в рамке, под ней подпись
   const shared = page.waitForEvent('download', { timeout: 15_000 });
@@ -884,7 +889,7 @@ try {
     await page.waitForTimeout(400);
   }
   const minePercent = await page.getByTestId('percent').innerText();
-  check(/^[1-9]\d* %$/.test(minePercent), `свой узор открылся на канве и вышивается: ${minePercent}`);
+  check(/^[1-9]\d*\s%$/.test(minePercent), `свой узор открылся на канве и вышивается: ${minePercent}`);
   await page.getByTestId('back').click();
   await page.locator('[data-testid^="mine-item-"]').first().waitFor();
   // от выбора снимка до сих пор страница не просила у сервера ничего: снимок никуда не ушёл

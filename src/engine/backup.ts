@@ -20,6 +20,8 @@ export interface BackupEntry {
   done: number;
   total: number;
   opened: number;
+  /** минут со стежками — с тех пор, как их считают */
+  minutes?: number;
   at?: { x: number; y: number };
 }
 
@@ -148,13 +150,14 @@ const isSide = (v: unknown): v is number => Number.isInteger(v) && (v as number)
 /** Запись указателя — только известные поля, иначе null. */
 function entryOk(e: unknown): BackupEntry | null {
   if (!isObj(e)) return null;
-  const { id, pattern, started, finished, done, total, opened, at } = e;
+  const { id, pattern, started, finished, done, total, opened, minutes, at } = e;
   if (typeof id !== 'string' || !WORK_ID.test(id)) return null;
   if (typeof pattern !== 'string' || !PATTERN_KEY.test(pattern)) return null;
   if (!isTime(started) || !isTime(opened) || (finished !== undefined && !isTime(finished))) return null;
   if (!isCount(done) || !isCount(total) || total < 1) return null;
   const out: BackupEntry = { id, pattern, started, done, total, opened };
   if (finished !== undefined) out.finished = finished;
+  if (isTime(minutes)) out.minutes = minutes;
   if (isObj(at) && Number.isFinite(at.x) && Number.isFinite(at.y)) out.at = { x: at.x as number, y: at.y as number };
   return out;
 }

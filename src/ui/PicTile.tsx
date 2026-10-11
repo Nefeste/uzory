@@ -71,7 +71,7 @@ export function PicTile({ pic, size, done, percent, isNew, plus, title = true, o
         {isNew ? <Txt bold style={[styles.badge, styles.left, { backgroundColor: theme.accent, color: theme.accentText }]}>{T.library.newMark}</Txt> : null}
         {plus ? <Txt bold style={[styles.badge, styles.right, { backgroundColor: theme.surface, color: theme.text }]}>{T.library.plusMark}</Txt> : null}
         {done ? <Txt bold style={[styles.badge, styles.corner, { backgroundColor: theme.spruce, color: '#ffffff' }]}>✓</Txt>
-          : percent !== undefined ? <Txt bold style={[styles.badge, styles.corner, { backgroundColor: theme.surface, color: theme.text }]}>{`${percent} %`}</Txt> : null}
+          : percent !== undefined ? <Txt bold style={[styles.badge, styles.corner, { backgroundColor: theme.surface, color: theme.text }]}>{T.common.percent(percent)}</Txt> : null}
       </View>
       {title ? <Txt numberOfLines={2} style={styles.title}>{pic.title}</Txt> : null}
     </Pressable>

@@ -7,6 +7,14 @@ const minutes = (n: number) => `${n} ${pluralRu(n, 'минута', 'минуты
 /** Примерное время вышивки: до полутора часов — минуты, дальше — часы (с получасом до 10 ч). */
 const duration = (min: number) => (min < 90 ? `${min} мин`
   : min < 600 ? `${String(Math.round(min / 30) / 2).replace('.', ',')} ч` : `${Math.round(min / 60)} ч`);
+/** Время со стежками на «Готово»: до полутора часов — минуты, дальше — часы (с получасом до 10 ч). */
+const spent = (min: number) => {
+  if (min < 90) return minutes(min);
+  const h = min < 600 ? Math.round(min / 30) / 2 : Math.round(min / 60);
+  return Number.isInteger(h) ? `${h} ${pluralRu(h, 'час', 'часа', 'часов')}` : `${String(h).replace('.', ',')} часа`;
+};
+/** «116 640»: с пяти знаков разряды — через неразрывный пробел, четыре знака — слитно («1200»). */
+const big = (n: number) => (n < 10000 ? String(n) : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0'));
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -26,7 +34,8 @@ export const ru = {
     /** «Средняя · 12 нитей · ≈ 25 мин» — карточка картинки (docs/specs/2026-09-library.md) */
     picMeta: (size: 'S' | 'M' | 'L' | 'XL', n: number, min: number) =>
       `${({ S: 'Малая', M: 'Средняя', L: 'Большая', XL: 'Огромная' })[size]} · ${threads(n)} · ≈ ${duration(min)}`,
-    percent: (p: number) => `${p} %`,
+    /** неразрывный пробел: на маленькой плитке календаря «%» не уходит на вторую строку */
+    percent: (p: number) => `${p}\u00a0%`,
   },
   home: {
     daily: 'Картинка дня',
@@ -210,7 +219,8 @@ export const ru = {
     replay: 'Как вышивалось',
     skip: 'Пропустить',
     next: 'Дальше',
-    stats: (stitches: number, min: number) => `${stitches} стежков · ${minutes(min)}`,
+    /** «116 640 стежков · 8 часов»; минут нет у работ, начатых до того, как их стали считать, — тогда без времени */
+    stats: (stitches: number, min?: number) => `${big(stitches)} ${pluralRu(stitches, 'стежок', 'стежка', 'стежков')}${min ? ` · ${spent(min)}` : ''}`,
     about: 'О картине',
     share: 'Поделиться',
     sharing: 'Готовлю…',

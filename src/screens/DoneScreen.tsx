@@ -116,7 +116,6 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
   }, [offer, player.plusOfferShownOn, today, updatePlayer]);
 
   const order = session ? stitchOrder(session.strokes) : [];
-  const minutes = session ? Math.max(1, Math.round(((session.finished ?? session.started) - session.started) / 60000)) : 0;
 
   const replay = () => {
     if (!api.current || !order.length) return;
@@ -187,7 +186,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
         <View style={styles.info}>
           <Txt title style={styles.title}>{title}</Txt>
           {caption ? <Txt dim style={styles.caption}>{caption}</Txt> : null}
-          {session ? <Txt dim testID="done-stats">{T.done.stats(order.length, minutes)}</Txt> : null}
+          {session ? <Txt dim testID="done-stats">{T.done.stats(order.length, session.minutes)}</Txt> : null}
           {note ? <Txt style={{ color: theme.danger }}>{note}</Txt> : null}
           <View style={[styles.row, stacked && styles.stacked]}>
             {playing

@@ -97,3 +97,16 @@ export function stitchOrder(strokes: readonly Stroke[]): { thread: number; cell:
  * больше 12 секунд (docs/08-game-design.md, «Готово»).
  */
 export const replayMs = (stitches: number) => Math.min(12000, Math.max(8000, stitches));
+
+/** Минуты со стежками у работы: сколько минут и номер минуты последнего стежка. */
+export interface StitchMinutes { minutes: number; last: number }
+
+/**
+ * Стежок в момент `now` (мс): минута, в которую легли стежки, считается один раз — как у счётчиков
+ * суток (src/engine/counters.ts). Время на «Готово» — сумма таких минут, а не от начала работы до
+ * конца: большую картину вышивают неделями, а перерывы — не работа (docs/08-game-design.md, «Готово»).
+ */
+export function addMinute(m: StitchMinutes, now: number): StitchMinutes {
+  const minute = Math.floor(now / 60000);
+  return minute === m.last ? m : { minutes: m.minutes + 1, last: minute };
+}
