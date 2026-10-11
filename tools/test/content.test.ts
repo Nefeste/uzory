@@ -3,9 +3,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { access, type AccessContext } from '../../src/engine/access';
+import { COLLECTIONS, FREE_FIRST } from '../../src/engine/library';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildLimitMs, slowPictures } from '../content/build';
-import { type Card, readCard, releasable } from '../content/cards';
+import { buildAll, buildLimitMs, slowPictures, toPicture } from '../content/build';
+import { type Card, listCards, readCard, releasable } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
 
@@ -36,6 +38,23 @@ describe('карточки', () => {
     expect(releasable(c)).toContain('В12');
     expect(releasable({ ...c, museum: 'abroad' })).toBeNull();
     expect(releasable({ ...c, approved: undefined })).toContain('approved');
+  });
+});
+
+describe('бесплатные картинки (docs/08-game-design.md, «Библиотека и коллекции»)', () => {
+  test('в каждой коллекции выпуска без подписки открыты первые пять, а если их меньше — все', () => {
+    // какие пять — решает владелец: order 0–4 в карточке (docs/09-content.md, §3)
+    const cards = listCards().map((f) => readCard(f).card).filter((c): c is Card => c !== null && !releasable(c) && !c.hidden);
+    const nobody: AccessContext = {
+      today: '2026-10-11', seen: '2026-10-11', installed: '2026-10-11',
+      dailyFrom: () => undefined, plus: false, hasWork: () => false,
+    };
+    const short = COLLECTIONS.flatMap((col) => {
+      const list = cards.filter((c) => c.collection === col);
+      const free = list.filter((c) => access(toPicture(c, 'M', '2026-09-28', null), nobody) === 'free');
+      return free.length < Math.min(FREE_FIRST, list.length) ? [`${col}: ${free.length} из ${list.length}`] : [];
+    });
+    expect(short).toEqual([]);
   });
 });
 
