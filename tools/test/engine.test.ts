@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import { CANVAS, estimateMinutes, type Pattern, patternError, sizeClass, stitchable, threadCounts } from '../../src/engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../../src/engine/regions';
-import { replay, replayMs, Stitching, stitchOrder } from '../../src/engine/work';
+import { addMinute, replay, replayMs, Stitching, stitchOrder } from '../../src/engine/work';
 import { randomPattern, randomStrokes } from './helpers';
 
 const grid = (rows: string[], key = 'grid@1'): Pattern => {
@@ -81,6 +81,20 @@ describe('стежки', () => {
     expect(replayMs(120)).toBe(8000);
     expect(replayMs(10000)).toBe(10000);
     expect(replayMs(14400)).toBe(12000);
+  });
+
+  test('время на «Готово» — минуты со стежками: минута считается раз, перерыв — ни разу', () => {
+    const t0 = Date.parse('2026-10-20T21:00:00+03:00');
+    const at = (min: number, sec = 0) => t0 + min * 60_000 + sec * 1000;
+    let m = { minutes: 0, last: -1 };
+    // вечер: три стежка в первую минуту, по стежку в 21:01 и 21:03 — три минуты
+    for (const t of [at(0, 5), at(0, 30), at(0, 59), at(1, 10), at(3)]) m = addMinute(m, t);
+    expect(m.minutes).toBe(3);
+    // следующий вечер — сутки спустя: ещё одна минута, а не 1440
+    m = addMinute(m, at(24 * 60 + 2));
+    expect(m.minutes).toBe(4);
+    const same = addMinute(m, at(24 * 60 + 2, 40));
+    expect(same).toBe(m);
   });
 });
 

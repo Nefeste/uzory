@@ -22,7 +22,7 @@ const file = (works: unknown[], mines: unknown[] = []) => JSON.stringify({ forma
 
 describe('файл переноса', () => {
   test('туда и обратно: записи, стежки и свои узоры те же; вышито — по стежкам файла', () => {
-    const a = { entry: entry('w-mg5k2x-0a1b', 'rozetka@1', { done: 99, at: { x: 3.5, y: 7 } }), log: log('rozetka@1', [0, 1, 2]) };
+    const a = { entry: entry('w-mg5k2x-0a1b', 'rozetka@1', { done: 99, minutes: 14, at: { x: 3.5, y: 7 } }), log: log('rozetka@1', [0, 1, 2]) };
     const b = { entry: entry('w-mg5k3y-0c2d', 'mine-mg5k1-00aa@1', { finished: 1_790_000_200_000, done: 5, total: 5 }), log: log('mine-mg5k1-00aa@1', [0, 1, 2, 3, 5]) };
     const r = readBackup(makeBackup('2026-09-29', [a, b], [mine('mine-mg5k1-00aa')]));
     expect(r.created).toBe('2026-09-29');
@@ -80,6 +80,13 @@ describe('файл переноса', () => {
     const r = readBackup(text);
     expect(Object.keys(r.works[0].entry).sort()).toEqual(['done', 'id', 'opened', 'pattern', 'started', 'total']);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  test('минуты со стежками: целое не меньше нуля переносится, иное отбрасывается вместе с собой, а не с работой', () => {
+    const w = (minutes: unknown, i: number) => ({ entry: { ...entry(`w-m-000${i}`, 'rozetka@1', { done: 1 }), minutes }, log: base64Encode(log('rozetka@1', [0])) });
+    const r = readBackup(file([0, 486, -1, 2.5, '8', null].map(w)));
+    expect(r.bad).toBe(0);
+    expect(r.works.map((x) => x.entry.minutes)).toEqual([0, 486, undefined, undefined, undefined, undefined]);
   });
 });
 

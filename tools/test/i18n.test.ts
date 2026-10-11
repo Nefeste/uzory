@@ -52,4 +52,17 @@ describe('склонения', () => {
     expect(ru.common.threads(21)).toBe('21 нить');
     expect(ru.common.meta(70, 52, 18, 25)).toBe('70 × 52 · 18 нитей · ≈ 25 мин');
   });
+
+  test('«Готово»: стежки со склонением и разрядами, время — минуты со стежками, без них — без времени', () => {
+    const nb = '\u00a0';
+    expect(ru.done.stats(120, 2)).toBe('120 стежков · 2 минуты');
+    expect(ru.done.stats(121, 1)).toBe('121 стежок · 1 минута');
+    expect(ru.done.stats(1203, 89)).toBe('1203 стежка · 89 минут');
+    expect(ru.done.stats(116640, 486)).toBe(`116${nb}640 стежков · 8 часов`);
+    expect(ru.done.stats(14400, 95)).toBe(`14${nb}400 стежков · 1,5 часа`);
+    expect(ru.done.stats(1048576, 1265)).toBe(`1${nb}048${nb}576 стежков · 21 час`);
+    expect(ru.done.stats(1048572, 1322)).toBe(`1${nb}048${nb}572 стежка · 22 часа`);
+    expect(ru.done.stats(116640, undefined)).toBe(`116${nb}640 стежков`);
+    expect(ru.common.percent(65)).toBe(`65${nb}%`);
+  });
 });
