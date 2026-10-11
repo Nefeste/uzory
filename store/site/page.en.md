@@ -28,7 +28,7 @@ shots:
     caption: About the picture
     alt: "About the picture: Red Sunset — the painter's name and dates, where the painting hangs, a short story and the source"
 card:
-  text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day, calm music and no rush."
+  text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day and no rush."
   points:
     - From a five-minute pattern to a large painting for several evenings
     - A free picture of the day — every day, forever
@@ -53,7 +53,7 @@ game replays how it was stitched.
   borders.
 - Public-domain paintings, each with a short story.
 - Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago.
-- Fairy tales, flowers, nature, cities and simple pictures for kids.
+- Flowers, nature, cities and simple pictures for kids.
 - A new picture every day — free, forever.
 
 Sizes range from small five-minute patterns to large paintings and old photographs for several

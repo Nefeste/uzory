@@ -1,7 +1,8 @@
 # Store listing — English
 
 For the English page of gornitsa.games and for later stores (1.2, `docs/07-roadmap.md`).
-Same rules as [`listing.ru.md`](listing.ru.md). Lengths are checked by `tools/test/store.test.ts`.
+Same rules as [`listing.ru.md`](listing.ru.md). Lengths and promises against the release are checked by
+`tools/test/store.test.ts`.
 
 ## Title
 
@@ -19,7 +20,7 @@ WHAT TO STITCH
 • Ornaments inspired by Russian folk embroidery: eight-pointed stars, rhombs, rosettes, towel borders.
 • Paintings from the 19th and early 20th century that are in the public domain, each with a short story.
 • Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago.
-• Fairy tales, flowers, nature, cities and simple pictures for kids.
+• Flowers, nature, cities and simple pictures for kids.
 • A new picture every day — free, forever. Missed a week? Past daily pictures wait in the calendar.
 • From small five-minute patterns to large paintings and old photographs for several evenings. The larger the pattern, the finer the detail: the largest have more than a hundred thousand stitches, with faces and fabric patterns you can make out.
 
