@@ -226,7 +226,7 @@
 id: shishkin-utro-v-sosnovom-lesu
 title: Утро в сосновом лесу
 collection: painting
-order: 12
+order: 12                          # место в коллекции; 0–4 — бесплатные, их выбирает владелец
 author: { name: Иван Шишкин, life: 1832–1898 }
 made: "1889"
 place: Государственная Третьяковская галерея, Москва
