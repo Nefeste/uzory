@@ -131,20 +131,50 @@ class Lines {
     private tc: number,
   ) {}
 
-  /** среднее по линии на отрезке [tLo, tHi); вдоль — каждая `stride`-я точка */
-  along(m: Float32Array, a: number, s: number, tLo: number, tHi: number, stride = 2): number {
-    const uMax = (this.vertical ? this.W : this.H) - 2;
-    const tEnd = Math.min(tHi, this.vertical ? this.H : this.W);
-    let sum = 0, n = 0;
-    for (let t = Math.max(0, Math.round(tLo)); t < tEnd; t += stride) {
-      const u = a + s * (t - this.tc);
-      if (u < 0 || u > uMax) continue;
-      const i = Math.floor(u);
-      const f = u - i;
-      sum += this.vertical ? m[t * this.W + i] * (1 - f) + m[t * this.W + i + 1] * f : m[i * this.W + t] * (1 - f) + m[(i + 1) * this.W + t] * f;
-      n++;
+  /**
+   * Средние по линиям u = a[k] + s · (t − tc) на отрезке [tLo, tHi); вдоль — каждая `stride`-я
+   * точка. Все места — одним проходом, без вызова на каждое; сумма каждого места копится в том
+   * же порядке, по t, — средние те же до бита. У вертикальных линий внешний цикл — по строкам
+   * точек: так память читается подряд. Номер точки — `u | 0`: здесь u ≥ 0, и это тот же
+   * `Math.floor`, но целым числом, а по целому номеру массив читается быстрее.
+   */
+  along(m: Float32Array, a: Float64Array, s: number, tLo: number, tHi: number, stride = 2): Float64Array {
+    const { W, tc } = this;
+    const uMax = (this.vertical ? W : this.H) - 2;
+    const tEnd = Math.min(tHi, this.vertical ? this.H : W);
+    const t0 = Math.max(0, Math.round(tLo));
+    const sum = new Float64Array(a.length);
+    const n = new Uint32Array(a.length);
+    if (this.vertical) {
+      for (let t = t0; t < tEnd; t += stride) {
+        const d = s * (t - tc);
+        const row = t * W;
+        for (let k = 0; k < a.length; k++) {
+          const u = a[k] + d;
+          if (u < 0 || u > uMax) continue;
+          const i = u | 0;
+          const f = u - i;
+          sum[k] += m[row + i] * (1 - f) + m[row + i + 1] * f;
+          n[k]++;
+        }
+      }
+    } else {
+      for (let k = 0; k < a.length; k++) {
+        let acc = 0, c = 0;
+        for (let t = t0; t < tEnd; t += stride) {
+          const u = a[k] + s * (t - tc);
+          if (u < 0 || u > uMax) continue;
+          const i = u | 0;
+          const f = u - i;
+          acc += m[i * W + t] * (1 - f) + m[(i + 1) * W + t] * f;
+          c++;
+        }
+        sum[k] = acc;
+        n[k] = c;
+      }
     }
-    return n ? sum / n : 0;
+    for (let k = 0; k < a.length; k++) sum[k] = n[k] ? sum[k] / n[k] : 0;
+    return sum;
   }
 
   /**
@@ -155,14 +185,10 @@ class Lines {
    */
   profile(u0: number, m: number, pitch: number, s: number, tLo: number, tHi: number, norm?: Norm): { z: Float64Array; norm: Norm } {
     const half = Math.round(pitch / 2 / STEP);
-    const yb = new Float64Array(m + 2 * half);
-    for (let i = 0; i < yb.length; i++) yb[i] = this.along(this.y, u0 + (i - half) * STEP, s, tLo, tHi);
-    const pe = new Float64Array(m);
+    const yb = this.along(this.y, places(m + 2 * half, (i) => u0 + (i - half) * STEP), s, tLo, tHi);
+    const pe = this.along(this.e, places(m, (i) => u0 + i * STEP), s, tLo, tHi);
     const pd = new Float64Array(m);
-    for (let i = 0; i < m; i++) {
-      pe[i] = this.along(this.e, u0 + i * STEP, s, tLo, tHi);
-      pd[i] = (yb[i] + yb[i + 2 * half]) / 2 - yb[i + half];
-    }
+    for (let i = 0; i < m; i++) pd[i] = (yb[i] + yb[i + 2 * half]) / 2 - yb[i + half];
     const stat = (v: Float64Array): [number, number] => {
       let mean = 0;
       for (let i = 0; i < m; i++) mean += v[i];
@@ -183,22 +209,28 @@ interface Norm {
   dark: [number, number];
 }
 
+/** Места линий для `Lines.along`: at(0), at(1), … at(n − 1). */
+function places(n: number, at: (k: number) => number): Float64Array {
+  const a = new Float64Array(n);
+  for (let k = 0; k < n; k++) a[k] = at(k);
+  return a;
+}
+
 /**
  * Общий проход: шаг — по самоподобию профиля перепадов; наклон и сдвиг ровной сетки — при
  * которых линии сильнее всего; затем места всех линий сразу (динамическое программирование):
  * профиль «здесь линия» как можно выше при шагах, близких к общему.
  */
 function globalLines(L: Lines, e: Float32Array, lo: number, hi: number, tLo: number, tHi: number): { pos: number[]; s: number; pitch: number; score: number; norm: Norm } {
-  const prof = new Float64Array(hi - lo);
-  for (let u = lo; u < hi; u++) prof[u - lo] = L.along(e, u, 0, tLo, tHi);
+  const prof = L.along(e, places(hi - lo, (k) => lo + k), 0, tLo, tHi);
   const { lag: pitch, score } = pitchOf(prof);
   // наклон до ±1,2°: сначала грубо, потом точнее около лучшего. Для наклона — профиль
   // перепадов через полточки, вдоль линии — каждая четвёртая точка; сдвиг ровной сетки —
   // лучший по этому профилю
   const half = Math.ceil((hi - lo) * 2);
+  const halves = places(half, (i) => lo + i / 2);
   const tryS = (s: number) => {
-    const p = new Float64Array(half);
-    for (let i = 0; i < half; i++) p[i] = L.along(e, lo + i / 2, s, tLo, tHi, 4);
+    const p = L.along(e, halves, s, tLo, tHi, 4);
     let bestE = -Infinity;
     for (let off = 0; off < pitch; off += 0.5) {
       let sum = 0, n = 0;
