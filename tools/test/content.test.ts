@@ -24,6 +24,7 @@ describe('карточки', () => {
     'Bad_Id.yaml': /латиница/,
     'bad-season.yaml': /season «зима»/,
     'bad-day.yaml': /day «02-30»/,
+    'about-one-source.yaml': /два открытых источника/,
   };
   for (const f of readdirSync(dir)) {
     test(`испорченная карточка ${f} не проходит`, () => {
@@ -55,6 +56,15 @@ describe('бесплатные картинки (docs/08-game-design.md, «Би�
       return free.length < Math.min(FREE_FIRST, list.length) ? [`${col}: ${free.length} из ${list.length}`] : [];
     });
     expect(short).toEqual([]);
+  });
+});
+
+describe('рассказ о картине (docs/09-content.md, §7)', () => {
+  test('у живописи, сказок и снимков Прокудина-Горского в выпуске — рассказ', () => {
+    // источники и длину проверяет сама карточка (readCard): здесь — что рассказ есть
+    const cards = listCards().map((f) => readCard(f).card).filter((c): c is Card => c !== null && !releasable(c) && !c.hidden);
+    const silent = cards.filter((c) => ['painting', 'tales', 'russia'].includes(c.collection) && !c.about).map((c) => c.id);
+    expect(silent).toEqual([]);
   });
 });
 

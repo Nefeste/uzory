@@ -8,6 +8,14 @@ author: { name: Алексей Саврасов, life: 1830–1897 }
 made: "1871"
 place: "Метрополитен-музей, Нью-Йорк"
 museum: abroad
+about: >
+  Ночная Волга с лодками написана маслом не на холсте, а на деревянной доске размером около 33 на
+  55 сантиметров. Зиму 1870–1871 годов Саврасов провёл с семьёй в Ярославле и работал там над
+  волжскими видами. Весной 1871 года он ездил в Костромскую губернию и написал там этюды к картине
+  «Грачи прилетели».
+about_sources:
+  - https://www.metmuseum.org/art/collection/search/437631
+  - https://ru.wikipedia.org/wiki/Грачи_прилетели
 source:
   file: savrasov-noch-na-volge.jpg
   url: https://www.metmuseum.org/art/collection/search/437631

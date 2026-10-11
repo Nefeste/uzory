@@ -18,6 +18,9 @@ export const CONTENT = join(ROOT, 'content');
 export const DEATH_LIMIT = 1951;
 export const MADE_LIMIT = 1931;
 
+/** Рассказ «О картине» — две-четыре фразы (docs/09-content.md, §7): не длиннее стольких знаков. */
+export const ABOUT_MAX = 400;
+
 /** Времена года календаря картинок дня (docs/09-content.md, §9): зима — декабрь–февраль и так далее. */
 export const SEASONS = ['winter', 'spring', 'summer', 'autumn'] as const;
 export type Season = (typeof SEASONS)[number];
@@ -155,6 +158,13 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
   if (art) {
     if (!card.place) errors.push('у живописи — где хранится оригинал (place)');
     if (card.museum !== 'ru' && card.museum !== 'abroad' && card.museum !== 'none') errors.push('у живописи — museum: ru | abroad | none');
+  }
+  // рассказ о картине — своими словами по двум открытым источникам, адреса — рядом (docs/09-content.md, §7)
+  if (card.about !== undefined || card.about_sources !== undefined) {
+    if (typeof card.about !== 'string' || !card.about.trim()) errors.push('about_sources без рассказа (about)');
+    else if (card.about.trim().length > ABOUT_MAX) errors.push(`рассказ длиннее ${ABOUT_MAX} знаков`);
+    const urls = Array.isArray(card.about_sources) ? card.about_sources.filter((u) => typeof u === 'string' && /^https?:\/\/\S+$/.test(u)) : [];
+    if (new Set(urls).size < 2) errors.push('у рассказа — два открытых источника (about_sources: два разных адреса)');
   }
   if (card.approved !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(card.approved))) errors.push(`approved «${String(card.approved)}» — дата`);
   if (card.season !== undefined && !SEASONS.includes(card.season)) errors.push(`season «${String(card.season)}» — одно из: ${SEASONS.join(', ')}`);
