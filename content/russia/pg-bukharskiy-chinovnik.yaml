@@ -8,6 +8,13 @@ order: 52
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1905–1915"
 place: "Бухара"
+about: >
+  Бухара в те годы была столицей Бухарского эмирата, а человек на снимке состоял у эмира на
+  службе. В эмирате различали пятнадцать светских чинов и четыре духовных, и светские давал сам
+  эмир.
+about_sources:
+  - https://www.loc.gov/item/2018680315/
+  - https://ru.wikipedia.org/wiki/Бухарский_эмират
 source:
   file: pg-bukharskiy-chinovnik.jpg
   url: https://www.loc.gov/item/2018680315/

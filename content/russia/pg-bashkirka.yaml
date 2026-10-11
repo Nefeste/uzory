@@ -8,6 +8,15 @@ order: 30
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1910"
 place: "Урал"
+about: >
+  Снимок сделан в 1910 году в башкирской деревне Яхъя, которая сейчас входит в Салаватский район
+  Башкортостана; в дневнике фотографа она записана как Ехья. Уже в наше время родственники узнали
+  на фотографии Фархиназ Бурханову, которая стоит на ступеньках своего дома. Она занималась
+  кузнечным делом и любила делать медные украшения: кольца, броши и браслеты.
+about_sources:
+  - https://www.loc.gov/item/2018679647/
+  - https://ru.wikipedia.org/wiki/Яхъя_(Башкортостан)
+  - https://rodina-history.ru/2017/08/03/reg-pfo/zhitelnica-ufy-nashla-foto-prababushki-v-biblioteke-kongressa-ssha.html
 source:
   file: pg-bashkirka.jpg
   url: https://www.loc.gov/item/2018679647/

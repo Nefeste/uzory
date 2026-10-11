@@ -8,6 +8,13 @@ author: { name: Иван Айвазовский, life: 1817–1900 }
 made: "до 1900"   # у музея без даты; автор ум. 1900
 place: "Метрополитен-музей, Нью-Йорк"
 museum: abroad
+about: >
+  Ночное море, луна и корабль уместились на совсем небольшом холсте — около 16 на 24 сантиметров;
+  точная дата картины неизвестна. Море Айвазовский писал по памяти, а не с натуры, и опирался при
+  этом на схематичные зарисовки. В Метрополитен-музей картина поступила по завещанию в 1975 году.
+about_sources:
+  - https://www.metmuseum.org/art/collection/search/437979
+  - https://ru.wikipedia.org/wiki/Айвазовский,_Иван_Константинович
 source:
   file: ayvazovsky-korabl-v-lunnuyu-noch.jpg
   url: https://www.metmuseum.org/art/collection/search/437979

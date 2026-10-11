@@ -1117,8 +1117,9 @@ try {
   await page2.getByTestId('done-about').click();
   const aboutText = await page2.getByTestId('done-about-panel').innerText().catch(() => '');
   check(aboutText.includes('Прокудин-Горский (1863–1944), 1909') && aboutText.includes('Источник: www.loc.gov')
-    && aboutText.includes('Сергей Прокудин-Горский. Крестьянские девушки, 1909. Схема для вышивки по мотивам снимка'),
-    '«Готово» картины: «О картине» — автор с годами жизни, год, подпись и источник');
+    && aboutText.includes('Сергей Прокудин-Горский. Крестьянские девушки, 1909. Схема для вышивки по мотивам снимка')
+    && aboutText.includes('Сарафан когда-то носили мужчины'),
+    '«Готово» картины: «О картине» — автор с годами жизни, год, рассказ, подпись и источник');
   await page2.screenshot({ path: join(OUT, '03-done-about.png') });
   await page2.getByTestId('done-about-close').click();
   const shared2 = page2.waitForEvent('download', { timeout: 20_000 });

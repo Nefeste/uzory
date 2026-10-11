@@ -6,6 +6,13 @@ collection: russia
 order: 13
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1905–1915"
+about: >
+  Продавец в среднеазиатском наряде позирует у своего прилавка на базаре в Самарканде. У города
+  долгая история: археологи относят его основание к середине VIII века до нашей эры, а в древности
+  он назывался Мараканда.
+about_sources:
+  - https://www.loc.gov/item/2018680241/
+  - https://ru.wikipedia.org/wiki/Самарканд
 source:
   file: pg-torgovets-dynyami.jpg
   url: https://www.loc.gov/item/2018680241/
