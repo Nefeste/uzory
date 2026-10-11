@@ -107,6 +107,9 @@ jobs:
           V="$(jq -r .expo.version app.json)"
           mkdir vps
           tar -C dist-site -cf - . | gzip -9 | age -r "$KEY" -o vps/test.tar.gz.age
+          # в ветку уходит только шифровка: заголовок age, а gzip её не читает
+          test "$(head -c 21 vps/test.tar.gz.age | tr -d '\0')" = "age-encryption.org/v1"
+          if gzip -t vps/test.tar.gz.age 2>/dev/null; then echo "::error::test.tar.gz.age читается без ключа"; exit 1; fi
           jq -n --arg commit "$SHA" --arg version "$V" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg run "${{ github.run_number }}" --arg key "$KEY" \
             '{commit: $commit, version: $version, built: $built, run: $run, base: "/uzory/test", key: $key}' > vps/build.json
@@ -121,3 +124,19 @@ jobs:
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/vps
           SIZE="$(du -k test.tar.gz.age | cut -f1)"
           { echo "### Веб-версия для сайта"; echo ""; echo "Ветка \`vps\`: сборка ${V} из ${SHA:0:7}, зашифрована ключом сервера (${SIZE} КБ). Сервер заберёт её за 5 минут: https://gornitsa.games/uzory/test/"; } >> "$GITHUB_STEP_SUMMARY"
+      # ветку читаем обратно (docs/specs/2026-09-web.md, критерий 4): в ней ровно эта сборка —
+      # два файла, коммит main, та же шифровка, и без ключа сервера она не читается
+      - name: Ветка vps — что выложено
+        if: steps.key.outputs.ready == 'yes'
+        env:
+          SHA: ${{ steps.fresh.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --single-branch --branch vps "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" vps-back
+          test "$(git -C vps-back ls-files | sort | tr '\n' ' ')" = "build.json test.tar.gz.age "
+          test "$(jq -r .commit vps-back/build.json)" = "$SHA"
+          cmp vps/test.tar.gz.age vps-back/test.tar.gz.age
+          test "$(head -c 21 vps-back/test.tar.gz.age | tr -d '\0')" = "age-encryption.org/v1"
+          if gzip -t vps-back/test.tar.gz.age 2>/dev/null; then echo "::error::в ветке vps сборка читается без ключа"; exit 1; fi
+          echo "Ветка \`vps\` прочитана обратно: сборка из ${SHA:0:7}, зашифрована." >> "$GITHUB_STEP_SUMMARY"
