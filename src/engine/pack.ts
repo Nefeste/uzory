@@ -71,6 +71,11 @@ export interface Pack {
   bytes: Uint8Array;
   /** где в файле начинается двоичная часть */
   base: number;
+  /**
+   * Встроенный набор декодируется из строки base64 по частям (`lazyBase64` в src/engine/base64.ts):
+   * перед чтением `bytes` — `fill` нужных байтов. У набора из файла его нет: байты уже все.
+   */
+  fill?: (start: number, end: number) => void;
 }
 
 export interface PackInput {
@@ -109,11 +114,13 @@ export function writePack(input: PackInput): Uint8Array {
 }
 
 /** Читает заголовок и JSON; узоры — по одному, `packPattern`. */
-export function openPack(bytes: Uint8Array): Pack {
+export function openPack(bytes: Uint8Array, fill?: (start: number, end: number) => void): Pack {
+  fill?.(0, 8);
   if (bytes.length < 8 || MAGIC.some((b, i) => bytes[i] !== b)) throw new PackError('не набор картинок');
   const r = new Reader(bytes, 4);
   const len = r.u32le();
   if (8 + len > bytes.length) throw new PackError(`JSON ${len} байт, а файл ${bytes.length}`);
+  fill?.(8, 8 + len);
   let json: PackJson;
   try {
     json = JSON.parse(utf8Decode(r.bytes(len))) as PackJson;
@@ -123,7 +130,7 @@ export function openPack(bytes: Uint8Array): Pack {
   if (typeof json !== 'object' || json === null || typeof json.id !== 'string' || !Array.isArray(json.pictures)) {
     throw new PackError('JSON набора без id и pictures');
   }
-  return { json, bytes, base: 8 + len };
+  return { json, bytes, base: 8 + len, fill };
 }
 
 /** Узор картинки из набора; битый — `PackError`. */
@@ -132,11 +139,13 @@ export function packPattern(pack: Pack, pic: PackPicture): Pattern {
   if (!Number.isInteger(pic.at) || pic.at < 0) throw new PackError(`${key}: смещение ${pic.at}`);
   const start = pack.base + pic.at;
   const b = pack.bytes;
+  pack.fill?.(start, start + 8);
   if (start + 8 > b.length) throw new PackError(`${key}: узор за концом файла`);
   const w = u16(b, start);
   const h = u16(b, start + 2);
   const len = new Reader(b, start + 4).u32le();
   if (start + 8 + len > b.length) throw new PackError(`${key}: клетки за концом файла`);
+  pack.fill?.(start + 8, start + 8 + len);
   const cells = decodeCells(b.subarray(start + 8, start + 8 + len), w * h);
   if (typeof cells === 'string') throw new PackError(`${key}: ${cells}`);
   if (!Array.isArray(pic.palette)) throw new PackError(`${key}: нет палитры`);

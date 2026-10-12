@@ -1,13 +1,14 @@
 // Библиотека: встроенный набор и скачанные (docs/04-data-model.md, «Наборы и библиотека»;
 // docs/specs/2026-09-packs.md). Встроенный лежит строкой base64 в модуле JS, который собирает
-// tools/content/build.ts: так набор одинаково читается на телефоне, в вебе и в тестах.
+// tools/content/build.ts: так набор одинаково читается на телефоне, в вебе и в тестах. При запуске
+// декодируются только заголовок и JSON, узор — когда его открывают (`lazyBase64`).
 // Скачанные добавляет src/state/net.ts, когда пришла их дата.
 //
 // Картинка, попавшая в библиотеку, остаётся навсегда (ADR 0010): у новой версии узора старая
 // остаётся доступной начатым по ней работам — библиотека показывает последнюю версию, а
 // работа открывает свою. Та же картинка той же версии во втором наборе не дублируется.
 import { useSyncExternalStore } from 'react';
-import { base64Decode } from '../engine/base64';
+import { lazyBase64 } from '../engine/base64';
 import { Daily } from '../engine/calendar';
 import { patternKey } from '../engine/library';
 import { libraryIndex, mergedCalendar, openPack, type Pack, packPattern, type PackPicture, samePattern } from '../engine/pack';
@@ -29,7 +30,8 @@ const listeners = new Set<() => void>();
 export function basePack(): Pack {
   if (!base) {
     const t0 = Date.now();
-    base = openPack(base64Decode(BASE_PACK));
+    const lazy = lazyBase64(BASE_PACK);
+    base = openPack(lazy.bytes, lazy.fill);
     parseMs = Date.now() - t0;
   }
   return base;

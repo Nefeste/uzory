@@ -3,7 +3,7 @@
 // по смещению. Числа — для «Что изменилось по ходу работы» спецификации прототипов.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { base64Decode } from '../engine/base64';
+import { lazyBase64 } from '../engine/base64';
 import { openPack, packPattern } from '../engine/pack';
 import { replay } from '../engine/work';
 import { decodeWork, encodeWork, WorkLog } from '../engine/workfile';
@@ -45,11 +45,12 @@ export function FileScreen({ onBack, onReplay }: { onBack: () => void; onReplay:
     const f = decodeWork(back!);
     const r = replay(p, f.strokes);
     out.push([F.read, F.ms(now() - t)]);
+    // как при запуске (src/state/library.ts): декодируются заголовок и JSON, узор — по запросу
     t = now();
-    const raw = base64Decode(BASE_PACK);
-    const pack = openPack(raw);
+    const raw = lazyBase64(BASE_PACK);
+    const pack = openPack(raw.bytes, raw.fill);
     out.push([F.packParse, F.ms(now() - t)]);
-    out.push([F.packSize, `${F.kb(raw.length)} · ${F.pictures(pack.json.pictures.length)}`]);
+    out.push([F.packSize, `${F.kb(raw.bytes.length)} · ${F.pictures(pack.json.pictures.length)}`]);
     const last = pack.json.pictures[pack.json.pictures.length - 1];
     if (last) {
       t = now();
