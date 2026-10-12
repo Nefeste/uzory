@@ -1,9 +1,10 @@
 // Работа на диске (docs/04-data-model.md, «Файл стежков»; docs/specs/2026-09-canvas.md,
 // «Сохранение»): штрихи копятся в памяти, файл пишется целиком не чаще раза в секунду
-// и сразу при уходе с экрана. Испорченный файл — откат к `.bak`.
+// и сразу при уходе с экрана; собирается он по мере вышивания (`WorkLog`). Испорченный файл —
+// откат к `.bak`.
 import type { Pattern } from '../engine/pattern';
 import { addMinute, replay, Stitching, type StitchMinutes, type Stroke } from '../engine/work';
-import { decodeWork, encodeWork, WorkFileError, workFileMisfit } from '../engine/workfile';
+import { decodeWork, WorkFileError, workFileMisfit, WorkLog } from '../engine/workfile';
 import { utf8Decode, utf8Encode } from '../engine/utf8';
 import { noteFinished, noteStitch } from './counters';
 import { logError } from './crashlog';
@@ -55,41 +56,41 @@ export const newWorkId = (now: number) =>
 
 export class WorkSession {
   readonly state: Stitching;
-  readonly strokes: Stroke[];
+  /** штрихи и файл стежков, который собирается по мере вышивания */
+  private readonly log: WorkLog;
   finished: number | undefined;
   at: { x: number; y: number } | undefined;
   /** минуты со стежками; нет — работа начата до того, как их стали считать, и время на «Готово» не показывается */
   private time: StitchMinutes | undefined;
   /** не записано на диск */
   private dirty = false;
-  /** последний штрих ещё идёт: канва шлёт долгий штрих частями раз в секунду */
-  private open = false;
   private lastWrite = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private writing: Promise<void> = Promise.resolve();
   onSaveError: ((e: unknown) => void) | null = null;
 
-  constructor(readonly id: string, readonly pattern: Pattern, readonly started: number, strokes: Stroke[], finished?: number, minutes?: number) {
+  /** `file` — файл, из которого открыта работа, если он разобрался без обрыва: новые штрихи дописываются к нему. */
+  constructor(readonly id: string, readonly pattern: Pattern, readonly started: number, strokes: Stroke[], finished?: number, minutes?: number, file?: Uint8Array) {
     const r = replay(pattern, strokes);
     this.state = r.state;
-    this.strokes = r.strokes;
+    this.log = new WorkLog(pattern.key, started, r.strokes, file);
     this.finished = finished;
     this.time = minutes !== undefined && Number.isSafeInteger(minutes) && minutes >= 0 ? { minutes, last: -1 } : undefined;
+  }
+
+  get strokes(): readonly Stroke[] {
+    return this.log.strokes;
   }
 
   get minutes(): number | undefined {
     return this.time?.minutes;
   }
 
-  /** Штрих из канвы: движок проверяет стежки и дописывает принятые в работу. */
+  /** Штрих из канвы (долгий — частями раз в секунду): движок проверяет стежки и дописывает принятые в работу. */
   stitch(thread: number, cells: readonly number[], now: number, final = true): number[] {
     const ok = this.state.apply({ thread, cells: [...cells] });
-    const last = this.strokes[this.strokes.length - 1];
-    const cont = this.open && last !== undefined && last.thread === thread;
-    this.open = !final;
+    this.log.add(thread, ok, final);
     if (!ok.length) return ok;
-    if (cont) last.cells.push(...ok);
-    else this.strokes.push({ thread, cells: ok });
     noteStitch(now);
     if (this.time) this.time = addMinute(this.time, now);
     if (this.state.finished && this.finished === undefined) {
@@ -118,7 +119,7 @@ export class WorkSession {
     }
     if (!this.dirty && !force) return this.writing;
     this.dirty = false;
-    const bytes = encodeWork(this.pattern.key, this.started, this.strokes);
+    const bytes = this.log.bytes();
     const entry: WorkEntry = {
       id: this.id, pattern: this.pattern.key, started: this.started, finished: this.finished,
       done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at, minutes: this.time?.minutes,
@@ -158,7 +159,8 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
       const misfit = workFileMisfit(pattern, f);
       if (misfit) throw new WorkFileError(misfit);
       const entry = (await loadIndex()).find((w) => w.id === id);
-      const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished, entry?.minutes);
+      // файл без обрыва — начало нового: дальше к нему дописываются только новые штрихи
+      const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished, entry?.minutes, f.truncated ? undefined : b);
       s.at = entry?.at;
       return s;
     } catch (e) {

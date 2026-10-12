@@ -65,6 +65,12 @@ export class Writer {
   finish(): Uint8Array {
     return this.buf.slice(0, this.n);
   }
+
+  /** Назад к длине `n`: записанное после неё забывается. */
+  rewind(n: number) {
+    if (!Number.isInteger(n) || n < 0 || n > this.n) throw new RangeError(`rewind: ${n}`);
+    this.n = n;
+  }
 }
 
 export class Reader {

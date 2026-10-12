@@ -6,7 +6,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { base64Decode } from '../engine/base64';
 import { openPack, packPattern } from '../engine/pack';
 import { replay } from '../engine/work';
-import { decodeWork, encodeWork } from '../engine/workfile';
+import { decodeWork, encodeWork, WorkLog } from '../engine/workfile';
 import { samplePattern, sampleBrush } from '../engine/sample';
 import type { Pattern } from '../engine/pattern';
 import { BASE_PACK } from '../content/generated/pack';
@@ -71,6 +71,15 @@ export function FileScreen({ onBack, onReplay }: { onBack: () => void; onReplay:
     t = now();
     replay(big, decodeWork((await readFile(`${BENCH_WORK}-big.log`))!).strokes);
     out.push([F.big(B, F.read), F.ms(now() - t)]);
+    // во время вышивания файл заново не собирается: к собранному дописывается новый штрих
+    // (WorkLog), и запись раз в секунду — это он и запись на диск (П4: не дольше 20 мс)
+    const head = bigStrokes.slice(0, -1);
+    const tail = bigStrokes[bigStrokes.length - 1];
+    const log = new WorkLog(big.key, 1, head, encodeWork(big.key, 1, head));
+    t = now();
+    log.add(tail.thread, tail.cells, true);
+    await writeFile(`${BENCH_WORK}-big.log`, log.bytes());
+    out.push([F.big(B, F.save), F.ms(now() - t)]);
     await removeFile(`${BENCH_WORK}-big.log`);
     // для «Повтора»: работа пишется как настоящая
     const s = new WorkSession(BENCH_WORK, p, f.started, r.strokes, Date.now());

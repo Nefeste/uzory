@@ -22,24 +22,81 @@ export interface WorkFile {
   truncated: boolean;
 }
 
-export function encodeWork(pattern: string, started: number, strokes: readonly Stroke[]): Uint8Array {
-  let size = 16 + pattern.length * 2;
-  for (const s of strokes) size += 6 + s.cells.length * 2;
-  const w = new Writer(size);
+function putHead(w: Writer, pattern: string, started: number) {
   w.bytes(MAGIC);
   const key = utf8Encode(pattern);
   w.uint(key.length);
   w.bytes(key);
   w.uint(started);
-  for (const s of strokes) {
-    const c = s.cells;
-    if (!c.length) continue;
-    w.uint(s.thread);
-    w.uint(c.length);
-    w.uint(c[0]);
-    for (let i = 1; i < c.length; i++) w.int(c[i] - c[i - 1]);
-  }
+}
+
+function putStroke(w: Writer, s: Stroke) {
+  const c = s.cells;
+  if (!c.length) return;
+  w.uint(s.thread);
+  w.uint(c.length);
+  w.uint(c[0]);
+  for (let i = 1; i < c.length; i++) w.int(c[i] - c[i - 1]);
+}
+
+export function encodeWork(pattern: string, started: number, strokes: readonly Stroke[]): Uint8Array {
+  let size = 16 + pattern.length * 2;
+  for (const s of strokes) size += 6 + s.cells.length * 2;
+  const w = new Writer(size);
+  putHead(w, pattern, started);
+  for (const s of strokes) putStroke(w, s);
   return w.finish();
+}
+
+/**
+ * Штрихи работы и её файл, который растёт вместе с ней. Канва отдаёт долгий штрих частями раз в
+ * секунду, последнюю — с `final` (src/canvas/StitchCanvas.tsx): части одного штриха — один штрих
+ * работы, а часть, в которой движок не принял ни стежка, штриха не начинает. Штрих кодируется в файл
+ * один раз, когда кончился; при записи заново — только тот, что ещё идёт. Файл законченной огромной
+ * картины — сотни килобайт, и собирать его целиком на каждую запись, раз в секунду вышивания, —
+ * дольше 20 мс на телефоне (docs/specs/2026-09-spikes.md, П4). Байты — те же, что у `encodeWork`.
+ */
+export class WorkLog {
+  readonly strokes: Stroke[];
+  /** штрих, который ещё идёт, — всегда последний */
+  private growing: Stroke | null = null;
+  private readonly w: Writer;
+  /** столько первых штрихов уже в `w`: они больше не меняются */
+  private sealed: number;
+
+  /**
+   * `strokes` — штрихи работы после переигрывания; `file` — файл, из которого она открыта, если он
+   * разобрался без обрыва: эти штрихи уже в нём, новые дописываются следом.
+   */
+  constructor(pattern: string, started: number, strokes: Stroke[], file?: Uint8Array) {
+    this.strokes = strokes;
+    this.w = new Writer((file?.length ?? 64) + 4096);
+    if (file) this.w.bytes(file);
+    else putHead(this.w, pattern, started);
+    this.sealed = file ? strokes.length : 0;
+  }
+
+  /** Стежки части штриха, уже принятые движком (`Stitching.apply`). */
+  add(thread: number, cells: readonly number[], final: boolean) {
+    let s = this.growing && this.growing.thread === thread ? this.growing : null;
+    if (cells.length) {
+      if (!s) this.strokes.push((s = { thread, cells: [] }));
+      for (const c of cells) s.cells.push(c);
+    }
+    this.growing = final ? null : s;
+  }
+
+  /** Файл работы сейчас. */
+  bytes(): Uint8Array {
+    const end = this.growing ? this.strokes.length - 1 : this.strokes.length;
+    for (; this.sealed < end; this.sealed++) putStroke(this.w, this.strokes[this.sealed]);
+    if (!this.growing) return this.w.finish();
+    const mark = this.w.length;
+    putStroke(this.w, this.growing);
+    const out = this.w.finish();
+    this.w.rewind(mark);
+    return out;
+  }
 }
 
 /**
