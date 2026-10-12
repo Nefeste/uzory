@@ -1,6 +1,7 @@
 // Файл стежков и набор (docs/06-testing.md, «Переигрывание», «Файлы»).
 import { describe, expect, test } from 'bun:test';
-import { base64Decode, base64Encode } from '../../src/engine/base64';
+import { base64Decode, base64Encode, lazyBase64 } from '../../src/engine/base64';
+import { BASE_PACK } from '../../src/content/generated/pack';
 import type { Picture } from '../../src/engine/library';
 import { openPack, packError, packPattern, writePack } from '../../src/engine/pack';
 import { samplePattern } from '../../src/engine/sample';
@@ -48,6 +49,27 @@ describe('varint, UTF-8, base64', () => {
       expect(base64Decode(s)).toEqual(b);
     }
     expect(() => base64Decode('ab$d')).toThrow();
+  });
+
+  test('base64 по частям: байты те же, декодируется только то, о чём просили', () => {
+    const r = rng(3);
+    for (const n of [0, 1, 2, 3, 3071, 3072, 3073, 9218, 20000]) {
+      // без нулей: незаполненное в `bytes` — нули
+      const b = Uint8Array.from({ length: n }, () => 1 + Math.floor(r() * 255));
+      const lazy = lazyBase64(base64Encode(b));
+      expect(lazy.bytes.length).toBe(n);
+      const a = Math.floor(n / 2);
+      const z = Math.min(n, a + 10);
+      lazy.fill(a, z);
+      for (let i = a; i < z; i++) expect(lazy.bytes[i]).toBe(b[i]);
+      if (n > 3 * 3072) expect(lazy.bytes[0]).toBe(0); // начало не тронуто
+      lazy.fill(0, n);
+      expect(lazy.bytes).toEqual(b);
+    }
+    expect(() => lazyBase64('abcde')).toThrow();
+    const bad = lazyBase64(`${'A'.repeat(8000)}$AAA`);
+    bad.fill(0, 10); // первый кусок цел
+    expect(() => bad.fill(0, 6003)).toThrow();
   });
 });
 
@@ -216,6 +238,33 @@ describe('набор', () => {
     for (let i = pictures.length - 1; i >= 0; i--) {
       const p = packPattern(pack, pack.json.pictures[i]);
       expect(p).toEqual(pictures[i].pattern);
+    }
+  });
+
+  test('набор из строки base64 по частям: открытие — заголовок и JSON, узор — тот же, что из целого', () => {
+    const pats = [randomPattern(4, 120, 120, 32), randomPattern(5, 300, 200, 24), randomPattern(6, 20, 20, 3)];
+    const pictures = pats.map((p, i) => ({ picture: pic(`q${i}`, i), pattern: { ...p, key: `q${i}@1` } }));
+    const bytes = writePack({ id: 'base-lazy', created: '2026-10-12', pictures });
+    const whole = openPack(bytes);
+    const lazy = lazyBase64(base64Encode(bytes));
+    const pack = openPack(lazy.bytes, lazy.fill);
+    expect(pack.json).toEqual(whole.json);
+    // узоры ещё не декодированы: в конце набора — нули, а не его байты
+    expect(lazy.bytes.subarray(bytes.length - 100).every((x) => x === 0)).toBe(true);
+    expect(bytes.subarray(bytes.length - 100).some((x) => x !== 0)).toBe(true);
+    for (const p of pack.json.pictures) expect(packPattern(pack, p)).toEqual(packPattern(whole, p));
+    expect(lazy.bytes).toEqual(bytes); // открыты все узоры — декодирован весь набор
+    expect(packError(pack)).toBeNull();
+  });
+
+  test('встроенный набор приложения по частям — то же, что целиком', () => {
+    const whole = openPack(base64Decode(BASE_PACK));
+    const lazy = lazyBase64(BASE_PACK);
+    const pack = openPack(lazy.bytes, lazy.fill);
+    expect(pack.json).toEqual(whole.json);
+    const all = whole.json.pictures;
+    for (const p of [all[0], all[Math.floor(all.length / 2)], all[all.length - 1]]) {
+      expect(packPattern(pack, p)).toEqual(packPattern(whole, p));
     }
   });
 
