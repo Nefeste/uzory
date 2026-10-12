@@ -7,8 +7,8 @@ import { samplePattern } from '../../src/engine/sample';
 import { rng } from '../../src/engine/seed';
 import { utf8Decode, utf8Encode } from '../../src/engine/utf8';
 import { Reader, Writer } from '../../src/engine/varint';
-import { replay } from '../../src/engine/work';
-import { decodeWork, encodeWork, WorkFileError, workFileFits } from '../../src/engine/workfile';
+import { replay, Stitching, type Stroke } from '../../src/engine/work';
+import { decodeWork, encodeWork, WorkFileError, workFileFits, WorkLog } from '../../src/engine/workfile';
 import { brushAll, randomPattern, randomStrokes } from './helpers';
 
 describe('varint, UTF-8, base64', () => {
@@ -97,6 +97,101 @@ describe('файл стежков', () => {
     expect(workFileFits(p, other)).toBe(false);
     const big = decodeWork(encodeWork(p.key, 5, [{ thread: 0, cells: [100] }]));
     expect(workFileFits(p, big)).toBe(false);
+  });
+});
+
+describe('файл растёт вместе с работой (WorkLog)', () => {
+  /** Долгий штрих канва отдаёт частями, последнюю — с `final` и часто пустой (src/canvas/StitchCanvas.tsx). */
+  function parts(r: () => number, s: Stroke): { cells: number[]; final: boolean }[] {
+    const out: { cells: number[]; final: boolean }[] = [];
+    for (let i = 0; i < s.cells.length;) {
+      const n = 1 + Math.floor(r() * 12);
+      out.push({ cells: s.cells.slice(i, i + n), final: false });
+      i += n;
+    }
+    if (r() < 0.5) out.push({ cells: [], final: true });
+    else out[out.length - 1].final = true;
+    return out;
+  }
+
+  test('на каждой записи — те же байты, что у файла, собранного целиком', () => {
+    for (const [seed, w, h] of [[21, 30, 30], [22, 120, 120], [23, 200, 150]]) {
+      const p = randomPattern(seed, w, h, 12, 0.05);
+      const r = rng(seed);
+      const state = new Stitching(p);
+      const log = new WorkLog(p.key, 1790000000000, []);
+      let writes = 0;
+      // случайные штрихи ложатся и на вышитое: бывает, что в части движок не принял ни стежка
+      for (const s of randomStrokes(seed + 50, p, 2000)) {
+        for (const part of parts(r, s)) {
+          log.add(s.thread, state.apply({ thread: s.thread, cells: part.cells }), part.final);
+          if (r() < 0.1) {
+            expect(log.bytes()).toEqual(encodeWork(p.key, 1790000000000, log.strokes));
+            writes++;
+          }
+        }
+      }
+      expect(writes).toBeGreaterThan(100);
+      const f = decodeWork(log.bytes());
+      expect(f.strokes).toEqual(log.strokes);
+      expect(replay(p, f.strokes).state.stitched).toEqual(state.stitched);
+    }
+  });
+
+  test('части одного долгого штриха — один штрих, и запись посреди него не теряет ни части', () => {
+    const p = randomPattern(24, 10, 10, 1);
+    const state = new Stitching(p);
+    const log = new WorkLog(p.key, 5, []);
+    log.add(0, state.apply({ thread: 0, cells: [10, 11] }), false);
+    const mid = log.bytes();
+    log.add(0, state.apply({ thread: 0, cells: [11] }), false); // по вышитому — ничего не принято
+    log.add(0, state.apply({ thread: 0, cells: [12, 13] }), false);
+    log.add(0, [], true);
+    expect(log.strokes).toEqual([{ thread: 0, cells: [10, 11, 12, 13] }]);
+    expect(decodeWork(mid).strokes).toEqual([{ thread: 0, cells: [10, 11] }]);
+    expect(decodeWork(log.bytes()).strokes).toEqual(log.strokes);
+  });
+
+  test('штрих, в первой части которого не принято ни стежка, — новый, а не продолжение прежнего', () => {
+    // иначе он дописался бы к штриху, уже записанному в файл, и при следующем открытии его стежков бы не было
+    const p = randomPattern(25, 10, 10, 1);
+    const state = new Stitching(p);
+    const log = new WorkLog(p.key, 5, []);
+    log.add(0, state.apply({ thread: 0, cells: [1, 2] }), true);
+    const first = log.bytes();
+    log.add(0, state.apply({ thread: 0, cells: [2] }), false);
+    log.add(0, state.apply({ thread: 0, cells: [3, 4] }), true);
+    expect(log.strokes).toEqual([{ thread: 0, cells: [1, 2] }, { thread: 0, cells: [3, 4] }]);
+    const bytes = log.bytes();
+    expect(bytes.subarray(0, first.length)).toEqual(first);
+    expect(decodeWork(bytes).strokes).toEqual(log.strokes);
+  });
+
+  test('открытая из файла: новые штрихи — следом за его байтами, файл тот же, что собранный целиком', () => {
+    const p = randomPattern(26, 120, 120, 16);
+    const r = rng(26);
+    const file = encodeWork(p.key, 7, replay(p, randomStrokes(26, p, 800)).strokes);
+    const { state, strokes } = replay(p, decodeWork(file).strokes);
+    const log = new WorkLog(p.key, 7, strokes, file);
+    expect(log.bytes()).toEqual(file);
+    for (const s of randomStrokes(27, p, 300)) {
+      for (const part of parts(r, s)) log.add(s.thread, state.apply({ thread: s.thread, cells: part.cells }), part.final);
+    }
+    const bytes = log.bytes();
+    expect(bytes.subarray(0, file.length)).toEqual(file);
+    expect(bytes).toEqual(encodeWork(p.key, 7, log.strokes));
+  });
+
+  test('штрих файла, который переигрывание отбросило, не сбивает дописанное', () => {
+    const p = randomPattern(28, 10, 10, 1);
+    const file = encodeWork(p.key, 3, [{ thread: 0, cells: [1, 2] }, { thread: 0, cells: [2] }]); // второй — повтор
+    const { state, strokes } = replay(p, decodeWork(file).strokes);
+    expect(strokes).toHaveLength(1);
+    const log = new WorkLog(p.key, 3, strokes, file);
+    log.add(0, state.apply({ thread: 0, cells: [3] }), true);
+    const again = replay(p, decodeWork(log.bytes()).strokes);
+    expect(again.strokes).toEqual(log.strokes);
+    expect(again.state.stitched).toEqual(state.stitched);
   });
 });
 
