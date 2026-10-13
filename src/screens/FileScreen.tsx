@@ -8,11 +8,12 @@ import { openPack, packPattern } from '../engine/pack';
 import { replay } from '../engine/work';
 import { decodeWork, encodeWork, WorkLog } from '../engine/workfile';
 import { samplePattern, sampleBrush } from '../engine/sample';
+import { utf8Decode, utf8Encode, utf8Native } from '../engine/utf8';
 import type { Pattern } from '../engine/pattern';
 import { BASE_PACK } from '../content/generated/pack';
 import { T } from '../i18n';
 import { readFile, removeFile, writeFile } from '../state/files';
-import { WorkSession } from '../state/works';
+import { type WorkEntry, WorkSession } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
 import { APP_BUILD, APP_VERSION } from '../version';
 
@@ -58,6 +59,17 @@ export function FileScreen({ onBack, onReplay }: { onBack: () => void; onReplay:
       packPattern(pack, last);
       out.push([F.packOpen, F.ms(now() - t)]);
     }
+    // указатель работ за год картинок дня: на каждой записи работы он читается и пишется целиком
+    // (src/state/works.ts) — UTF-8 туда и обратно и JSON
+    out.push([F.utf8, F.utf8Way(utf8Native.encode, utf8Native.decode)]);
+    const year: WorkEntry[] = Array.from({ length: 365 }, (_, i) => ({
+      id: `w-bench-${i}`, pattern: `bench-${i}@1`, started: i, finished: i + 1, done: 4321, total: 4321, opened: i + 1, at: { x: 35.5, y: 41.25 }, minutes: 35,
+    }));
+    const index = utf8Encode(JSON.stringify(year));
+    t = now();
+    const list = JSON.parse(utf8Decode(index)) as WorkEntry[];
+    utf8Encode(JSON.stringify([{ ...list[0], opened: 2 }, ...list.slice(1)]));
+    out.push([F.index(year.length), F.ms(now() - t)]);
     // картина в четыре клетки на сантиметр: файл законченного «Утра» — сотни килобайт,
     // а во время вышивания он переписывается раз в секунду
     const big = samplePattern(6, 852, 556, 30);
