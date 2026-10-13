@@ -2,7 +2,7 @@
 // размер файла, запись, разбор и переигрывание; разбор встроенного набора и узор
 // по смещению. Числа — для «Что изменилось по ходу работы» спецификации прототипов.
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { lazyBase64 } from '../engine/base64';
 import { openPack, packPattern } from '../engine/pack';
 import { replay } from '../engine/work';
@@ -14,6 +14,7 @@ import { T } from '../i18n';
 import { readFile, removeFile, writeFile } from '../state/files';
 import { WorkSession } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
+import { APP_BUILD, APP_VERSION } from '../version';
 
 const now = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
@@ -105,6 +106,12 @@ export function FileScreen({ onBack, onReplay }: { onBack: () => void; onReplay:
           </Card>
         ) : null}
         {pattern ? <Button kind="secondary" label={T.file.replay} onPress={() => onReplay(pattern, BENCH_WORK)} testID="file-replay" /> : null}
+        {rows.length ? (
+          // числа одним сообщением — для памятки замеров на телефоне (docs/06-testing.md, §6)
+          <Button kind="secondary" label={T.file.share} testID="file-share" onPress={() => void Share.share({
+            message: [`${T.common.appName} ${APP_VERSION} (${APP_BUILD}) · ${Platform.OS} ${String(Platform.Version)}`, ...rows.map(([k, v]) => `${k}: ${v}`)].join('\n'),
+          })} />
+        ) : null}
         <Txt dim style={styles.note}>{T.file.kill}</Txt>
       </ScrollView>
     </Screen>

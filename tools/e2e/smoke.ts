@@ -1075,6 +1075,7 @@ try {
   await page.getByTestId('file-replay').waitFor({ timeout: 60_000 });
   const size = await page.getByTestId('file-Размер файла').innerText();
   check(parseFloat(size.replace(',', '.')) <= 40, `файл законченной работы 120 × 120: ${size}`);
+  check(await page.getByTestId('file-share').isVisible(), '«Файл работы»: числа можно отправить одним сообщением — «Поделиться числами»');
   await page.screenshot({ path: join(OUT, '06-file.png') });
   await page.getByTestId('file-replay').click();
   await page.getByTestId('replay').waitFor();
