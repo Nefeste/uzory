@@ -6,7 +6,7 @@ import type { Picture } from '../../src/engine/library';
 import { openPack, packError, packPattern, writePack } from '../../src/engine/pack';
 import { samplePattern } from '../../src/engine/sample';
 import { rng } from '../../src/engine/seed';
-import { utf8Decode, utf8Encode } from '../../src/engine/utf8';
+import { checkedDecoder, checkedEncoder, utf8Decode, utf8DecodeOwn, utf8Encode, utf8EncodeOwn, utf8Native } from '../../src/engine/utf8';
 import { Reader, Writer } from '../../src/engine/varint';
 import { replay, Stitching, type Stroke } from '../../src/engine/work';
 import { decodeWork, encodeWork, WorkFileError, workFileFits, WorkLog } from '../../src/engine/workfile';
@@ -38,6 +38,47 @@ describe('varint, UTF-8, base64', () => {
     expect(() => utf8Decode(Uint8Array.from([0xd0]))).toThrow();
     expect(() => utf8Decode(Uint8Array.from([0xc0, 0x80]))).toThrow();
     expect(() => utf8Decode(Uint8Array.from([0xff]))).toThrow();
+  });
+
+  test('UTF-8: свой код — те же байты и та же строгость, что встроенный', () => {
+    // в Bun, как в браузере, работают встроенные — свой код остаётся телефону без TextDecoder
+    expect(utf8Native).toEqual({ encode: true, decode: true });
+    const r = rng(4);
+    const pool = ['a', 'z', ' ', '"', '\u00e9', '\u0439', '\u0451', '\u20ac', '\ufeff', '\ud83d\ude00', '\ud83e\uddf5', '\ud800', '\udc00', '\uffff'];
+    for (let n = 0; n < 300; n++) {
+      let str = '';
+      for (let k = Math.floor(r() * 40); k > 0; k--) str += pool[Math.floor(r() * pool.length)];
+      const own = utf8EncodeOwn(str);
+      expect(own).toEqual(new Uint8Array(Buffer.from(str, 'utf8')));
+      expect(utf8Encode(str)).toEqual(own);
+      expect(utf8DecodeOwn(own)).toBe(utf8Decode(own));
+    }
+    // случайные байты: оба читают одинаково или оба — RangeError
+    for (let n = 0; n < 3000; n++) {
+      const b = Uint8Array.from({ length: 1 + Math.floor(r() * 6) }, () => (r() < 0.5 ? 0x80 + Math.floor(r() * 128) : Math.floor(r() * 256)));
+      let own: string | Error;
+      let any: string | Error;
+      try { own = utf8DecodeOwn(b); } catch (e) { own = e as Error; }
+      try { any = utf8Decode(b); } catch (e) { any = e as Error; }
+      if (typeof own === 'string') expect(any).toBe(own);
+      else {
+        expect(own).toBeInstanceOf(RangeError);
+        expect(any).toBeInstanceOf(RangeError);
+      }
+    }
+  });
+
+  test('встроенный UTF-8 берётся, только если он пишет и читает как свой код', () => {
+    expect(checkedEncoder(() => new TextEncoder())).not.toBeNull();
+    expect(checkedDecoder(() => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }))).not.toBeNull();
+    // нестрогое чтение (неверное — «�») и чтение, которое съедает BOM, — нет
+    expect(checkedDecoder(() => new TextDecoder('utf-8'))).toBeNull();
+    expect(checkedDecoder(() => new TextDecoder('utf-8', { fatal: true }))).toBeNull();
+    // кодировщик, который пишет половины пар иначе, — нет; нет встроенных или они падают — свой код
+    expect(checkedEncoder(() => ({ encode: (s: string) => utf8EncodeOwn(s.replace(/[\ud800-\udfff]/g, '?')) }))).toBeNull();
+    expect(checkedEncoder(null)).toBeNull();
+    expect(checkedDecoder(null)).toBeNull();
+    expect(checkedDecoder(() => { throw new Error('нет'); })).toBeNull();
   });
 
   test('base64 как у Buffer', () => {
