@@ -132,8 +132,8 @@ and are not repeated here. This project's own rules:
   version only after 1.0: until then the next APK carries no earlier versions, and a new version of a
   frozen pattern loses the testers' works on it.
 - **Pictures only from allowed sources** (`docs/09-content.md`, ADR 0006): public-domain works by
-  the rules there, the owner's own photos, ornaments drawn by code or by hand. Never AI-generated
-  images, never other coloring apps' pictures, never stock photos under restrictive licenses.
+  the rules there, the owner's own photos, ornaments drawn by code or by hand. Never other
+  coloring apps' pictures, never stock photos under restrictive licenses.
   Every picture card has a source and a legal basis. Paintings whose originals are held by
   Russian museums need the owner's recorded decision (museum law, `docs/09-content.md` §2)
   before release. The owner approves every picture.
@@ -141,10 +141,12 @@ and are not repeated here. This project's own rules:
   (`assets/music/music.yaml`, `docs/09-content.md` §10) — never NC, ND or SA, never a recording
   "found on the internet". The owner approves every piece (`approved`, like pictures); release
   builds take only approved ones. Files are made by `bun tools/audio/music.ts`, never by hand.
-- **No ads, no currency, no boosters for money, no energy, timers, streaks or nagging**
-  (ADR 0008, 0011). The subscription is offered only in the three places listed in
-  `docs/08-game-design.md`; no auto-converting trial (ADR 0009). Started works stay finishable
-  after a subscription ends.
+- **Money and pressure**: the studio rules (no ads in play, no currency or boosters for money, no
+  energy, timers or streaks, no auto-converting trial, started work stays available after a
+  subscription ends) are in the charter's
+  [`docs/05-rules.md`](https://github.com/Nefeste/gornitsa/blob/main/docs/05-rules.md); here,
+  narrower: no ads at all (ADR 0008, 0011), and the subscription is offered only in the three
+  places listed in `docs/08-game-design.md` (ADR 0009).
 - **No server logic** (ADR 0007): the server serves static packs and a catalog; the only data it
   sees are the anonymous counters in the catalog query (ADR 0012). Never add identifiers.
 - **The canvas is one SkSL `RuntimeEffect` over small data textures** (cells, palette, digit
