@@ -52,6 +52,15 @@ describe('артефакты Actions', () => {
   });
 });
 
+describe('релиз на тег версии', () => {
+  test('«vX.Y.Z», не пре-релиз и последний: на странице репозитория — ссылка Latest, а не число тегов', () => {
+    const [s] = steps(wf('android.yml').jobs.release, 'softprops/action-gh-release');
+    expect(s.with.name).toBe('v${{ steps.ver.outputs.version }}');
+    expect(s.with.prerelease).toBe(false);
+    expect(s.with.make_latest).toBe(true);
+  });
+});
+
 describe('веб-версия для сайта: ветка vps (docs/specs/2026-09-web.md, критерий 4)', () => {
   // шаги site.yml как есть, только вместо GitHub — голый репозиторий в папке, а вместо age —
   // заглушка: проверяются проверки самого workflow, а не шифрование
