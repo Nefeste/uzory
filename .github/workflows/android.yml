@@ -324,8 +324,9 @@ jobs:
           path: dist
           key: dist-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-  # Одна публикация на обе сборки — только на тег версии: релиз «Узоры X.Y.Z» на этот тег с
-  # разделом версии из README; 0.x — пре-релиз.
+  # Одна публикация на обе сборки — только на тег версии: релиз «vX.Y.Z» на этот тег с разделом
+  # версии из README. Не пре-релиз и последний: на странице репозитория — ссылка на него с пометкой
+  # Latest, а не «26 tags» (решение владельца 14.10.2026; пре-релиз последним не бывает).
   release:
     name: Релиз
     needs: [checks, web, key, build]
@@ -385,10 +386,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Узоры ${{ steps.ver.outputs.version }}
+          name: v${{ steps.ver.outputs.version }}
           body_path: release.md
           files: |
             dist/*.apk
             dist/*.aab
-          prerelease: ${{ startsWith(steps.ver.outputs.version, '0.') }}
+          prerelease: false
           make_latest: true
