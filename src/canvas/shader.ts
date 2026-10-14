@@ -46,6 +46,12 @@ export function uniformList(u: Uniforms): number[] {
  * на любой нити и подсветке (docs/08-game-design.md, «Для старшей аудитории»). С приближением
  * степенью 2,2 (`luma`, им считается далёкий вид) у порогов он падал до 4,4 : 1 —
  * tools/test/contrast.test.ts. Внутри строки шейдера — только латиница (tools/test/i18n.test.ts).
+ *
+ * Крестик зависит от размера клетки на экране (`dense`). От 44 точек — как вблизи: два стежка, между
+ * ними светлая канва. Мельче 28 точек стежки шире, а канва между ними в тени нити. Мелкую клетку глаз
+ * смешивает в один цвет: светлая канва оставляла от насыщенности нити 30–60 %, тёмная нить светлела
+ * до серой, и вся работа на картинке «Поделиться» выходила бледной и в сетку (14.10.2026,
+ * tools/test/shader.test.ts). Между 28 и 44 точками крестик переходит плавно.
  */
 export const SKSL = `
 uniform shader cells;
@@ -95,24 +101,25 @@ half3 cloth(float2 f, float aa, float tex) {
   return mix(o, HOLE, half(hole * 0.85));
 }
 
-half3 floss(half3 col, float d, float w, float along, float across, float tex) {
+half3 floss(half3 col, float d, float w, float along, float across, float tex, float dark) {
   float r = d / w;
   float tw = sin((along * 3.0 + across * 9.0) * 6.2832);
-  return col * half((1.0 - 0.30 * r * r) * (1.0 + 0.07 * tw * tex));
+  return col * half((1.0 - dark * r * r) * (1.0 + 0.07 * tw * tex));
 }
 
-half3 cross(float2 f, half3 col, half3 base, float aa, float tex) {
-  const float e = 0.11;
-  const float w = 0.165;
+half3 cross(float2 f, half3 col, half3 base, float aa, float tex, float dense) {
+  float e = mix(0.11, 0.06, dense);
+  float w = mix(0.165, 0.23, dense);
+  float dark = mix(0.30, 0.22, dense);
   float d1 = segDist(f, float2(e, e), float2(1.0 - e, 1.0 - e));
   float d2 = segDist(f, float2(1.0 - e, e), float2(e, 1.0 - e));
   float c1 = 1.0 - smoothstep(w - aa, w + aa, d1);
   float c2 = 1.0 - smoothstep(w - aa, w + aa, d2);
-  half3 o = base;
-  o = mix(o, floss(col, d1, w, f.x + f.y, f.x - f.y, tex) * 0.9, half(c1));
+  half3 o = mix(base, col * 0.6, half(0.6 * dense));
+  o = mix(o, floss(col, d1, w, f.x + f.y, f.x - f.y, tex, dark) * half(mix(0.9, 0.95, dense)), half(c1));
   float sh = 1.0 - smoothstep(w, w + 0.09, d2);
   o = mix(o, o * 0.72, half(sh * (1.0 - c2) * 0.7));
-  o = mix(o, floss(col, d2, w, f.x - f.y, f.x + f.y, tex), half(c2));
+  o = mix(o, floss(col, d2, w, f.x - f.y, f.x + f.y, tex, dark), half(c2));
   return o;
 }
 
@@ -153,6 +160,7 @@ half4 main(float2 p) {
   float2 f = fract(p);
   float aa = 1.0 / max(cellPx, 1.0);
   float tex = smoothstep(18.0, 44.0, cellPx);
+  float dense = 1.0 - smoothstep(28.0, 44.0, cellPx);
   if (idx > 254.5) {
     if (near < 0.5) return half4(CLOTH, 1.0);
     return half4(mosaic > 0.5 ? CLOTH : cloth(f, aa, tex), 1.0);
@@ -176,7 +184,7 @@ half4 main(float2 p) {
   } else {
     half3 base = cloth(f, aa, tex);
     if (!done && sel) base = hatch > 0.5 ? mix(base, col, half(0.45 * stripe)) : mix(base, col, 0.25);
-    o = done ? cross(f, col, base, aa, tex) : base;
+    o = done ? cross(f, col, base, aa, tex, dense) : base;
   }
   if (!done) {
     half a = number(f, idx + 1.0, sel ? 1.0 : 0.0);
