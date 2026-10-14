@@ -22,7 +22,7 @@ export interface ShareLook {
   stitches: boolean;
   /** вышитых клеток, чья нить заметно отличается от канвы: на них стиль виден */
   cells: number;
-  /** из них — крестиком: у середины стороны клетки — канва, в середине — нить */
+  /** из них — крестиком: у середины стороны клетки — не нить (канва; на мелкой клетке — в тени нити), в середине — нить */
   cross: number;
   /** из них — плиткой: и у середины стороны, и в середине — ровно нить */
   tile: number;
@@ -32,8 +32,9 @@ export interface ShareLook {
 
 /**
  * Стиль вышитых клеток на картинке: работа с точки (`x0`, `y0`), клетка — `c` точек. «Крестиком» — у
- * середины верхней стороны клетки канва, в середине нить; «плиткой» — и там и там ровно нить. Клетки,
- * чья нить почти как канва, не в счёт: на них стиль не виден.
+ * середины верхней стороны клетки не нить, а канва (на мелкой клетке — канва в тени нити, src/canvas/shader.ts),
+ * в середине нить; «плиткой» — и там и там ровно нить. Клетки, чья нить почти как канва, не в счёт: на них
+ * стиль не виден.
  */
 export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: number, y0: number, c: number) {
   let cells = 0;
@@ -48,7 +49,7 @@ export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: 
     const top = y0 + Math.floor(i / p.w) * c;
     const mid = px(x, top + 0.5 * c);
     const edge = px(x, top + 0.12 * c);
-    if (dist(edge, CLOTH) <= 24 && dist(mid, col) <= 36) cross++;
+    if (dist(edge, col) > 24 && dist(mid, col) <= 36) cross++;
     if (dist(edge, col) <= 4 && dist(mid, col) <= 4) tile++;
   }
   return { cells, cross, tile };

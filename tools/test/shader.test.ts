@@ -1,7 +1,8 @@
 // Золотые кадры канвы (docs/06-testing.md, «Канва»): шейдер собирается, и цвет в центре
 // каждой вышитой клетки — ровно цвет нити, во всех стилях и масштабах.
 import { describe, expect, test } from 'bun:test';
-import { CANVAS } from '../../src/engine/pattern';
+import { labToLch, linear, linearToLab } from '../../src/engine/color';
+import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { rng } from '../../src/engine/seed';
 import { SHARE_STITCHES_FROM } from '../../src/engine/share';
 import { renderFrame } from '../canvas/ck';
@@ -64,5 +65,58 @@ describe('картинка «Поделиться» на самой мелкой
     expect(c.cells).toBeGreaterThan(100);
     expect([c.cross >= 0.95 * c.cells, c.tile]).toEqual([true, 0]);
     expect([m.tile >= 0.95 * m.cells, m.cross]).toEqual([true, 0]);
+  });
+});
+
+describe('крестик на мелкой клетке не бледнит нить', () => {
+  // Картинку «Поделиться» смотрят целиком, и глаз смешивает клетку в один цвет. До 14.10.2026 светлая
+  // канва между стежками оставляла от насыщенности нити 30–60 %, а тёмная нить светлела до серой: работа
+  // выходила бледной и в сетку. Теперь мельче 44 точек крестик плотнее, а канва между стежками — в тени нити.
+  const colors = [0xc8102e, 0x2e4a1e, 0x6f8f3a, 0x7aa6d9, 0xe8b4b8];
+  const strip: Pattern = { key: 'strip@1', w: colors.length, h: 1, threads: colors.map((rgb, i) => ({ rgb, name: `n${i}` })), cells: Uint8Array.from(colors, (_, i) => i) };
+  const all = Uint8Array.from(colors, () => 1);
+  const frame = (s: number) => renderFrame(strip, all, { width: strip.w * s, height: s, tx: 0, ty: 0, s, near: true });
+  const lch = (rgb: number) => labToLch(linearToLab(linear((rgb >> 16) & 255), linear((rgb >> 8) & 255), linear(rgb & 255)));
+
+  test('клетка 22 точки (узор в 70 клеток): средний цвет клетки — почти цвет нити', async () => {
+    const s = 22;
+    const f = await frame(s);
+    const bad: string[] = [];
+    colors.forEach((rgb, i) => {
+      let r = 0, g = 0, b = 0;
+      for (let y = 0; y < s; y++) {
+        for (let x = i * s; x < (i + 1) * s; x++) {
+          const o = (y * strip.w * s + x) * 4;
+          r += linear(f.pixels[o]);
+          g += linear(f.pixels[o + 1]);
+          b += linear(f.pixels[o + 2]);
+        }
+      }
+      const n = s * s;
+      const got = labToLch(linearToLab(r / n, g / n, b / n));
+      const want = lch(rgb);
+      // насыщенность — не меньше трёх четвертей, светлота — почти та же
+      if (got[1] < 0.75 * want[1] || Math.abs(got[0] - want[0]) > 0.07) {
+        bad.push(`${rgb.toString(16)}: L ${want[0].toFixed(2)} → ${got[0].toFixed(2)}, C ${want[1].toFixed(3)} → ${got[1].toFixed(3)}`);
+      }
+    });
+    expect(bad).toEqual([]);
+  });
+
+  test('клетка 44 точки и крупнее — как вблизи: у середины стороны канва, в середине нить', async () => {
+    const s = 44;
+    const f = await frame(s);
+    const px = (x: number, y: number) => {
+      const o = (Math.floor(y) * strip.w * s + Math.floor(x)) * 4;
+      return [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
+    };
+    const cloth = [243, 240, 230];
+    colors.forEach((rgb, i) => {
+      const want = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+      const edge = px((i + 0.5) * s, 0.12 * s);
+      const mid = px((i + 0.5) * s, 0.5 * s);
+      expect(Math.hypot(...edge.map((v, k) => v - cloth[k]))).toBeLessThanOrEqual(24);
+      expect(Math.hypot(...mid.map((v, k) => v - want[k]))).toBeLessThanOrEqual(36);
+    });
   });
 });
