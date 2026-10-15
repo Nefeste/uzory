@@ -1,8 +1,8 @@
 // из anamnez: tools/e2e/smoke.ts @ 3d76cf5 (сервер веб-сборки)
 // npm run e2e — сценарий Playwright по веб-сборке (docs/06-testing.md, §5): главная,
 // первая картинка от первого стежка до «Готово» и «Как вышивалось», мышь и клавиши, лист,
-// свой узор, «убить посреди кисти», «Узоры+» с заглушкой магазина, замер, файл работы. Сначала
-// `npm run export:web`. Снимки экранов — в tools/e2e/out/.
+// свой узор, «убить посреди кисти», «Узоры+» с заглушкой магазина, календарь с подменённой датой,
+// замер, файл работы. Сначала `npm run export:web`. Снимки экранов — в tools/e2e/out/.
 //
 // Сборку для сайта (docs/specs/2026-09-web.md) сценарий открывает из её папки:
 //   UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
@@ -17,6 +17,7 @@ import { base64Decode } from '../../src/engine/base64';
 import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
+import { FREE_FIRST } from '../../src/engine/library';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
@@ -1596,6 +1597,77 @@ try {
       const said = await pg.getByTestId('plus-said').innerText().catch(() => '');
       check(noPrice.includes('Не удалось узнать цену') && disabled && said.includes('Не удалось спросить RuStore'),
         `нет RuStore: «${noPrice}», кнопка неактивна, «Восстановить покупки» — «${said}»`);
+      await ctx.close();
+    }
+  }
+
+  // календарь с подменённой датой (docs/06-testing.md, §5; docs/04-data-model.md, «Что доступно
+  // игроку»): часы браузера стоят на дне D, установка — за три дня до него, запирание — как в 1.0,
+  // сети нет — календарь только встроенного набора. Вчерашняя картинка дня открыта навсегда;
+  // завтрашней в календаре нет, и в коллекции она заперта; назавтра она открыта, а часы, переведённые
+  // назад, её снова не запирают (самая поздняя виденная дата). День D — по календарю встроенного
+  // набора: вчера и завтра — картинки не из бесплатных, завтрашняя — среди первых в своей коллекции
+  {
+    const sched = mergedCalendar([builtinPack]);
+    const days = new Daily({ calendar: sched, pictures: builtinPack.json.pictures });
+    const shown = builtinPack.json.pictures.filter((p) => !p.hidden);
+    const pic = (id: string) => shown.find((p) => p.id === id)!;
+    const closed = (id: string) => !pic(id).free && pic(id).order >= FREE_FIRST;
+    const place = (id: string) => shown.filter((p) => p.collection === pic(id).collection).sort((a, b) => a.order - b.order).findIndex((p) => p.id === id);
+    const D = sched.map((d) => d.date).find((d) => {
+      const y = days.on(addDays(d, -1));
+      const z = days.on(addDays(d, 1));
+      return !!y && !!z && closed(y) && closed(z) && place(z) < 9;
+    });
+    if (!D) check(false, 'календарь с подменённой датой: в календаре встроенного набора нет дня, где вчера и завтра — не бесплатные картинки');
+    else {
+      const Y = days.on(addDays(D, -1))!;
+      const Z = days.on(addDays(D, 1))!;
+      const ctx = await browser.newContext({ viewport: { width: 400, height: 860 }, timezoneId: 'UTC' });
+      await ctx.route('**/uzory/v1/**', (r) => r.abort('internetdisconnected'));
+      const cp = await ctx.newPage();
+      cp.on('pageerror', (e) => errors.push(e.message));
+      cp.on('console', (m) => { if (m.type() === 'error' && !/ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+      const at = (d: string) => cp.clock.setFixedTime(new Date(`${d}T12:00:00Z`));
+      await at(D);
+      await cp.goto(base);
+      await seedWorks(cp, [], {
+        'uzory.settings.v1': JSON.stringify({ previewLock: true }),
+        'uzory.player.v1': JSON.stringify({ installed: addDays(D, -3), seen: D, pinned: {}, firstDone: true, hints: [] }),
+      });
+      await cp.getByTestId('home-calendar').waitFor({ timeout: 60_000 });
+      /** Карточка открыта, библиотека прочитана: на ней «Вышивать» или «Подробнее» — заперта ли. */
+      const lockedCard = async () => {
+        await cp.locator('[data-testid="picture-locked"], [data-testid="picture-stitch"]').first().waitFor({ timeout: 10_000 });
+        return (await cp.getByTestId('picture-locked').count()) === 1 && (await cp.getByTestId('picture-stitch').count()) === 0;
+      };
+      /** Карточка завтрашней картинки — из её коллекции: заперта ли (вместо «Вышивать» — «Подробнее»). */
+      const zLocked = async () => {
+        await cp.getByTestId('home-library').click();
+        await cp.getByTestId(`lib-all-${pic(Z).collection}`).click();
+        await cp.getByTestId(`tile-${Z}`).click({ timeout: 10_000 });
+        const locked = await lockedCard();
+        for (let k = 0; k < 3; k++) await cp.getByTestId('back').click();
+        await cp.getByTestId('home-calendar').waitFor();
+        return locked;
+      };
+      await cp.getByTestId('home-calendar').click();
+      await cp.getByTestId(`day-pic-${addDays(D, -1)}`).click({ timeout: 10_000 });
+      const yOpen = !(await lockedCard());
+      await cp.getByTestId('back').click();
+      const zInCalendar = await cp.getByTestId(`day-pic-${addDays(D, 1)}`).count();
+      await cp.getByTestId('back').click();
+      const zToday = await zLocked();
+      await at(addDays(D, 1));
+      await cp.reload();
+      await cp.getByTestId('home-calendar').waitFor({ timeout: 60_000 });
+      const zTomorrow = await zLocked();
+      await at(D);
+      await cp.reload();
+      await cp.getByTestId('home-calendar').waitFor({ timeout: 60_000 });
+      const zBack = await zLocked();
+      check(yOpen && zInCalendar === 0 && zToday && !zTomorrow && !zBack,
+        `календарь с подменённой датой (${D}): вчерашняя «${Y}» открыта; завтрашней «${Z}» в календаре нет, в коллекции она ${zToday ? 'заперта' : 'НЕ заперта'}; назавтра — ${zTomorrow ? 'заперта' : 'открыта'}; часы назад — ${zBack ? 'заперта снова' : 'открыта'}`);
       await ctx.close();
     }
   }
