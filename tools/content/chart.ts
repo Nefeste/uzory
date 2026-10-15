@@ -483,6 +483,12 @@ export function sampleChart(r: Raster, g: ChartGrid, inset: number): ChartCells 
 /** Бумага схемы по умолчанию: цвет — не дальше этого от бумаги рядом, сетка — видна хоть так. */
 export const PAPER_DELTA = 0.06;
 export const PAPER_LINES = 0.05;
+/**
+ * Образцы бумаги рядом — клетки цветом не дальше этого от бумаги из карточки (`canvas_seed`). До
+ * 15.10.2026 у всех схем 0,2; у берлинских листов с прозрачной краской 0,1: трава и шерсть видны
+ * сквозь сетку, и с 0,2 «бумага рядом» сползала к их цвету.
+ */
+export const PAPER_SEED = 0.2;
 /** Бумага рядом — клетки с видной сеткой в окне ±столько клеток. */
 const PAPER_WINDOW = 8;
 
@@ -522,14 +528,14 @@ function windowMean(g: ChartCells, seed: (i: number) => boolean, r: number, fall
 /**
  * Клетки бумаги — фон, который не вышивается: цвет не дальше `delta` от бумаги рядом и сетка
  * видна хотя бы на `lines` — белая шерсть бывает цвета бумаги, но краска закрывает линии.
- * Бумага рядом — средний цвет клеток с видной сеткой и цветом не дальше 0,2 от бумаги из
+ * Бумага рядом — средний цвет клеток с видной сеткой и цветом не дальше `seed` от бумаги из
  * карточки в окне ±PAPER_WINDOW клеток: цвет бумаги меняется по листу (пожелтела полосами,
- * тень скана у корешка).
+ * тень скана у корешка). `holes` — островки бумаги посреди рисунка до стольких клеток — краска (fillHoles).
  */
-export function paperCells(g: ChartCells, canvas: number, delta: number, lines: number): Uint8Array {
+export function paperCells(g: ChartCells, canvas: number, delta: number, lines: number, seed = PAPER_SEED, holes = 0): Uint8Array {
   const ref = rgbToLab(canvas);
   const labs: Lab[] = Array.from({ length: g.w * g.h }, (_, i) => linearToLab(g.rgb[i * 3], g.rgb[i * 3 + 1], g.rgb[i * 3 + 2]));
-  const near = windowMean(g, (i) => g.lines[i] >= lines && deltaOK(labs[i], ref) < 0.2, PAPER_WINDOW, labToLinear(ref));
+  const near = windowMean(g, (i) => g.lines[i] >= lines && deltaOK(labs[i], ref) < seed, PAPER_WINDOW, labToLinear(ref));
   const out = new Uint8Array(g.w * g.h);
   const off = new Float64Array(g.w * g.h);
   for (let i = 0; i < out.length; i++) {
@@ -537,7 +543,41 @@ export function paperCells(g: ChartCells, canvas: number, delta: number, lines: 
     if (g.lines[i] >= lines && off[i] < delta) out[i] = 1;
   }
   despeckle(out, g.w, g.h, (i) => off[i] < STAIN);
+  if (holes > 0) fillHoles(out, g.w, g.h, holes);
   return out;
+}
+
+/**
+ * Бумага посреди рисунка — краска: островок бумаги (соседи по сторонам) не больше `max` клеток,
+ * который не касается края схемы. Берлинский лист закрашен сплошь, и такой островок — белила или
+ * тонкая краска цвета бумаги; в работе он остался бы невышитой клеткой посреди шерсти или листвы —
+ * «белыми точками» (разбор владельца 15.10.2026). Цвет клетки остаётся её собственный: какой нитью
+ * её вышить, решают палитра и чистка «конфетти». Большая поляна бумаги внутри рисунка — между лап,
+ * в кольце хвоста — остаётся фоном.
+ */
+function fillHoles(paper: Uint8Array, w: number, h: number, max: number): void {
+  const seen = new Uint8Array(w * h);
+  const stack: number[] = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!paper[i] || seen[i]) continue;
+    const comp: number[] = [];
+    let edge = false;
+    seen[i] = 1;
+    stack.push(i);
+    while (stack.length) {
+      const j = stack.pop()!;
+      comp.push(j);
+      const x = j % w, y = (j - x) / w;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) {
+        if (k >= 0 && paper[k] && !seen[k]) {
+          seen[k] = 1;
+          stack.push(k);
+        }
+      }
+    }
+    if (!edge && comp.length <= max) for (const j of comp) paper[j] = 0;
+  }
 }
 
 /**
@@ -647,6 +687,8 @@ async function main() {
   console.log(`  cells: [${grid.w}, ${grid.h}]`);
   console.log(`  size: ${Math.max(grid.w, grid.h)}`);
   console.log(`  canvas: "${hex}"   # бумага схемы — фон, не вышивается`);
+  console.log('  canvas_seed: 0.1     # образцы бумаги — близкие к ней: прозрачная краска не сходит за бумагу');
+  console.log('  canvas_holes: 6      # бумага посреди рисунка до 6 клеток — краска, не «белые точки»');
 }
 
 if (import.meta.main) await main();

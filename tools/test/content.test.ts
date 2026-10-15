@@ -29,6 +29,8 @@ describe('карточки', () => {
     'bad-grid.yaml': /pattern\.grid «median»/,
     'bad-chroma.yaml': /pattern\.chroma 2/,
     'bad-was.yaml': /was\.2: прежняя версия/,
+    'bad-canvas-holes.yaml': /pattern\.canvas_seed 0\.1: .*только у схемы.*pattern\.canvas_holes 6: /,
+    'bad-eyes.yaml': /pattern\.eyes \[\[0\.5,0\.5,0\.4,0\.6\]\]: до восьми рамок/,
   };
   for (const f of readdirSync(dir)) {
     test(`испорченная карточка ${f} не проходит`, () => {
