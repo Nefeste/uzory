@@ -1,6 +1,7 @@
 # Снимок владельца (docs/09-content.md, §2, «Свои снимки»): пачка 04.10.2026 из черновика релиза
 # «Снимки владельца на отбор»; исходник уменьшен до 2000 точек, без EXIF; «да» владельца — 04.10.2026.
 id: ryabina-pod-snegom
+v: 2   # узор по преобладающему цвету клетки (15.10.2026); v1 — в was
 title: Рябина под снегом
 collection: nature
 order: 27
@@ -14,4 +15,8 @@ season: winter
 pattern:
   size: 70
   threads: 20
+  grid: dominant
+  chroma: 1.15
+was:
+  1: { grid: mean, chroma: 1 }   # узор, вышедший в APK, — для начатых на нём работ
 approved: 2026-10-04

@@ -343,7 +343,8 @@ async function main() {
 
   const r = await buildAll({ release: true });
   if (r.failed.length) throw new Error(`картинки не собрались: ${r.failed.map((f) => f.path).join(', ')}`);
-  const built = r.built.map((b) => ({ picture: b.picture, pattern: b.pattern }));
+  // и прежние версии узоров (`was`): они уже выпущены, золотой тест сверяет и их
+  const built = [...r.built, ...r.previous].map((b) => ({ picture: b.picture, pattern: b.pattern }));
   const golden = goldenErrors(released, built);
   for (const g of golden) console.log(`ошибка: ${g}`);
   if (golden.length) process.exit(1);

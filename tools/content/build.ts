@@ -17,7 +17,7 @@ import { addDays, daysBetween } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../../src/engine/pattern';
-import { type Card, CONTENT, listCards, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
+import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid, toGrid } from './image';
@@ -25,6 +25,7 @@ import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
+import { saturate, toGridDominant } from '../../src/engine/build/dominant';
 
 /** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
 export const PACK_MAX_BYTES = 8 * 1024 * 1024;
@@ -50,8 +51,9 @@ export interface Built {
   trial: string | null;
 }
 
-export async function buildCard(card: Card): Promise<{ pattern: Pattern; log?: BuildLog }> {
-  const key = `${card.id}@${card.v}`;
+/** Узор карточки — версии `v`: нынешней или прежней из `was` (её поля pattern — свои). */
+export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Pattern; log?: BuildLog }> {
+  const key = `${card.id}@${v}`;
   if (card.drawn) {
     const keys = Object.keys(card.drawn.legend);
     const d = card.drawn.grid ? fromGrid(card.drawn.grid, keys) : generate(card.drawn.generator!, card.drawn.params);
@@ -69,7 +71,7 @@ export async function buildCard(card: Card): Promise<{ pattern: Pattern; log?: B
   const file = join(card.dir, card.source.file!);
   if (!existsSync(file)) throw new Error(`исходника ${card.source.file} нет рядом с карточкой`);
   const raster = await decode(file);
-  const p = card.pattern!;
+  const p = patternSpec(card, v);
   const canvas = p.canvas ? parseHex(p.canvas)! : undefined;
   let grid: Grid;
   if (p.chart) {
@@ -83,16 +85,22 @@ export async function buildCard(card: Card): Promise<{ pattern: Pattern; log?: B
       cells = whiten(cells);
       grid = { ...cells, paper: whitePaperCells(cells, delta) };
     } else grid = { ...cells, paper: paperCells(cells, canvas, delta, p.canvas_lines ?? PAPER_LINES) };
-  } else grid = simplifyGrid(toGrid(raster, p.crop ?? [0, 0, 1, 1], p.size), p.simplify ?? 0);
+  } else {
+    // снимок: цвет клетки — средний по её площади или преобладающий; насыщенность — до палитры
+    const crop = p.crop ?? [0, 0, 1, 1];
+    grid = simplifyGrid(p.grid === 'dominant' ? toGridDominant(raster, crop, p.size) : toGrid(raster, crop, p.size), p.simplify ?? 0);
+    if (p.chroma !== undefined && p.chroma !== 1) grid = saturate(grid, p.chroma);
+  }
   return buildPattern(grid, {
-    id: card.id, v: card.v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
+    id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     clean: SIMPLIFY_CLEAN[p.simplify ?? 0],
   });
 }
 
-export function toPicture(card: Card, size: Picture['size'], created: string, trial: string | null): Picture {
+/** Картинка набора; прежняя версия узора (`v` меньше, чем у карточки) — скрытая: только для начатых работ. */
+export function toPicture(card: Card, size: Picture['size'], created: string, trial: string | null, v = card.v): Picture {
   const p: Picture = {
-    id: card.id, v: card.v, title: card.title, collection: card.collection, order: card.order, size,
+    id: card.id, v, title: card.title, collection: card.collection, order: card.order, size,
     source: { url: card.source.url, basis: card.source.basis }, added: card.added ?? created,
   };
   if (card.free || card.collection === 'kids') p.free = true;
@@ -100,7 +108,7 @@ export function toPicture(card: Card, size: Picture['size'], created: string, tr
   if (card.made) p.made = String(card.made);
   if (card.place) p.place = card.place;
   if (card.about) p.about = card.about.trim();
-  if (card.hidden) p.hidden = true;
+  if (card.hidden || v !== card.v) p.hidden = true;
   if (trial) p.trial = true;
   return p;
 }
@@ -224,6 +232,8 @@ interface PackMeta { id: string; created: string; calendar_from?: string }
 export async function buildAll(opts: { only?: string; release?: boolean } = {}) {
   const meta = parse(readFileSync(join(CONTENT, 'pack.yaml'), 'utf8')) as PackMeta;
   const built: Built[] = [];
+  /** прежние версии узоров из `was`: в набор — скрытыми, после всех картинок */
+  const previous: Built[] = [];
   const failed: { path: string; errors: string[] }[] = [];
   const skipped: { path: string; why: string }[] = [];
   const ids = new Set<string>();
@@ -253,6 +263,16 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
         continue;
       }
       built.push({ card, pattern, picture: toPicture(card, checked.size, meta.created, trial), checked, log, ms, trial });
+      for (const old of Object.keys(card.was ?? {}).map(Number).sort((a, b) => a - b)) {
+        const t1 = performance.now();
+        const was = await buildCard(card, old);
+        const wasChecked = checkPattern(was.pattern, card);
+        if (wasChecked.errors.length) {
+          failed.push({ path: card.path, errors: wasChecked.errors.map((e) => `v${old}: ${e}`) });
+          continue;
+        }
+        previous.push({ card, pattern: was.pattern, picture: toPicture(card, wasChecked.size, meta.created, trial, old), checked: wasChecked, log: was.log, ms: performance.now() - t1, trial });
+      }
     } catch (e) {
       failed.push({ path: card.path, errors: [(e as Error).message] });
     }
@@ -262,13 +282,14 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
   const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
   const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
   const calendar = autoCalendar(built.map((b) => b.picture), meta.calendar_from ?? meta.created, { season, day });
-  const bytes = writePack({ id: meta.id, created: meta.created, pictures: built.map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
-  return { meta, built, failed, skipped, bytes, calendar, ms: built.reduce((sum, b) => sum + b.ms, 0) };
+  // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
+  const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
+  return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0) };
 }
 
 function report(r: Awaited<ReturnType<typeof buildAll>>): string {
   const lines: string[] = [`# Сборка картинок: ${r.meta.id}`, ''];
-  lines.push(`Картинок в наборе: ${r.built.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с.`, '');
+  lines.push(`Картинок в наборе: ${r.built.length}; прежних версий узоров (для начатых работ): ${r.previous.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с.`, '');
   // к выпуску 1.0 — на 120 дней вперёд от дня выхода (docs/specs/2026-09-v1.md, ворота, п. 4)
   if (r.calendar.length) lines.push(`Календарь картинок дня: ${r.calendar.length} дн., ${r.calendar[0].date} — ${r.calendar[r.calendar.length - 1].date}.`, '');
   if (r.failed.length) {

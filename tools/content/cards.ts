@@ -55,9 +55,22 @@ export interface Card {
      * трогает, а проверка одиночных и мелких пятен — предупреждение (docs/09-content.md, §6)
      */
     exact?: boolean;
-    /** упрощение перед палитрой: 1 — немного, 2 — сильно (src/engine/build/simplify.ts) */
-    simplify?: 1 | 2;
+    /** упрощение перед палитрой: 1 — немного, 2 — сильно, 0 — нет, как без поля (src/engine/build/simplify.ts) */
+    simplify?: 0 | 1 | 2;
+    /**
+     * цвет клетки снимка: `mean` — среднее по её площади (по умолчанию), `dominant` — того, чего в клетке
+     * больше (src/engine/build/dominant.ts; у своих снимков — с 15.10.2026)
+     */
+    grid?: 'mean' | 'dominant';
+    /** насыщенность до палитры: хрома в OKLab ×chroma, 1 — как есть (dominant.ts, saturate) */
+    chroma?: number;
   };
+  /**
+   * Прежние версии узора, уже вышедшие в APK: номер → поля pattern, которыми их узор отличался.
+   * Сборка кладёт их в набор скрытыми, чтобы начатые на них работы открывались (ADR 0010);
+   * библиотека показывает версию v.
+   */
+  was?: Record<string, Partial<PatternSpec>>;
   drawn?: {
     legend: Record<string, [string, string]>;
     grid?: string;
@@ -77,6 +90,13 @@ export interface Card {
   dir: string;
 }
 
+export type PatternSpec = NonNullable<Card['pattern']>;
+
+/** Поля pattern прежней версии узора: остальные — как у нынешней. */
+export function patternSpec(card: Card, v: number): PatternSpec {
+  return v === card.v ? card.pattern! : { ...card.pattern!, ...card.was![String(v)] };
+}
+
 const years = (s: string | undefined) => (s?.match(/\d{4}/g) ?? []).map(Number);
 
 export function listCards(only?: string): string[] {
@@ -87,6 +107,38 @@ export function listCards(only?: string): string[] {
     for (const f of readdirSync(dir).sort()) if (f.endsWith('.yaml')) out.push(join(dir, f));
   }
   return out.sort();
+}
+
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'white_paper', 'exact', 'simplify', 'grid', 'chroma']);
+
+/** Ошибки полей pattern (нынешней версии или прежней — `was`). */
+function patternErrors(p: PatternSpec): string[] {
+  const errors: string[] = [];
+  // пределы — самого большого размера, «Огромной» (docs/08-game-design.md, «Размеры узоров»)
+  const top = SIZES.XL;
+  if (!Number.isInteger(p.size) || p.size < 8 || p.size > top.side) errors.push(`pattern.size ${p.size} вне 8…${top.side}`);
+  if (!Number.isInteger(p.threads) || p.threads < 2 || p.threads > top.threads[1]) errors.push(`pattern.threads ${p.threads} вне 2…${top.threads[1]}`);
+  if (p.crop && (p.crop.length !== 4 || p.crop[0] >= p.crop[2] || p.crop[1] >= p.crop[3] || p.crop.some((x) => x < 0 || x > 1))) errors.push(`pattern.crop ${JSON.stringify(p.crop)}`);
+  if (p.canvas !== undefined && parseHex(p.canvas) === null) errors.push(`pattern.canvas «${p.canvas}» не #rrggbb`);
+  if (p.cells !== undefined && (!Array.isArray(p.cells) || p.cells.length !== 2 || p.cells.some((c) => !Number.isInteger(c) || c < 4) || Math.max(...p.cells) !== p.size)) {
+    errors.push(`pattern.cells ${JSON.stringify(p.cells)}: два целых не меньше 4, большее — равно size`);
+  }
+  if (p.inset !== undefined && (typeof p.inset !== 'number' || p.inset < 0 || p.inset > 0.45)) errors.push(`pattern.inset ${String(p.inset)} вне 0…0,45`);
+  if ((p.cells !== undefined || p.inset !== undefined) && !p.chart) errors.push('pattern.cells и inset — только у схемы (chart)');
+  if (p.chart !== undefined) {
+    if (p.chart.length !== 4 || p.chart[0] >= p.chart[2] || p.chart[1] >= p.chart[3] || p.chart.some((x) => x < 0 || x > 1)) errors.push(`pattern.chart ${JSON.stringify(p.chart)}`);
+    if (!p.cells) errors.push('pattern.chart без cells: сколько клеток должно выйти');
+    if (p.crop) errors.push('pattern.chart и crop вместе: у схемы кадр — рамка сетки');
+  }
+  if (p.canvas_lines !== undefined && (typeof p.canvas_lines !== 'number' || p.canvas_lines <= 0 || p.canvas_lines > 0.5 || !p.chart || !p.canvas)) {
+    errors.push(`pattern.canvas_lines ${String(p.canvas_lines)}: 0…0,5 и только у схемы с canvas`);
+  }
+  if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
+  if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
+  if (p.simplify !== undefined && ((p.simplify !== 0 && p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 0, 1 или 2, и не у схемы — её клетки и так замысел`);
+  if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
+  if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
+  return errors;
 }
 
 /** Читает карточку; ошибки схемы и прав — списком (пустой — карточка цела). */
@@ -111,30 +163,16 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
   if (!card.source || typeof card.source.url !== 'string') errors.push('нет адреса источника (source.url; для своей работы — пустая строка)');
   if (!!card.pattern === !!card.drawn) errors.push('нужно ровно одно: pattern (из исходника) или drawn (нарисован)');
   if (card.pattern) {
-    const p = card.pattern;
     if (!card.source?.file) errors.push('pattern без source.file');
-    // пределы — самого большого размера, «Огромной» (docs/08-game-design.md, «Размеры узоров»)
-    const top = SIZES.XL;
-    if (!Number.isInteger(p.size) || p.size < 8 || p.size > top.side) errors.push(`pattern.size ${p.size} вне 8…${top.side}`);
-    if (!Number.isInteger(p.threads) || p.threads < 2 || p.threads > top.threads[1]) errors.push(`pattern.threads ${p.threads} вне 2…${top.threads[1]}`);
-    if (p.crop && (p.crop.length !== 4 || p.crop[0] >= p.crop[2] || p.crop[1] >= p.crop[3] || p.crop.some((x) => x < 0 || x > 1))) errors.push(`pattern.crop ${JSON.stringify(p.crop)}`);
-    if (p.canvas !== undefined && parseHex(p.canvas) === null) errors.push(`pattern.canvas «${p.canvas}» не #rrggbb`);
-    if (p.cells !== undefined && (!Array.isArray(p.cells) || p.cells.length !== 2 || p.cells.some((c) => !Number.isInteger(c) || c < 4) || Math.max(...p.cells) !== p.size)) {
-      errors.push(`pattern.cells ${JSON.stringify(p.cells)}: два целых не меньше 4, большее — равно size`);
+    errors.push(...patternErrors(card.pattern));
+  }
+  if (card.was !== undefined) {
+    if (!card.pattern || typeof card.was !== 'object' || card.was === null) errors.push('was — словарь «версия: поля pattern», и только у pattern');
+    else for (const [k, diff] of Object.entries(card.was)) {
+      if (!/^[1-9]\d*$/.test(k) || Number(k) >= card.v) errors.push(`was.${k}: прежняя версия — целое от 1 до ${card.v - 1}`);
+      else if (typeof diff !== 'object' || diff === null || Object.keys(diff).some((f) => !PATTERN_FIELDS.has(f))) errors.push(`was.${k}: только поля pattern`);
+      else errors.push(...patternErrors({ ...card.pattern, ...diff }).map((e) => `was.${k}: ${e}`));
     }
-    if (p.inset !== undefined && (typeof p.inset !== 'number' || p.inset < 0 || p.inset > 0.45)) errors.push(`pattern.inset ${String(p.inset)} вне 0…0,45`);
-    if ((p.cells !== undefined || p.inset !== undefined) && !p.chart) errors.push('pattern.cells и inset — только у схемы (chart)');
-    if (p.chart !== undefined) {
-      if (p.chart.length !== 4 || p.chart[0] >= p.chart[2] || p.chart[1] >= p.chart[3] || p.chart.some((x) => x < 0 || x > 1)) errors.push(`pattern.chart ${JSON.stringify(p.chart)}`);
-      if (!p.cells) errors.push('pattern.chart без cells: сколько клеток должно выйти');
-      if (p.crop) errors.push('pattern.chart и crop вместе: у схемы кадр — рамка сетки');
-    }
-    if (p.canvas_lines !== undefined && (typeof p.canvas_lines !== 'number' || p.canvas_lines <= 0 || p.canvas_lines > 0.5 || !p.chart || !p.canvas)) {
-      errors.push(`pattern.canvas_lines ${String(p.canvas_lines)}: 0…0,5 и только у схемы с canvas`);
-    }
-    if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
-    if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
-    if (p.simplify !== undefined && ((p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 1 или 2, и не у схемы — её клетки и так замысел`);
   }
   if (card.drawn) {
     const d = card.drawn;
