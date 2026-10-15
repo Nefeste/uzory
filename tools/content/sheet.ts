@@ -14,8 +14,10 @@ import { estimateMinutes, type Pattern } from '../../src/engine/pattern';
 import { renderFrame } from '../canvas/ck';
 import { ROOT, readCard, listCards } from './cards';
 import { type Built, buildAll } from './build';
-import { decode, toGrid } from './image';
+import { decode } from './image';
 import { buildPattern } from '../../src/engine/build/palette';
+import { photoGrid } from '../../src/engine/build/photo';
+import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 import { checkPattern } from './checks';
 
 const OUT = join(ROOT, 'dist', 'sheet');
@@ -126,9 +128,10 @@ async function variants(id: string, mode: 'threads' | 'deltas') {
   const second = mode === 'threads' ? [16, 24, 32] : [0.05, 0.04, 0.03];
   for (const size of [70, 100, 120]) {
     for (const v of second) {
-      const g = toGrid(raster, card.pattern.crop ?? [0, 0, 1, 1], size);
+      // сетка — как у карточки (кадр, цвет клетки, насыщенность, упрощение), меняются размер и нити
+      const g = photoGrid(raster, { ...card.pattern, size });
       const opts = mode === 'threads' ? { threads: v } : { threads: 32, minDelta: v };
-      const { pattern, log } = buildPattern(g, { id: card.id, v: card.v, ...opts });
+      const { pattern, log } = buildPattern(g, { id: card.id, v: card.v, ...opts, clean: SIMPLIFY_CLEAN[card.pattern.simplify ?? 0] });
       const c = checkPattern(pattern, card);
       const img = await far(pattern, 330);
       const what = mode === 'threads' ? `заказано ${v}` : `порог ${v.toFixed(2)}`;

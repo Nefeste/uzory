@@ -141,7 +141,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
     try {
       // картинка большой работы рисуется заметное время: сначала — «Готовлю…» на кнопке
       await new Promise((r) => setTimeout(r, 30));
-      const png = shareImage(pattern, session.state.stitched, settings.style === 'mosaic', { title: titleFont, text: textFont, digits: font },
+      const png = shareImage(pattern, session.state.stitched, { mosaic: settings.style === 'mosaic', stitches: settings.shareStitches },
+        { title: titleFont, text: textFont, digits: font },
         { title, caption, mark: pic?.author ? T.done.markBased(T.picture.basedOn[pic.collection]) : T.done.mark });
       const name = `uzory-${pattern.key.replace(/@.*$/, '')}.png`;
       if (!png || !(await shareFile(png, name, 'image/png', T.done.share))) setNote(T.done.shareFailed);

@@ -3,7 +3,7 @@
 // паспарту и работа вложены друг в друга, подпись — под рамкой.
 import { describe, expect, test } from 'bun:test';
 import { MAX_SIDE } from '../../src/engine/pattern';
-import { SHARE_CELL_MAX, SHARE_PICTURE_MAX, SHARE_STITCHES_FROM, shareLayout, type ShareRect } from '../../src/engine/share';
+import { SHARE_CELL_MAX, SHARE_PICTURE_MAX, SHARE_STITCHES_FROM, shareLayout, type ShareRect, shareStitches } from '../../src/engine/share';
 
 const inside = (a: ShareRect, b: ShareRect) => a.x > b.x && a.y > b.y && a.x + a.w < b.x + b.w && a.y + a.h < b.y + b.h;
 
@@ -34,6 +34,15 @@ describe('картинка «Поделиться»', () => {
     expect(SHARE_STITCHES_FROM).toBe(14);
     expect(shareLayout(114, 60).cell).toBeGreaterThanOrEqual(SHARE_STITCHES_FROM);
     expect(shareLayout(115, 60).cell).toBeLessThan(SHARE_STITCHES_FROM);
+  });
+
+  test('стежки — только по настройке «Стежки на картинке „Поделиться“»', () => {
+    // владелец 15.10.2026: стежки на «Поделиться» — на усмотрение игрока; что сразу она выключена,
+    // проверяет сценарий (tools/e2e/smoke.ts)
+    expect(shareStitches(SHARE_CELL_MAX, false)).toBe(false);
+    expect(shareStitches(SHARE_CELL_MAX, true)).toBe(true);
+    expect(shareStitches(SHARE_STITCHES_FROM, true)).toBe(true);
+    expect(shareStitches(SHARE_STITCHES_FROM - 1, true)).toBe(false);
   });
 
   test('клетка — наибольшая, при которой работа помещается в 1600 точек', () => {

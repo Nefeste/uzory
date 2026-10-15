@@ -13,6 +13,16 @@ export const SHARE_CELL_MAX = 64;
  * порог свой, выбран по образцам (решение владельца 09.10.2026).
  */
 export const SHARE_STITCHES_FROM = 14;
+
+/**
+ * Стежки на картинке: игрок включил «Стежки на картинке „Поделиться“» (по умолчанию выключено —
+ * владелец считает их лишними, 15.10.2026) и клетка не мельче `SHARE_STITCHES_FROM`; иначе клетки
+ * ровным цветом в любом стиле.
+ */
+export function shareStitches(cell: number, wanted: boolean): boolean {
+  return wanted && cell >= SHARE_STITCHES_FROM;
+}
+
 /** Поле вокруг рамки, рамка, паспарту и место под подпись, в точках. */
 const OUT = 72;
 const FRAME = 18;

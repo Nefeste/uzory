@@ -20,12 +20,12 @@ import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../..
 import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
-import { decode, type Grid, toGrid } from './image';
+import { decode, type Grid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
-import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
-import { saturate, toGridDominant } from '../../src/engine/build/dominant';
+import { photoGrid } from '../../src/engine/build/photo';
+import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 
 /** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
 export const PACK_MAX_BYTES = 8 * 1024 * 1024;
@@ -86,10 +86,9 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
       grid = { ...cells, paper: whitePaperCells(cells, delta) };
     } else grid = { ...cells, paper: paperCells(cells, canvas, delta, p.canvas_lines ?? PAPER_LINES) };
   } else {
-    // снимок: цвет клетки — средний по её площади или преобладающий; насыщенность — до палитры
-    const crop = p.crop ?? [0, 0, 1, 1];
-    grid = simplifyGrid(p.grid === 'dominant' ? toGridDominant(raster, crop, p.size) : toGrid(raster, crop, p.size), p.simplify ?? 0);
-    if (p.chroma !== undefined && p.chroma !== 1) grid = saturate(grid, p.chroma);
+    // снимок: цвет клетки — средний по её площади или преобладающий; насыщенность — до палитры;
+    // та же сетка, что у «Своего узора» в приложении
+    grid = photoGrid(raster, p);
   }
   return buildPattern(grid, {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,

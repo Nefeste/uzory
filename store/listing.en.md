@@ -28,6 +28,7 @@ CALM
 • No timers, no energy, no streaks.
 • No wrong stitches: a stitch only lands where it belongs.
 • Your work saves itself.
+• Quiet classical music and a soft stitch sound; both can be turned off.
 
 EASY ON THE EYES
 • Large numbers, two-finger zoom, brush, fill, thread picker.
