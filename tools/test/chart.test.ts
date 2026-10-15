@@ -3,7 +3,7 @@
 // десятая линия толще, справа лист подклеен и сетка сдвинута, вокруг поле без сетки и рамка.
 import { describe, expect, test } from 'bun:test';
 import { deltaOK, linear, linearToLab, rgbToLab } from '../../src/engine/color';
-import { detectChart, paperCells, sampleChart, whitePaperCells, whiten } from '../content/chart';
+import { type ChartCells, detectChart, paperCells, sampleChart, whitePaperCells, whiten } from '../content/chart';
 import type { Raster } from '../content/image';
 import { CHART_H as H, CHART_PAPER as PAPER, CHART_W as W, chartPaint as paint, chartRaster as drawChart, hy, vx } from './helpers';
 
@@ -65,6 +65,64 @@ describe('старинная схема', () => {
       }
     }
     expect(bad.length).toBeLessThanOrEqual(6);
+  });
+});
+
+/**
+ * Берлинский лист с прозрачной краской (разбор владельца 15.10.2026, «белые точки» у «Шпица на
+ * подушке» и «Охотничьей собаки»): клетки уже разобраны — цвет середины и видна ли сетка. Вокруг —
+ * голубая бумага; посреди — трава прозрачной зелёной краской, сквозь неё сетка видна. В траве —
+ * клетка и квадрат 2 × 2 белил цвета бумаги, поляна бумаги 5 × 4 и выемка бумаги с краю травы.
+ */
+describe('старинная схема: бумага посреди рисунка', () => {
+  const W = 30, H = 20;
+  const GRASS = 0x86a37a;
+  const inGrass = (i: number, j: number) => i >= 6 && i <= 23 && j >= 4 && j <= 15;
+  function kind(i: number, j: number): 'grass' | 'speck' | 'glade' | 'notch' | 'paper' {
+    if (!inGrass(i, j)) return 'paper';
+    if (i === 10 && j === 8) return 'speck';
+    if (i >= 15 && i <= 16 && j >= 10 && j <= 11) return 'speck';
+    if (i >= 18 && i <= 22 && j >= 6 && j <= 9) return 'glade';
+    if (i === 12 && j === 4) return 'notch';
+    return 'grass';
+  }
+  const rgb = new Float64Array(W * H * 3);
+  const lines = new Float64Array(W * H);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const hex = kind(i, j) === 'grass' ? GRASS : PAPER;
+      for (let k = 0; k < 3; k++) rgb[(j * W + i) * 3 + k] = linear((hex >> (16 - 8 * k)) & 255);
+      lines[j * W + i] = kind(i, j) === 'grass' ? 0.12 : 0.2;
+    }
+  }
+  const cells: ChartCells = { w: W, h: H, rgb, lines };
+  const count = (paper: Uint8Array, what: ReturnType<typeof kind>) => {
+    let n = 0;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (kind(i, j) === what && paper[j * W + i]) n++;
+    return n;
+  };
+
+  test('трава дальше 0,1 от бумаги, но ближе 0,2 — как прозрачная краска на листе', () => {
+    const d = deltaOK(rgbToLab(GRASS), rgbToLab(PAPER));
+    expect(d).toBeGreaterThan(0.1);
+    expect(d).toBeLessThan(0.2);
+  });
+
+  test('образцы бумаги до 0,2 (как до 15.10.2026): «бумага рядом» сползает к цвету травы, и трава сходит за бумагу', () => {
+    expect(count(paperCells(cells, PAPER, 0.06, 0.05), 'grass')).toBeGreaterThan(20);
+  });
+
+  test('образцы бумаги до 0,1 (canvas_seed): трава — краска; белила, поляна и выемка — бумага', () => {
+    const paper = paperCells(cells, PAPER, 0.06, 0.05, 0.1);
+    expect(count(paper, 'grass')).toBe(0);
+    expect([count(paper, 'speck'), count(paper, 'glade'), count(paper, 'notch'), count(paper, 'paper')]).toEqual([5, 20, 1, W * H - 18 * 12]);
+  });
+
+  test('бумага посреди рисунка до canvas_holes клеток — краска; поляна больше и выемка у края — фон', () => {
+    const paper = paperCells(cells, PAPER, 0.06, 0.05, 0.1, 6);
+    expect([count(paper, 'grass'), count(paper, 'speck'), count(paper, 'glade'), count(paper, 'notch'), count(paper, 'paper')]).toEqual([0, 0, 20, 1, W * H - 18 * 12]);
+    // поляна в 20 клеток — краска, только если canvas_holes не меньше
+    expect(count(paperCells(cells, PAPER, 0.06, 0.05, 0.1, 20), 'glade')).toBe(0);
   });
 });
 

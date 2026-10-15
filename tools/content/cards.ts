@@ -48,6 +48,11 @@ export interface Card {
      * хотя бы на canvas_lines (ChartCells.lines).
      */
     chart?: [number, number, number, number]; cells?: [number, number]; inset?: number; canvas_lines?: number;
+    /**
+     * бумага схемы: образцы «бумаги рядом» — не дальше canvas_seed от canvas (0,2 — как без поля);
+     * островок бумаги посреди рисунка до canvas_holes клеток — краска (chart.ts, paperCells; 15.10.2026)
+     */
+    canvas_seed?: number; canvas_holes?: number;
     /** схема на белой бумаге, скан пожелтел: цвета — относительно бумаги рядом (chart.ts, whiten) */
     white_paper?: boolean;
     /**
@@ -109,7 +114,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'white_paper', 'exact', 'simplify', 'grid', 'chroma']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -132,6 +137,14 @@ function patternErrors(p: PatternSpec): string[] {
   }
   if (p.canvas_lines !== undefined && (typeof p.canvas_lines !== 'number' || p.canvas_lines <= 0 || p.canvas_lines > 0.5 || !p.chart || !p.canvas)) {
     errors.push(`pattern.canvas_lines ${String(p.canvas_lines)}: 0…0,5 и только у схемы с canvas`);
+  }
+  // у выбеленного листа бумага — белое, без образцов рядом (whitePaperCells): этих полей у него нет
+  const paperSheet = !!p.chart && !!p.canvas && !p.white_paper;
+  if (p.canvas_seed !== undefined && (typeof p.canvas_seed !== 'number' || p.canvas_seed < 0.05 || p.canvas_seed > 0.2 || !paperSheet)) {
+    errors.push(`pattern.canvas_seed ${String(p.canvas_seed)}: 0,05…0,2 и только у схемы с canvas, не на белой бумаге`);
+  }
+  if (p.canvas_holes !== undefined && (!Number.isInteger(p.canvas_holes) || p.canvas_holes < 0 || p.canvas_holes > 50 || !paperSheet)) {
+    errors.push(`pattern.canvas_holes ${String(p.canvas_holes)}: целое 0…50 и только у схемы с canvas, не на белой бумаге`);
   }
   if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
   if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
