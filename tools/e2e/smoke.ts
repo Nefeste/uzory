@@ -9,6 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { chromium, type Download, type Page } from 'playwright';
+import sharp from 'sharp';
 import { type Camera, clampX, clampY, fitScale, inMap, mapJump, mapRect, NUMBERS_DP, OPEN_DP, openCamera, wheelFactor, zoomAround } from '../../src/canvas/camera';
 import { BASE_PACK } from '../../src/content/generated/pack';
 import { base64Decode } from '../../src/engine/base64';
@@ -18,6 +19,7 @@ import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
+import { hash32 } from '../../src/engine/seed';
 import { newKeyPair } from '../../src/engine/sign';
 import { APP_VERSION } from '../../src/version';
 import { utf8Encode } from '../../src/engine/utf8';
@@ -344,6 +346,14 @@ try {
   check(stored.includes('"bigNumbers":true'), 'настройки: «Крупные номера» включились и запомнились');
   await page.getByTestId('set-big').click();
   await page.waitForTimeout(200);
+  // «Стежки на картинке „Поделиться“» сразу выключены (владелец, 15.10.2026), включаются и запоминаются
+  await page.getByTestId('set-share-stitches').click();
+  await page.waitForTimeout(200);
+  const withStitches = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+  await page.getByTestId('set-share-stitches').click();
+  await page.waitForTimeout(200);
+  check(stored.includes('"shareStitches":false') && withStitches.includes('"shareStitches":true'),
+    'настройки: «Стежки на картинке „Поделиться“» сразу выключены, включаются и запоминаются');
   check((await page.getByTestId('set-music').count()) === 1, 'настройки: переключатель «Музыка»');
   await page.getByTestId('set-about').click();
   check((await page.getByTestId('about-version').innerText().catch(() => '')).includes('Узоры'), '«О программе»: версия и источники картинок');
@@ -843,20 +853,41 @@ try {
   await page.waitForFunction(() => /^40 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
   const verdictS = await page.getByTestId('mine-verdict').innerText();
   check(/Подходит|Не подходит/.test(verdictS), `приговор малой: ${verdictS.replace(/\n/g, ' — ')}`);
-  // весь снимок, средняя: без упрощения лес рассыпается на мелкие пятна — «не подходит»,
-  // «сильно» выравнивает пятна — подходит (по умолчанию — «немного»)
+  // весь снимок, средняя: цвет клетки — преобладающий, и лес не рассыпается даже без упрощения
+  // (по среднему цвету клетки мелких пятен было 3,3 % — «не подходит»; по умолчанию — «немного»)
   await page.getByTestId('mine-whole').click();
   await page.getByTestId('mine-size-M').click();
   await page.waitForFunction(() => /^70 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
-  const simplify = async (level: number) => {
-    await page.getByTestId(`mine-simplify-${level}`).click();
-    // «Собираю узор…» появляется сразу после правки и уходит с новым узором
+  // «Собираю узор…» появляется сразу после правки и уходит с новым узором
+  const rebuilt = async () => {
     await page.getByTestId('mine-building').waitFor({ state: 'attached', timeout: 2000 }).catch(() => {});
     await page.getByTestId('mine-building').waitFor({ state: 'detached', timeout: 30_000 });
     return page.getByTestId('mine-verdict').innerText();
   };
-  const plain = await simplify(0);
-  check(/Не подходит/.test(plain) && await page.getByTestId('mine-stitch').isDisabled(), `без упрощения: ${plain.split('\n')[0]}, «Вышивать» неактивна`);
+  const simplify = async (level: number) => {
+    await page.getByTestId(`mine-simplify-${level}`).click();
+    return rebuilt();
+  };
+  const zontiki = await simplify(0);
+  check(!/Не подходит/.test(zontiki) && !(await page.getByTestId('mine-stitch').isDisabled()),
+    `«Зонтики в парке» без упрощения: ${zontiki.split('\n')[0]} — по преобладающему цвету клетки лес не рассыпается`);
+  // пёстрая листва — пятна пяти зелёных чуть крупнее клетки (как в tools/test/mine.test.ts): без
+  // упрощения рассыпается на мелкие пятна — «не подходит»; «сильно» выравнивает пятна — подходит
+  const leavesFile = join(OUT, 'mine-leaves.png');
+  const greens = [0x2e5e3a, 0x4f8a3c, 0x7fb35a, 0x1d3b24, 0xa8c46a];
+  const leaves = Buffer.alloc(700 * 525 * 3);
+  for (let y = 0; y < 525; y++) {
+    for (let x = 0; x < 700; x++) {
+      const c = greens[hash32(`${Math.floor((x / 700) * 40)},${Math.floor((y / 525) * 30)}`) % 5];
+      leaves.set([c >> 16, (c >> 8) & 255, c & 255], (y * 700 + x) * 3);
+    }
+  }
+  await sharp(leaves, { raw: { width: 700, height: 525, channels: 3 } }).png().toFile(leavesFile);
+  const chooser2 = page.waitForEvent('filechooser');
+  await page.getByTestId('mine-other').click();
+  await (await chooser2).setFiles(leavesFile);
+  const plain = await rebuilt();
+  check(/Не подходит/.test(plain) && await page.getByTestId('mine-stitch').isDisabled(), `пёстрая листва без упрощения: ${plain.split('\n')[0]}, «Вышивать» неактивна`);
   const verdict = await simplify(2);
   check(!/Не подходит/.test(verdict) && !(await page.getByTestId('mine-stitch').isDisabled()), `упрощение «сильно»: ${verdict.split('\n')[0]}`);
   await page.screenshot({ path: join(OUT, '09-mine.png') });
@@ -868,7 +899,8 @@ try {
   const yamlFile = downloads.find((d) => d.suggestedFilename().endsWith('.yaml'));
   const jpgFile = downloads.find((d) => d.suggestedFilename().endsWith('.jpg'));
   const yamlText = yamlFile ? readFileSync((await yamlFile.path())!, 'utf8') : '';
-  check(!!jpgFile && /\npattern:\n {2}crop: \[/.test(yamlText) && /\n {2}size: 70\n/.test(yamlText) && /\n {2}simplify: 2 /.test(yamlText),
+  check(!!jpgFile && /\npattern:\n {2}crop: \[/.test(yamlText) && /\n {2}size: 70\n/.test(yamlText) && /\n {2}simplify: 2 /.test(yamlText)
+    && /\n {2}grid: dominant /.test(yamlText) && /\n {2}chroma: 1\.15 /.test(yamlText),
     `карточка для библиотеки: ${downloads.map((d) => d.suggestedFilename()).join(', ')}`);
   await page.getByTestId('mine-stitch').click();
   await page.getByTestId('canvas').waitFor({ timeout: 30_000 });
@@ -1145,21 +1177,22 @@ try {
   await ctx2.close();
 
   // «Поделиться» в выбранном стиле (docs/specs/2026-09-library.md, «Готово», критерий приёмки 3): одна
-  // и та же законченная работа — в «Крестике» и в «Мозаике», каждая в чистой вкладке. Клетка
-  // на картинке — 64 точки, шейдер рисует стежки: в «Крестике» у середины стороны клетки — канва,
-  // в середине — нить; в «Мозаике» вся клетка — нить. Под рамкой — название и «Вышито в „Узорах“»:
-  // это своя работа студии, подписи картины нет
+  // и та же законченная работа — со «Стежками на картинке» в «Крестике» и в «Мозаике» и без них
+  // (так сразу после установки), каждая в чистой вкладке. Клетка на картинке — 64 точки: в «Крестике»
+  // у середины стороны клетки — канва, в середине — нить; в «Мозаике» и без стежков вся клетка — нить.
+  // Под рамкой — название и «Вышито в „Узорах“»: это своя работа студии, подписи картины нет
   const gribok = built.find((b) => b.card.id === 'kids-gribok')!.pattern;
   const gTail = allButLast(gribok);
-  const shareIn = async (style: 'cross' | 'mosaic') => {
+  const shareIn = async (style: 'cross' | 'mosaic', stitches?: boolean) => {
+    const name = stitches ? style : `${style}-flat`;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const pg = await ctx.newPage();
     pg.on('pageerror', (e) => errors.push(e.message));
     pg.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
     await pg.goto(base);
     const lx = gTail.last % gribok.w;
-    await seedWork(pg, seed(`w-e2e-share-${style}`, gribok, gTail.strokes, { x: lx + 0.5, y: (gTail.last - lx) / gribok.w + 0.5 }),
-      { 'uzory.settings.v1': JSON.stringify({ style }) });
+    await seedWork(pg, seed(`w-e2e-share-${name}`, gribok, gTail.strokes, { x: lx + 0.5, y: (gTail.last - lx) / gribok.w + 0.5 }),
+      { 'uzory.settings.v1': JSON.stringify(stitches === undefined ? { style } : { style, shareStitches: stitches }) });
     await pg.getByTestId('continue').click();
     await pg.getByTestId('canvas').waitFor({ timeout: 30_000 });
     await pg.waitForTimeout(1500);
@@ -1170,11 +1203,12 @@ try {
     if (done) await pg.getByTestId('share').click();
     const bytes = dl ? await dl.then(async (d) => readFileSync((await d.path())!)).catch(() => null) : null;
     await ctx.close();
-    if (bytes) writeFileSync(join(OUT, `03-share-${style}.png`), bytes);
+    if (bytes) writeFileSync(join(OUT, `03-share-${name}.png`), bytes);
     return bytes ? lookAtShare(bytes, gribok) : null;
   };
-  const crossLook = await shareIn('cross');
-  const tileLook = await shareIn('mosaic');
+  const crossLook = await shareIn('cross', true);
+  const tileLook = await shareIn('mosaic', true);
+  const flatLook = await shareIn('cross');
   const studioCaption = (l: typeof crossLook) => !!l && l.lines.title > 400 && l.lines.mark > 200 && l.lines.caption < 100;
   check(!!crossLook?.size && crossLook.frame && crossLook.stitches && crossLook.cells >= 20
     && crossLook.cross >= 0.95 * crossLook.cells && crossLook.tile === 0 && studioCaption(crossLook),
@@ -1184,6 +1218,10 @@ try {
     && tileLook.tile >= 0.95 * tileLook.cells && tileLook.cross === 0 && studioCaption(tileLook),
     `«Поделиться» в «Мозаике»: плиткой ${tileLook?.tile}/${tileLook?.cells} клеток, крестиками ${tileLook?.cross}, `
     + `рамка ${tileLook?.frame ? 'на месте' : 'не та'}, подпись ${tileLook ? `${tileLook.lines.title}/${tileLook.lines.caption}/${tileLook.lines.mark}` : '—'} точек`);
+  check(!!flatLook?.size && flatLook.frame && flatLook.cells >= 20
+    && flatLook.tile >= 0.95 * flatLook.cells && flatLook.cross === 0 && studioCaption(flatLook),
+    `«Поделиться» без «Стежков на картинке» (так сразу): ровным цветом ${flatLook?.tile}/${flatLook?.cells} клеток, крестиками ${flatLook?.cross}, `
+    + `рамка ${flatLook?.frame ? 'на месте' : 'не та'}`);
 
   // без сети, с чистой установки (docs/specs/2026-09-library.md, критерий 1; ADR 0007): сервер
   // картинок недоступен — до первого стежка два касания (docs/specs/2026-09-first-picture.md,

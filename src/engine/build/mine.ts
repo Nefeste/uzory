@@ -3,9 +3,10 @@
 import { rgbToLab } from '../color';
 import type { Pattern } from '../pattern';
 import { type Checked, checkPatternWith, DARK_L, DARK_SHARE } from './checks';
-import { type Raster, toGrid } from './grid';
+import type { Raster } from './grid';
 import { type BuildLog, buildPattern } from './palette';
-import { type Simplify, SIMPLIFY_CLEAN, simplifyGrid } from './simplify';
+import { photoGrid } from './photo';
+import { type Simplify, SIMPLIFY_CLEAN } from './simplify';
 
 /** Размер по длинной стороне, клеток: малая, средняя, большая, огромная. */
 export const MINE_SIZES = { S: 40, M: 70, L: 120, XL: 200 } as const;
@@ -13,6 +14,12 @@ export const MINE_SIZES = { S: 40, M: 70, L: 120, XL: 200 } as const;
 export const MINE_SIDE: [number, number] = [20, 300];
 /** Меньше стольких точек снимка на клетку — узор размыт. */
 export const MINE_BLURRY = 2;
+/**
+ * Сетка своего узора — как у снимков библиотеки (поля `pattern` их карточек, docs/09-content.md, §4;
+ * с 15.10.2026, просьба владельца): цвет клетки — преобладающий, а не среднее, и насыщенность ×1,15 —
+ * у снимка нитей мало, и бледные цвета тратят их впустую.
+ */
+export const MINE_GRID = { grid: 'dominant', chroma: 1.15 } as const;
 
 /** Сколько нитей заказать: верх середины диапазона размера (docs/08-game-design.md). */
 export function defaultThreads(side: number): number {
@@ -51,7 +58,7 @@ export const MINE_SEED = 'mine';
 /** Узор из кадра `crop` (доли снимка): длинная сторона — `side` клеток; `simplify` — упрощение. */
 export function buildMine(r: Raster, o: { crop: Crop; side: number; threads: number; simplify?: Simplify }): MineBuild {
   const level = o.simplify ?? 0;
-  const grid = simplifyGrid(toGrid(r, o.crop, o.side), level);
+  const grid = photoGrid(r, { crop: o.crop, size: o.side, ...MINE_GRID, simplify: level });
   const { pattern, log } = buildPattern(grid, { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[level] });
   const checked = checkPatternWith(pattern);
   const pxPerCell = Math.min(((o.crop[2] - o.crop[0]) * r.width) / grid.w, ((o.crop[3] - o.crop[1]) * r.height) / grid.h);
@@ -119,6 +126,8 @@ export function libraryCard(o: { title: string; crop: Crop; side: number; thread
     `  crop: [${o.crop.map(round).join(', ')}]`,
     `  size: ${o.side}`,
     `  threads: ${o.threads}`,
+    `  grid: ${MINE_GRID.grid}          # цвет клетки — преобладающий, как в «Своём узоре»`,
+    `  chroma: ${MINE_GRID.chroma}            # насыщенность`,
     ...(o.simplify ? [`  simplify: ${o.simplify}       # упрощение: 1 — немного, 2 — сильно`] : []),
     '',
   ].join('\n');

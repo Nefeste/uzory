@@ -69,6 +69,8 @@ export function SettingsScreen({ onBack, onReport, onAbout, onPlus }: { onBack: 
             options={[{ id: 'cross', label: T.stitch.styles.cross }, { id: 'mosaic', label: T.stitch.styles.mosaic }]} />
           <Txt dim style={styles.note}>{T.settings.styleNote}</Txt>
         </View>
+        <ToggleRow label={T.settings.shareStitches} note={T.settings.shareStitchesNote} value={settings.shareStitches}
+          onChange={(v) => update({ shareStitches: v })} testID="set-share-stitches" />
         <ToggleRow label={T.settings.bigNumbers} note={T.settings.bigNumbersNote} value={settings.bigNumbers}
           onChange={(v) => update({ bigNumbers: v })} testID="set-big" />
         <View style={styles.block}>

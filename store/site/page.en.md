@@ -28,7 +28,7 @@ shots:
     caption: About the picture
     alt: "About the picture: Red Sunset — the painter's name and dates, where the painting hangs, a short story and the source"
 card:
-  text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day and no rush."
+  text: "Cross-stitch by numbers: pick a thread and stitch with a tap or a swipe. Folk ornaments, paintings and old Russia in colour, a new picture every day, calm music and no rush."
   points:
     - From a five-minute pattern to a large painting for several evenings
     - A free picture of the day — every day, forever

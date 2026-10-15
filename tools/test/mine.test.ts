@@ -4,11 +4,13 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { toGrid, type Raster } from '../../src/engine/build/grid';
+import type { Raster } from '../../src/engine/build/grid';
 import { type Checked, checkPatternWith } from '../../src/engine/build/checks';
-import { buildMine, defaultThreads, type Issue, libraryCard, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
+import { buildMine, type Crop, defaultThreads, type Issue, libraryCard, MINE_GRID, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
 import { buildPattern } from '../../src/engine/build/palette';
-import { SIMPLIFY_CLEAN, simplifyGrid } from '../../src/engine/build/simplify';
+import { photoGrid } from '../../src/engine/build/photo';
+import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
+import { rgbToLab } from '../../src/engine/color';
 import type { Pattern } from '../../src/engine/pattern';
 import { hash32 } from '../../src/engine/seed';
 import { T } from '../../src/i18n';
@@ -72,14 +74,35 @@ describe('свой узор', () => {
     expect(m.verdict.level).not.toBe('bad');
   });
 
-  test('та же сетка — тот же узор, что у сборки библиотеки', () => {
+  test('карточка из «Своего узора» — тот же узор в сборке библиотеки: все поля сетки переходят в карточку', () => {
     const r = photo(400, 300, scene);
-    const m = buildMine(r, { crop: [0.1, 0.1, 0.9, 0.8], side: 60, threads: 12 });
-    const lib = buildPattern(toGrid(r, [0.1, 0.1, 0.9, 0.8], 60), { id: MINE_SEED, v: 1, threads: 12 }).pattern;
-    // и тот же кадр — тот же узор при каждой сборке: приговор не гуляет
-    expect(Buffer.from(buildMine(r, { crop: [0.1, 0.1, 0.9, 0.8], side: 60, threads: 12 }).pattern.cells).equals(Buffer.from(m.pattern.cells))).toBe(true);
-    expect(Buffer.from(m.pattern.cells).equals(Buffer.from(lib.cells))).toBe(true);
-    expect(m.pattern.threads).toEqual(lib.threads);
+    for (const simplify of [0, 1, 2] as const) {
+      const o = { crop: [0.1, 0.1, 0.9, 0.8] as Crop, side: 60, threads: 12, simplify };
+      const m = buildMine(r, o);
+      // и тот же кадр — тот же узор при каждой сборке: приговор не гуляет
+      expect(Buffer.from(buildMine(r, o).pattern.cells).equals(Buffer.from(m.pattern.cells))).toBe(true);
+      // сетка снимка по карточке — как в tools/content/build.ts; зерно у карточки — её id, здесь — зерно своего узора
+      const { id, yaml } = libraryCard({ title: 'Дача', ...o, now: new Date(2026, 9, 15) });
+      const spec = readCard(cardFile(id, yaml)).card!.pattern!;
+      const lib = buildPattern(photoGrid(r, spec), { id: MINE_SEED, v: 1, threads: spec.threads, clean: SIMPLIFY_CLEAN[spec.simplify ?? 0] }).pattern;
+      expect(Buffer.from(m.pattern.cells).equals(Buffer.from(lib.cells))).toBe(true);
+      expect(m.pattern.threads).toEqual(lib.threads);
+    }
+  });
+
+  test('цвет клетки — преобладающий: на границе красного и зелёного нет бурой смеси', () => {
+    // полосы по полторы клетки: у каждой третьей клетки граница посередине
+    const r = photo(420, 300, (x) => (Math.floor(x * 420 / 9) % 2 ? 0x2e8b57 : 0xc0392b));
+    const hue = (rgb: number) => Math.atan2(rgbToLab(rgb)[2], rgbToLab(rgb)[1]);
+    const m = buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 8 });
+    expect(m.pattern.threads.length).toBe(2);
+    // нити — красная и зелёная того же оттенка, только ярче (насыщенность ×1,15)
+    const [red, green] = [0xc0392b, 0x2e8b57].map((c) => m.pattern.threads.find((t) => Math.abs(hue(t.rgb) - hue(c)) < 0.05));
+    expect(red && green).toBeTruthy();
+    expect(Math.hypot(rgbToLab(red!.rgb)[1], rgbToLab(red!.rgb)[2])).toBeGreaterThan(Math.hypot(rgbToLab(0xc0392b)[1], rgbToLab(0xc0392b)[2]));
+    // среднее по площади смешало бы их в третью, бурую нить
+    const mean = buildPattern(photoGrid(r, { size: 70 }), { id: MINE_SEED, v: 1, threads: 8 }).pattern;
+    expect(mean.threads.length).toBe(3);
   });
 
   test('шахматка рассыпается на одиночки — не подходит', () => {
@@ -151,7 +174,7 @@ describe('свой узор', () => {
     expect(id).toBe('siren-u-kryltsa');
     const { card, errors } = readCard(cardFile(id, yaml));
     expect(errors).toEqual([]);
-    expect(card?.pattern).toEqual({ crop: [0.1, 0.05, 0.9, 0.95], size: 120, threads: 24 });
+    expect(card?.pattern).toEqual({ crop: [0.1, 0.05, 0.9, 0.95], size: 120, threads: 24, ...MINE_GRID });
     expect(card?.source.basis).toContain('снимок автора игры');
     // упрощение переходит в карточку, «нет» — поля нет вовсе
     expect(libraryCard({ title: 'Сирень', crop: [0, 0, 1, 1], side: 70, threads: 16, simplify: 0, now: new Date(2026, 8, 29) }).yaml).not.toContain('simplify');
@@ -168,14 +191,12 @@ describe('свой узор', () => {
     expect(plain.checked.stats.small).toBeGreaterThan(2);
     // «нет» — та же сборка, что и без настройки
     expect(Buffer.from(buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16, simplify: 0 }).pattern.cells).equals(Buffer.from(plain.pattern.cells))).toBe(true);
+    expect(plain.verdict.level).toBe('bad');
     for (const simplify of [1, 2] as const) {
       const m = buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16, simplify });
       expect(m.checked.stats.singles).toBe(0);
       expect(m.checked.stats.small).toBe(0);
       expect(m.verdict.level).toBe('ok');
-      // и с упрощением — тот же узор, что соберёт tools/content по карточке с pattern.simplify
-      const lib = buildPattern(simplifyGrid(toGrid(r, [0, 0, 1, 1], 70), simplify), { id: MINE_SEED, v: 1, threads: 16, clean: SIMPLIFY_CLEAN[simplify] }).pattern;
-      expect(Buffer.from(m.pattern.cells).equals(Buffer.from(lib.cells))).toBe(true);
     }
   });
 });

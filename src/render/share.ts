@@ -1,12 +1,13 @@
 // «Поделиться» (docs/08-game-design.md, «Готово»; docs/specs/2026-09-library.md, «Готово»):
-// готовая работа в выбранном стиле тем же шейдером, что канва, в рамке на льняном фоне, под
-// рамкой — название, подпись картины и мелко «Вышито в „Узорах“». Сторона — до 2000 точек.
+// готовая работа тем же шейдером, что канва, — ровными клетками цвета или, по настройке, стежками
+// выбранного стиля, — в рамке на льняном фоне, под рамкой — название, подпись картины и мелко
+// «Вышито в „Узорах“». Сторона — до 2000 точек.
 // Где что лежит и каких цветов — src/engine/share.ts: по нему же сценарий проверяет картинку.
 import { ImageFormat, Skia, type SkFont, TileMode, FilterMode, MipmapMode } from '@shopify/react-native-skia';
 import { SKSL, uniformList } from '../canvas/shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from '../canvas/textures';
 import type { Pattern } from '../engine/pattern';
-import { SHARE_COLORS, SHARE_STITCHES_FROM, shareLayout, type ShareRect } from '../engine/share';
+import { SHARE_COLORS, shareLayout, type ShareRect, shareStitches } from '../engine/share';
 
 export interface ShareText {
   title: string;
@@ -16,8 +17,14 @@ export interface ShareText {
   mark: string;
 }
 
+/** Как рисовать работу: стиль и настройка «Стежки на картинке „Поделиться“». */
+export interface ShareLook {
+  mosaic: boolean;
+  stitches: boolean;
+}
+
 /** PNG готовой работы; Skia не смогла — null. */
-export function shareImage(p: Pattern, stitched: Uint8Array, mosaic: boolean,
+export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
   fonts: { title: SkFont; text: SkFont; digits: SkFont }, text: ShareText): Uint8Array | null {
   const L = shareLayout(p.w, p.h);
   const { cell, work: wr } = L;
@@ -41,13 +48,13 @@ export function shareImage(p: Pattern, stitched: Uint8Array, mosaic: boolean,
   c.drawRect(rect(L.frame), paint(SHARE_COLORS.frame));
   c.drawRect(rect(L.mat), paint(SHARE_COLORS.mat));
 
-  // работа — тем же шейдером, что канва: крупная клетка — стежками, мелкая — цветом
+  // работа — тем же шейдером, что канва: стежками — если включены и клетка крупная, иначе цветом
   const m = Skia.Matrix();
   m.translate(wr.x, wr.y);
   m.scale(cell, cell);
   const shader = effect.makeShaderWithChildren(uniformList({
-    w: p.w, h: p.h, gw: GLYPH_W, gh: GLYPH_H, cellPx: cell, near: cell >= SHARE_STITCHES_FROM ? 1 : 0, selected: -1,
-    mosaic: mosaic ? 1 : 0, hatch: 0, gap: 0.5 / cell, px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1,
+    w: p.w, h: p.h, gw: GLYPH_W, gh: GLYPH_H, cellPx: cell, near: shareStitches(cell, look.stitches) ? 1 : 0, selected: -1,
+    mosaic: look.mosaic ? 1 : 0, hatch: 0, gap: 0.5 / cell, px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1,
   }), [
     cells.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None),
     pal.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None),

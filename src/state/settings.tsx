@@ -17,6 +17,8 @@ export interface Settings {
   fill: boolean;
   /** «Следующая нить сама» */
   autoNext: boolean;
+  /** «Стежки на картинке „Поделиться“»: выключено — клетки ровным цветом (src/engine/share.ts) */
+  shareStitches: boolean;
   hints: boolean;
   haptics: boolean;
   sound: boolean;
@@ -26,7 +28,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true,
+  style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true, shareStitches: false,
   hints: true, haptics: true, sound: true, music: true, previewLock: false,
 };
 
