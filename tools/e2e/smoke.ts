@@ -1,7 +1,8 @@
 // из anamnez: tools/e2e/smoke.ts @ 3d76cf5 (сервер веб-сборки)
 // npm run e2e — сценарий Playwright по веб-сборке (docs/06-testing.md, §5): главная,
 // первая картинка от первого стежка до «Готово» и «Как вышивалось», мышь и клавиши, лист,
-// свой узор, замер, файл работы. Сначала `npm run export:web`. Снимки экранов — в tools/e2e/out/.
+// свой узор, «убить посреди кисти», замер, файл работы. Сначала `npm run export:web`. Снимки
+// экранов — в tools/e2e/out/.
 //
 // Сборку для сайта (docs/specs/2026-09-web.md) сценарий открывает из её папки:
 //   UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
@@ -1412,6 +1413,81 @@ try {
   check(half && zoomText.includes('Колёсико') && (await zp.getByTestId('hint-zoom').count()) === 0,
     `на середине первой картинки (${halfPct}) — подсказка «${zoomText}», колёсико её убрало`);
   await ctxZoom.close();
+
+  // убить посреди кисти (docs/specs/2026-09-canvas.md, критерий 4): долгий штрих мышью змейкой по
+  // первой картинке, и посреди него вкладка падает — Page.crash, как `adb shell am kill`: ни ухода с
+  // экрана, ни записи напоследок. Штрих уходит в работу частями раз в секунду (FLUSH_MS в
+  // src/canvas/StitchCanvas.tsx), работа пишется сразу за ним (SAVE_MS в src/state/works.ts) —
+  // запись работы ловится в IndexedDB. Новая вкладка того же браузера открывает работу: пропал только
+  // конец следа — то, что кисть провела после последней записи, не больше секунды с записью (1,25 с)
+  {
+    const LOST_MS = 1250;
+    const ctxKill = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const kp = await ctxKill.newPage();
+    kp.on('pageerror', (e) => errors.push(e.message));
+    await kp.addInitScript(() => {
+      const w = window as unknown as { workWrites: number[] };
+      w.workWrites = [];
+      const put = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+        if (typeof key === 'string' && key.endsWith('.log')) this.transaction.addEventListener('complete', () => w.workWrites.push(performance.now()));
+        return put.call(this, value, key);
+      };
+    });
+    await kp.goto(base);
+    await kp.getByTestId('first-stitch').click();
+    await kp.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+    await kp.waitForTimeout(1500);
+    const kcdp = await ctxKill.newCDPSession(kp);
+    const kb = (await kp.getByTestId('canvas').boundingBox())!;
+    const kc = openCamera(first.w, first.h, kb.width, kb.height, false);
+    const at = (i: number) => ({ x: kb.x + kc.tx + ((i % first.w) + 0.5) * kc.s, y: kb.y + kc.ty + (Math.floor(i / first.w) + 0.5) * kc.s });
+    // змейка: строка слева направо, следующая — справа налево, шаг — клетка
+    const path: number[] = [];
+    for (let y = 0; y < first.h; y++) for (let k = 0; k < first.w; k++) path.push(y * first.w + (y % 2 ? first.w - 1 - k : k));
+    const own1 = first.cells.filter((c) => c === 0).length;
+    // часы сценария и страницы: время записи на странице → время сценария
+    const ta = performance.now();
+    const pageNow = await kp.evaluate(() => performance.now());
+    const shift = (ta + performance.now()) / 2 - pageNow;
+    /** когда кисть дошла до клетки первой нити — по порядку следа */
+    const reached: number[] = [];
+    const p0 = at(path[0]);
+    await kp.mouse.move(p0.x, p0.y);
+    await kp.mouse.down();
+    const t0 = performance.now();
+    if (first.cells[path[0]] === 0) reached.push(t0);
+    for (const i of path.slice(1)) {
+      const p = at(i);
+      await kp.mouse.move(p.x, p.y);
+      if (first.cells[i] === 0) reached.push(performance.now());
+      if (performance.now() - t0 >= 2600) break;
+      await kp.waitForTimeout(8);
+    }
+    const writes = (await kp.evaluate(() => (window as unknown as { workWrites: number[] }).workWrites)).map((t) => t + shift);
+    const crash = performance.now();
+    const crashed = kp.waitForEvent('crash');
+    void kcdp.send('Page.crash').catch(() => {});
+    await crashed;
+    // записи за время штриха: первая — не позже секунды с записью от начала, дальше так же
+    const during = writes.filter((t) => t > t0);
+    const gaps = [...during, crash].map((t, k) => Math.round(t - (k ? during[k - 1] : t0)));
+    const kp2 = await ctxKill.newPage();
+    kp2.on('pageerror', (e) => errors.push(e.message));
+    await kp2.goto(base);
+    await kp2.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
+    const again = await kp2.getByTestId('first-stitch').innerText();
+    await kp2.getByTestId('first-stitch').click();
+    await kp2.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+    await kp2.getByTestId('thread-1').click();
+    await kp2.waitForTimeout(500);
+    const kept = own1 - Number((await kp2.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+    // в работе — начало следа: пропало то, что кисть провела после первой не записанной клетки
+    const lost = kept >= reached.length ? 0 : Math.round(crash - reached[kept]);
+    check(during.length >= 2 && Math.max(...gaps) <= LOST_MS && kept > 0 && kept <= reached.length && lost <= LOST_MS,
+      `убить посреди кисти: штрих ${Math.round(crash - t0)} мс, клеток первой нити — ${reached.length}, записей работы — ${during.length} (промежутки ${gaps.join(', ')} мс); после падения вкладки в работе ${kept} — пропали последние ${lost} мс следа («${again}»)`);
+    await ctxKill.close();
+  }
 
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
