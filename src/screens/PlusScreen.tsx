@@ -3,7 +3,7 @@
 // (docs/10-money.md, «Подписка и закон»), «Восстановить покупки», политика. Заранее отмеченных
 // галочек нет; «Назад» виден всегда. В сборке 0.x для проверки — образец: цены — гипотезы,
 // кнопка неактивна, и переключатель «Как в 1.0», чтобы посмотреть запертые картинки.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { dailySize } from '../engine/pattern';
 import { nextCharge, type PlusPeriod } from '../engine/plus';
@@ -40,6 +40,9 @@ const FAILS: Record<BillingFail, string | null> = {
 /** «≈ 83 ₽ в месяц» у годовой — если магазин дал цену в рублях. */
 const perMonth = (p: Product) => (p.kopecks && p.price.includes('₽') ? T.plus.perMonth(`${Math.round(p.kopecks / 1200)} ₽`) : null);
 
+/** После покупки строка «Готово: вся библиотека открыта» видна столько, потом — назад, откуда пришли. */
+const BACK_MS = 1800;
+
 export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boolean }) {
   const { theme, settings, update } = useSettings();
   const { today } = usePlayer();
@@ -49,6 +52,10 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
   const [period, setPeriod] = useState<PlusPeriod>('year');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const backLater = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (backLater.current) clearTimeout(backLater.current);
+  }, []);
 
   // цены — из магазина при каждом открытии; права — тоже спросить заново (spec, «Протокол»)
   useEffect(() => {
@@ -89,6 +96,8 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
     if (r.ok) {
       plus.set(r.state);
       setSaid({ text: T.plus.bought });
+      // успех — и назад, откуда пришли: карточка картинки — уже с «Вышивать» (спецификация, «Покупка»)
+      backLater.current = setTimeout(onBack, BACK_MS);
     } else if (FAILS[r.fail]) setSaid({ text: FAILS[r.fail]!, bad: true });
   };
 
