@@ -24,6 +24,7 @@ import { decode, type Grid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
+import { findEyes, paintEyes } from '../../src/engine/build/eyes';
 import { photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 
@@ -90,10 +91,14 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     // та же сетка, что у «Своего узора» в приложении
     grid = photoGrid(raster, p);
   }
-  return buildPattern(grid, {
+  const built = buildPattern(grid, {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     clean: SIMPLIFY_CLEAN[p.simplify ?? 0],
   });
+  // глаза — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
+  if (p.chart || !p.eyes?.length) return built;
+  const eyes = findEyes(raster, p.crop ?? [0, 0, 1, 1], built.pattern.w, built.pattern.h, p.eyes);
+  return { ...built, pattern: paintEyes(built.pattern, eyes) };
 }
 
 /** Картинка набора; прежняя версия узора (`v` меньше, чем у карточки) — скрытая: только для начатых работ. */
