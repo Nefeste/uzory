@@ -1,7 +1,9 @@
 // Подписка «Узоры+» (docs/specs/2026-09-plus.md): права по последнему ответу RuStore Pay без
-// сети, когда игра сама говорит о подписке, день следующего списания.
+// сети, когда игра сама говорит о подписке, день следующего списания; заглушка RuStore Pay
+// сценария (src/state/fakeBilling.ts).
 import { describe, expect, test } from 'bun:test';
 import { nextCharge, normalizePlus, offerOnDone, PLUS_OFFLINE_MS, plusOpen } from '../../src/engine/plus';
+import { FAKE_PRODUCTS, fakeBilling } from '../../src/state/fakeBilling';
 
 const DAY = 86400000;
 const now = Date.UTC(2026, 9, 5, 12);
@@ -56,5 +58,47 @@ describe('следующее списание', () => {
     expect(nextCharge('2028-01-30', 'month')).toBe('2028-02-29');
     expect(nextCharge('2028-02-29', 'year')).toBe('2029-02-28');
     expect(nextCharge('2026-03-31', 'month')).toBe('2026-04-30');
+  });
+});
+
+describe('заглушка RuStore Pay сценария', () => {
+  const store = (raw: string | null) => {
+    const box = { raw };
+    return { box, billing: fakeBilling(() => box.raw, (r) => { box.raw = r; }, () => now) };
+  };
+
+  test('«куплено»: цены магазина, покупка года открывает библиотеку на год и остаётся после перезагрузки', async () => {
+    const { box, billing } = store(JSON.stringify({ mode: 'ok' }));
+    expect(billing.available).toBe(true);
+    expect(await billing.products()).toEqual(FAKE_PRODUCTS);
+    expect(await billing.status()).toEqual({ status: 'none', checkedAt: now });
+    const r = await billing.purchase('uzory_plus_year');
+    expect(r).toEqual({ ok: true, state: { status: 'active', product: 'year', until: now + 365 * DAY, checkedAt: now } });
+    // магазин отдаёт покупку и новой странице — как RuStore Pay после переустановки
+    const again = fakeBilling(() => box.raw, () => {}, () => now + DAY);
+    const st = await again.status();
+    expect(st?.status).toBe('active');
+    expect(plusOpen(st, now + DAY)).toBe(true);
+  });
+
+  test('отказ, сбой, нет сети, нет RuStore — так магазин и отвечает; без сети и RuStore цен и прав нет', async () => {
+    for (const mode of ['cancelled', 'failed', 'offline', 'no-store'] as const) {
+      const { box, billing } = store(JSON.stringify({ mode }));
+      expect(await billing.purchase('uzory_plus_month')).toEqual({ ok: false, fail: mode });
+      expect(JSON.parse(box.raw!)).toEqual({ mode });
+      const silent = mode === 'offline' || mode === 'no-store';
+      expect(await billing.products()).toEqual(silent ? null : FAKE_PRODUCTS);
+      expect(await billing.status()).toEqual(silent ? null : { status: 'none', checkedAt: now });
+    }
+  });
+
+  test('режим меняется без перезагрузки; испорченная запись — «покупка проходит»', async () => {
+    const { box, billing } = store(JSON.stringify({ mode: 'failed' }));
+    expect(await billing.purchase('uzory_plus_month')).toEqual({ ok: false, fail: 'failed' });
+    box.raw = JSON.stringify({ mode: 'ok' });
+    expect((await billing.purchase('uzory_plus_month')).ok).toBe(true);
+    expect(JSON.parse(box.raw!).bought).toEqual({ product: 'month', at: now });
+    const broken = store('{не json');
+    expect(await broken.billing.products()).toEqual(FAKE_PRODUCTS);
   });
 });

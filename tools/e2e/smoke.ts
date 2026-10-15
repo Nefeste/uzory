@@ -1,8 +1,8 @@
 // из anamnez: tools/e2e/smoke.ts @ 3d76cf5 (сервер веб-сборки)
 // npm run e2e — сценарий Playwright по веб-сборке (docs/06-testing.md, §5): главная,
 // первая картинка от первого стежка до «Готово» и «Как вышивалось», мышь и клавиши, лист,
-// свой узор, «убить посреди кисти», замер, файл работы. Сначала `npm run export:web`. Снимки
-// экранов — в tools/e2e/out/.
+// свой узор, «убить посреди кисти», «Узоры+» с заглушкой магазина, замер, файл работы. Сначала
+// `npm run export:web`. Снимки экранов — в tools/e2e/out/.
 //
 // Сборку для сайта (docs/specs/2026-09-web.md) сценарий открывает из её папки:
 //   UZORY_WEB_BASE=/uzory/test npx expo export --platform web --output-dir dist-site
@@ -27,7 +27,7 @@ import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
 import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
 import { E2E_SECRET, e2ePack } from './net';
-import { allButLast, seed, seedWork } from './seed';
+import { allButLast, seed, seedWork, seedWorks } from './seed';
 import { lookAtShare } from './share';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -1487,6 +1487,117 @@ try {
     check(during.length >= 2 && Math.max(...gaps) <= LOST_MS && kept > 0 && kept <= reached.length && lost <= LOST_MS,
       `убить посреди кисти: штрих ${Math.round(crash - t0)} мс, клеток первой нити — ${reached.length}, записей работы — ${during.length} (промежутки ${gaps.join(', ')} мс); после падения вкладки в работе ${kept} — пропали последние ${lost} мс следа («${again}»)`);
     await ctxKill.close();
+  }
+
+  // «Узоры+» с магазином (docs/specs/2026-09-plus.md, «Покупка» и критерий 3): веб-сборка 0.x на
+  // 127.0.0.1 берёт заглушку RuStore Pay из хранилища (src/state/fakeBilling.ts) — её цены, покупку,
+  // отказ, сбой и «нет RuStore»; запирание — как в 1.0. Строка «Вся библиотека — в „Узоры+“» на
+  // «Готово» — после бесплатной картинки, не в первые три дня после установки и не второй раз за день;
+  // на главной подписку игра сама не предлагает. Две начатые картинки «Детям» (бесплатные) — без
+  // последней клетки; «Продолжить» открывает их по очереди
+  {
+    const FAKE = 'uzory.billing.fake.v1';
+    const OFFER = 'Вся библиотека — в «Узоры+»';
+    const kids = ['kids-gribok', 'kids-arbuz', 'kids-domik'].filter((id) => id !== dailyToday).slice(0, 2)
+      .map((id) => {
+        const p = built.find((b) => b.card.id === id)!.pattern;
+        const { strokes, last } = allButLast(p);
+        // работа открывается там, где вышивали в прошлый раз, — у последней клетки
+        return { id, p, strokes, last, at: { x: (last % p.w) + 0.5, y: Math.floor(last / p.w) + 0.5 } };
+      });
+    const plusPage = async (mode: string, installedAgo: number) => {
+      const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
+      const pg = await ctx.newPage();
+      pg.on('pageerror', (e) => errors.push(e.message));
+      pg.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+      await pg.goto(base);
+      await seedWorks(pg, kids.map((k) => seed(`w-e2e-plus-${k.id}`, k.p, k.strokes, k.at)), {
+        [FAKE]: JSON.stringify({ mode }),
+        'uzory.settings.v1': JSON.stringify({ previewLock: true }),
+        'uzory.player.v1': JSON.stringify({ installed: addDays(todayStr, -installedAgo), seen: todayStr, pinned: {}, firstDone: true, hints: [] }),
+      });
+      return { ctx, pg };
+    };
+    /** Последний стежок картинки, которую открывает «Продолжить»; на «Готово» — строка «Узоры+» или пусто. */
+    const finish = async (pg: Page, k: (typeof kids)[number]) => {
+      await pg.getByTestId('continue').click();
+      await pg.getByTestId('canvas').waitFor({ timeout: 30_000 });
+      await pg.waitForTimeout(1500);
+      const box = (await pg.getByTestId('canvas').boundingBox())!;
+      const c = openCamera(k.p.w, k.p.h, box.width, box.height, false, k.at);
+      await pg.mouse.click(box.x + c.tx + k.at.x * c.s, box.y + c.ty + k.at.y * c.s);
+      await pg.getByTestId('replay').waitFor({ timeout: 15_000 });
+      const line = await pg.getByTestId('done-plus').innerText().catch(() => '');
+      // с «Готово» — «Дальше»: карточка следующей картинки, с неё — на главную
+      await pg.getByTestId('next').click();
+      await pg.getByTestId('picture').waitFor({ timeout: 5000 }).catch(() => {});
+      if (await pg.getByTestId('picture').count()) await pg.getByTestId('back').click();
+      await pg.getByTestId('home-library').waitFor();
+      return line;
+    };
+    /** Запертая картинка «Живописи» → «Подробнее» → экран «Узоры+»; цены — у магазина. */
+    const toPlus = async (pg: Page) => {
+      await pg.getByTestId('home-library').click();
+      await pg.getByTestId('lib-all-painting').click();
+      await pg.getByTestId('collection').waitFor();
+      const tile = pg.locator('[data-testid^="tile-"]', { hasText: 'Узоры+' }).first();
+      await tile.waitFor({ timeout: 10_000 });
+      await tile.click();
+      await pg.getByTestId('picture-more').click();
+      await pg.getByTestId('plus').waitFor();
+      await pg.waitForTimeout(500);
+    };
+
+    // на третий день после установки: первая бесплатная за день — со строкой, вторая — без
+    {
+      const { ctx, pg } = await plusPage('ok', 3);
+      const first = await finish(pg, kids[0]);
+      const second = await finish(pg, kids[1]);
+      const home = await pg.locator('body').innerText();
+      check(first === OFFER && second === '' && !home.includes(OFFER),
+        `«Узоры+» на «Готово»: на третий день после бесплатной картинки — «${first}», вторая за день — ${second ? `«${second}»` : 'без строки'}; на главной подписку не предлагают`);
+      await toPlus(pg);
+      const text = await pg.getByTestId('plus').innerText();
+      check(text.includes('249 ₽ в месяц') && text.includes('1490 ₽ в год') && text.includes('≈ 124 ₽ в месяц') && (await pg.getByTestId('plus-sample').count()) === 0,
+        'экран «Узоры+» с магазином: цены — у магазина, а не образца');
+      const mode = (m: string) => pg.evaluate(([k, v]) => localStorage.setItem(k, v), [FAKE, JSON.stringify({ mode: m })] as const);
+      await mode('cancelled');
+      await pg.getByTestId('plus-buy').click();
+      await pg.waitForTimeout(600);
+      const quiet = (await pg.getByTestId('plus-said').count()) === 0 && (await pg.getByTestId('plus-active').count()) === 0;
+      await mode('failed');
+      await pg.getByTestId('plus-buy').click();
+      await pg.getByTestId('plus-said').waitFor({ timeout: 5000 }).catch(() => {});
+      const failed = await pg.getByTestId('plus-said').innerText().catch(() => '');
+      await mode('ok');
+      await pg.getByTestId('plus-buy').click();
+      await pg.getByTestId('plus-active').waitFor({ timeout: 5000 }).catch(() => {});
+      const bought = await pg.getByTestId('plus-said').innerText().catch(() => '');
+      const back = await pg.getByTestId('picture-stitch').waitFor({ timeout: 5000 }).then(() => true, () => false);
+      check(quiet && failed.includes('Платёж не прошёл') && bought.includes('вся библиотека открыта') && back,
+        `покупка: отказ — тихо, сбой — «${failed}», успех — «${bought}» и назад на карточку, уже с «Вышивать»`);
+      await ctx.close();
+    }
+    // на второй день после установки — строки нет
+    {
+      const { ctx, pg } = await plusPage('ok', 2);
+      const line = await finish(pg, kids[0]);
+      check(line === '', `в первые три дня после установки строки «Узоры+» на «Готово» нет${line ? ` (а есть «${line}»)` : ''}`);
+      await ctx.close();
+    }
+    // нет RuStore: цены не узнать — кнопка неактивна; «Восстановить покупки» говорит, что не спросить
+    {
+      const { ctx, pg } = await plusPage('no-store', 3);
+      await toPlus(pg);
+      const noPrice = await pg.getByTestId('plus-no-price').innerText().catch(() => '');
+      const disabled = (await pg.getByTestId('plus-buy').getAttribute('aria-disabled')) === 'true';
+      await pg.getByTestId('plus-restore').click();
+      await pg.getByTestId('plus-said').waitFor({ timeout: 5000 }).catch(() => {});
+      const said = await pg.getByTestId('plus-said').innerText().catch(() => '');
+      check(noPrice.includes('Не удалось узнать цену') && disabled && said.includes('Не удалось спросить RuStore'),
+        `нет RuStore: «${noPrice}», кнопка неактивна, «Восстановить покупки» — «${said}»`);
+      await ctx.close();
+    }
   }
 
   // замер: канва рисуется, числа вживую
