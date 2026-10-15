@@ -4,7 +4,8 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { access, type AccessContext } from '../../src/engine/access';
-import { COLLECTIONS, FREE_FIRST } from '../../src/engine/library';
+import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
+import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
 import { buildAll, buildLimitMs, slowPictures, toPicture } from '../content/build';
 import { type Card, listCards, readCard, releasable } from '../content/cards';
@@ -25,6 +26,9 @@ describe('карточки', () => {
     'bad-season.yaml': /season «зима»/,
     'bad-day.yaml': /day «02-30»/,
     'about-one-source.yaml': /два открытых источника/,
+    'bad-grid.yaml': /pattern\.grid «median»/,
+    'bad-chroma.yaml': /pattern\.chroma 2/,
+    'bad-was.yaml': /was\.2: прежняя версия/,
   };
   for (const f of readdirSync(dir)) {
     test(`испорченная карточка ${f} не проходит`, () => {
@@ -92,9 +96,10 @@ describe('сборка', () => {
 
   test('выпущенные узоры не изменились (tools/test/fixtures/released.json)', async () => {
     const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;
-    const { built } = await once();
+    const { built, previous } = await once();
+    // прежние версии узоров (`was` в карточке) — в наборе для начатых работ: сверяются так же
     for (const [key, sha] of Object.entries(released)) {
-      const b = built.find((x) => x.pattern.key === key);
+      const b = [...built, ...previous].find((x) => x.pattern.key === key);
       expect(b ? patternDigest(b.pattern) : `узора ${key} нет`).toBe(sha);
     }
   }, 300_000);
@@ -106,5 +111,23 @@ describe('сборка', () => {
     // bun tools/content/week.ts --base --freeze (docs/05-process.md, «Выкладывание наборов»)
     const loose = built.filter((b) => !b.trial && released[b.pattern.key] === undefined).map((b) => b.pattern.key);
     expect(loose).toEqual([]);
+  }, 300_000);
+
+  test('прежние версии узоров — в наборе скрытыми, после всех картинок; библиотека показывает нынешние', async () => {
+    // начатая на прежней версии работа открывается по своему ключу (ADR 0010), а библиотека,
+    // календарь и поиск картинки по id видят только нынешнюю версию
+    const { built, previous, bytes, calendar } = await once();
+    expect(previous.length).toBeGreaterThan(0);
+    const pack = openPack(bytes);
+    const keys = pack.json.pictures.map(patternKey);
+    expect(keys.slice(built.length)).toEqual(previous.map((p) => p.pattern.key));
+    const lib = libraryIndex([pack]);
+    for (const p of previous) {
+      expect(p.picture.hidden).toBe(true);
+      expect(lib.byKey.has(p.pattern.key)).toBe(true);
+      expect(lib.latest.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
+      expect(pack.json.pictures.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
+    }
+    expect(calendar.every((d) => built.some((b) => b.picture.id === d.picture && !b.picture.hidden))).toBe(true);
   }, 300_000);
 });

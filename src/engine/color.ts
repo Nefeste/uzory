@@ -31,6 +31,16 @@ export function linearToLab(r: number, g: number, b: number): Lab {
   ];
 }
 
+/** То же, что linearToLab, — в массив `out` с места `at`, без нового массива на каждую точку. */
+export function linearToLabInto(r: number, g: number, b: number, out: Float64Array, at: number): void {
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  out[at] = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  out[at + 1] = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  out[at + 2] = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+}
+
 export function labToLinear([L, a, b]: Lab): [number, number, number] {
   const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;

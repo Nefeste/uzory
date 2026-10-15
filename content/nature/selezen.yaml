@@ -1,6 +1,7 @@
 # Снимок владельца (docs/09-content.md, §2, «Свои снимки»): отбор 27.09.2026 по листу
 # docs/specs/2026-09-spikes.md, П3.
 id: selezen
+v: 2   # узор по преобладающему цвету клетки (15.10.2026); v1 — в was
 title: Селезень у пруда
 collection: nature
 order: 3
@@ -14,4 +15,8 @@ pattern:
   crop: [0.15, 0.05, 0.85, 0.95]   # селезень крупнее
   size: 160
   threads: 40
+  grid: dominant
+  chroma: 1.15
+was:
+  1: { grid: mean, chroma: 1 }   # узор, вышедший в APK, — для начатых на нём работ
 approved: 2026-10-03
