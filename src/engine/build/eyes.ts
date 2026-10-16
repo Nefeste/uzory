@@ -4,6 +4,8 @@
 // остальное. Автор карточки обводит каждый глаз рамкой (`pattern.eyes`, доли снимка), а сборка
 // находит в рамке самую заметную клетку — пятно, а не край, — и вышивает её нитью узора, ближней к
 // цвету глаза и далёкой от шерсти вокруг. Новых нитей нет: узор вокруг глаз не меняется.
+// Тем же мерилом — кресты на главах (`pattern.lines`, 16.10.2026): линия креста тоньше клетки, и
+// клетка берёт цвет неба; в рамке креста вышивается самая большая связная группа заметных клеток.
 import { deltaOK, linearToLab, rgbToLab, type Lab } from '../color';
 import type { Pattern } from '../pattern';
 import { type Raster, toGrid } from './grid';
@@ -20,6 +22,8 @@ export const EYE_SHOW = 0.1;
 const NEIGHBOUR = 0.8;
 /** Нить глаза отличается от нити клетки хотя бы на столько (OKLab). */
 const CONTRAST = 0.12;
+/** Клетка креста — заметнее этого: у крестов «Успенского собора» клетки — до 0,7, порог выше рвёт перекладины. */
+export const LINE_SHOW = 0.12;
 
 export interface Eye {
   /** клетка узора */
@@ -32,14 +36,12 @@ export interface Eye {
 }
 
 /**
- * Клетки глаз: узор `w` × `h` из кадра `crop` снимка `r`, рамки глаз `rects` — доли снимка. В каждой
- * рамке — клетка с центром внутри и с наибольшей заметностью (рамка мельче клетки — клетка под её
- * серединой); соседняя по стороне — тоже, если почти такая же. Заметность точки — наименьшее по
- * четырём сторонам отличие от окружения на клетку в сторону, тёмное — с прибавкой: у края одна
- * сторона того же цвета, а у пятна — все разные.
+ * Мерило клеток узора `w` × `h` из кадра `crop` снимка `r`: по рамке (доли снимка) — её клетки с
+ * заметностью и цветом, от самой заметной. В рамке — клетки с центром внутри; рамка мельче клетки —
+ * клетка под её серединой. Заметность точки — наименьшее по четырём сторонам отличие от окружения на
+ * клетку в сторону, тёмное — с прибавкой: у края одна сторона того же цвета, а у пятна — все разные.
  */
-export function findEyes(r: Raster, crop: Rect, w: number, h: number, rects: Rect[]): Eye[] {
-  if (!rects.length) return [];
+function measurer(r: Raster, crop: Rect, w: number, h: number): (rect: Rect) => Eye[] {
   const size = Math.max(w, h);
   const fine = toGrid(r, crop, size * K);
   const W = fine.w, H = fine.h;
@@ -98,9 +100,7 @@ export function findEyes(r: Raster, crop: Rect, w: number, h: number, rects: Rec
   };
   const cx = (fx: number) => ((fx - crop[0]) / (crop[2] - crop[0])) * w;
   const cy = (fy: number) => ((fy - crop[1]) / (crop[3] - crop[1])) * h;
-  const out: Eye[] = [];
-  const taken = new Set<number>();
-  for (const [a0, b0, a1, b1] of rects) {
+  return ([a0, b0, a1, b1]) => {
     const inside: Eye[] = [];
     for (let y = Math.max(0, Math.floor(cy(b0) - 0.5)); y <= Math.min(h - 1, Math.ceil(cy(b1) - 0.5)); y++) {
       for (let x = Math.max(0, Math.floor(cx(a0) - 0.5)); x <= Math.min(w - 1, Math.ceil(cx(a1) - 0.5)); x++) {
@@ -112,7 +112,21 @@ export function findEyes(r: Raster, crop: Rect, w: number, h: number, rects: Rec
       const y = Math.min(h - 1, Math.max(0, Math.floor(cy((b0 + b1) / 2))));
       inside.push(measure(x, y));
     }
-    inside.sort((a, b) => b.strength - a.strength || a.y - b.y || a.x - b.x);
+    return inside.sort((a, b) => b.strength - a.strength || a.y - b.y || a.x - b.x);
+  };
+}
+
+/**
+ * Клетки глаз: узор `w` × `h` из кадра `crop` снимка `r`, рамки глаз `rects` — доли снимка. В каждой
+ * рамке — самая заметная клетка; соседняя по стороне — тоже, если почти такая же.
+ */
+export function findEyes(r: Raster, crop: Rect, w: number, h: number, rects: Rect[]): Eye[] {
+  if (!rects.length) return [];
+  const cellsOf = measurer(r, crop, w, h);
+  const out: Eye[] = [];
+  const taken = new Set<number>();
+  for (const rect of rects) {
+    const inside = cellsOf(rect);
     const peak = inside[0];
     if (peak.strength < EYE_SHOW) continue;
     const next = inside.find((e) => e !== peak && Math.abs(e.x - peak.x) + Math.abs(e.y - peak.y) === 1 && e.strength >= NEIGHBOUR * peak.strength);
@@ -120,6 +134,61 @@ export function findEyes(r: Raster, crop: Rect, w: number, h: number, rects: Rec
       if (taken.has(e.y * w + e.x)) continue;
       taken.add(e.y * w + e.x);
       out.push(e);
+    }
+  }
+  return out;
+}
+
+/**
+ * Клетки крестов (и шпилей) на главах: в каждой рамке `rects` — клетки заметнее LINE_SHOW, связанные
+ * по сторонам и углам, и из таких групп — самая большая: крест — самое крупное в своей рамке, а трос
+ * к главе бледнее, птица и пятно облака меньше. Крест — одним цветом: среднее его клеток по
+ * заметности, иначе блик на позолоте ушёл бы в другую нить. Не заметно ничего — рамка без креста.
+ */
+export function findLines(r: Raster, crop: Rect, w: number, h: number, rects: Rect[]): Eye[] {
+  if (!rects.length) return [];
+  const cellsOf = measurer(r, crop, w, h);
+  const out: Eye[] = [];
+  const taken = new Set<number>();
+  for (const rect of rects) {
+    const strong = cellsOf(rect).filter((e) => e.strength >= LINE_SHOW);
+    const at = new Map(strong.map((e) => [e.y * w + e.x, e]));
+    const seen = new Set<number>();
+    let best: Eye[] = [];
+    let bestStrength = 0;
+    // группы — от самой заметной клетки, по сторонам и углам
+    for (const start of strong) {
+      if (seen.has(start.y * w + start.x)) continue;
+      seen.add(start.y * w + start.x);
+      const group = [start];
+      let sum = 0;
+      for (let q = 0; q < group.length; q++) {
+        const e = group[q];
+        sum += e.strength;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = e.x + dx, y = e.y + dy;
+            if (x < 0 || x >= w || y < 0 || y >= h || seen.has(y * w + x)) continue;
+            const next = at.get(y * w + x);
+            if (!next) continue;
+            seen.add(y * w + x);
+            group.push(next);
+          }
+        }
+      }
+      if (group.length > best.length || (group.length === best.length && sum > bestStrength)) {
+        best = group;
+        bestStrength = sum;
+      }
+    }
+    if (!best.length) continue;
+    const m = [0, 0, 0];
+    for (const e of best) for (let j = 0; j < 3; j++) m[j] += e.color[j] * e.strength;
+    const color: Lab = [m[0] / bestStrength, m[1] / bestStrength, m[2] / bestStrength];
+    for (const e of best) {
+      if (taken.has(e.y * w + e.x)) continue;
+      taken.add(e.y * w + e.x);
+      out.push({ ...e, color });
     }
   }
   return out;

@@ -24,7 +24,7 @@ import { decode, type Grid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
-import { findEyes, paintEyes } from '../../src/engine/build/eyes';
+import { findEyes, findLines, paintEyes } from '../../src/engine/build/eyes';
 import { focusMask } from '../../src/engine/build/focus';
 import { photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
@@ -99,10 +99,13 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     clean: SIMPLIFY_CLEAN[p.simplify ?? 0], ...(focus ? { focus } : {}),
   });
   const out = focus ? { ...built, focus } : built;
-  // глаза — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
-  if (p.chart || !p.eyes?.length) return out;
-  const eyes = findEyes(raster, p.crop ?? [0, 0, 1, 1], built.pattern.w, built.pattern.h, p.eyes);
-  return { ...out, pattern: paintEyes(built.pattern, eyes) };
+  // глаза и кресты — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
+  if (p.chart || (!p.eyes?.length && !p.lines?.length)) return out;
+  const { w, h } = built.pattern;
+  const eyes = findEyes(raster, p.crop ?? [0, 0, 1, 1], w, h, p.eyes ?? []);
+  const taken = new Set(eyes.map((e) => e.y * w + e.x));
+  const lines = findLines(raster, p.crop ?? [0, 0, 1, 1], w, h, p.lines ?? []).filter((e) => !taken.has(e.y * w + e.x));
+  return { ...out, pattern: paintEyes(built.pattern, [...eyes, ...lines]) };
 }
 
 /** Картинка набора; прежняя версия узора (`v` меньше, чем у карточки) — скрытая: только для начатых работ. */
