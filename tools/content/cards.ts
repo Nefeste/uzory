@@ -75,6 +75,12 @@ export interface Card {
      */
     eyes?: [number, number, number, number][];
     /**
+     * кресты на главах: рамка вокруг каждого, доли снимка, как crop; в рамке сборка вышивает самую
+     * большую связную группу заметных клеток одной нитью узора (src/engine/build/eyes.ts; с
+     * 16.10.2026). Пусто — как без поля
+     */
+    lines?: [number, number, number, number][];
+    /**
      * важные части — лица: рамка вокруг каждого, доли снимка, как crop; им — своя маленькая палитра, и
      * чистка не стирает в них глаз и рот (src/engine/build/focus.ts; с 16.10.2026). Пусто — как без поля
      */
@@ -124,7 +130,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'eyes', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -164,6 +170,9 @@ function patternErrors(p: PatternSpec): string[] {
   const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
   if (p.eyes !== undefined) {
     if (!Array.isArray(p.eyes) || p.eyes.length > 8 || !p.eyes.every(rect) || p.chart) errors.push(`pattern.eyes ${JSON.stringify(p.eyes)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
+  }
+  if (p.lines !== undefined) {
+    if (!Array.isArray(p.lines) || p.lines.length > 16 || !p.lines.every(rect) || p.chart) errors.push(`pattern.lines ${JSON.stringify(p.lines)}: до шестнадцати рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
   }
   if (p.focus !== undefined) {
     if (!Array.isArray(p.focus) || p.focus.length > 12 || !p.focus.every(rect) || p.chart) errors.push(`pattern.focus ${JSON.stringify(p.focus)}: до двенадцати рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
