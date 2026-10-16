@@ -1,0 +1,34 @@
+# «Детям» (docs/09-content.md, §1): вязаная шапка с помпоном и полосками.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. Пачка 4 — запас для календаря после 1.0;
+# в выпуск — после «да» (В19).
+id: kids-shapka
+title: Шапка с помпоном
+collection: kids
+order: 43
+free: true
+season: winter   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    p: ["#a9d4f0", небесная]
+    r: ["#c8102e", красная]
+    y: ["#f3cf2c", жёлтая]
+    v: ["#1f4fa0", синяя]
+  grid: |
+    ......pppp......
+    .....pppppp.....
+    .....pppppp.....
+    ......pppp......
+    .....rrrrrr.....
+    ....rrrrrrrr....
+    ...rrrrrrrrrr...
+    ..rrrrrrrrrrrr..
+    ..yyyyyyyyyyyy..
+    .rrrrrrrrrrrrrr.
+    .rrrrrrrrrrrrrr.
+    .vvvvvvvvvvvvvv.
+    .yyvvyyvvyyvvyy.
+    .yyvvyyvvyyvvyy.
+    .vvvvvvvvvvvvvv.

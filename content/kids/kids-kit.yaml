@@ -1,0 +1,28 @@
+# «Детям» (docs/09-content.md, §1): синий кит пускает фонтан.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. Пачка 4 — запас для календаря после 1.0;
+# в выпуск — после «да» (В19).
+id: kids-kit
+title: Кит
+collection: kids
+order: 46
+free: true
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    g: ["#8ec5e8", голубая]
+    v: ["#1f4fa0", синяя]
+    k: ["#1f2550", чернильная]
+  grid: |
+    ...gg..gg.........
+    .....gg...........
+    .....gg...........
+    ...vvvvvvvv.....vv
+    .vvvvkkvvvvvv..vvv
+    vvvvvkkvvvvvvvvvv.
+    vvvvvvvvvvvvvvvv..
+    vkkkkvvvvvvvvvv...
+    vvggggggggggvv....
+    .vvggggggggvv.....
+    ..vvvvvvvvvv......

@@ -1,0 +1,35 @@
+# «Детям» (docs/09-content.md, §1): весёлая лягушка — глаза на макушке, розовые щёки.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. Пачка 4 — запас для календаря после 1.0;
+# в выпуск — после «да» (В19).
+id: kids-lyagushka
+title: Лягушка
+collection: kids
+order: 41
+free: true
+season: summer   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    g: ["#6fa640", травяная]
+    l: ["#a6cf57", салатовая]
+    y: ["#f3cf2c", жёлтая]
+    k: ["#1f2550", чернильная]
+    p: ["#f0a6b8", розовая]
+    r: ["#8c1c2e", клюквенная]
+  grid: |
+    ..gggg....gggg..
+    .gyyyyg..gyyyyg.
+    .gykkyg..gykkyg.
+    .gykkyg..gykkyg.
+    .gyyyyggggyyyyg.
+    gggggggggggggggg
+    gggggggggggggggg
+    gppggggggggggppg
+    gppggggggggggppg
+    gggrrggggggrrggg
+    ggggrrrrrrrrgggg
+    .gggggggggggggg.
+    ..gggggggggggg..
+    ..ll..llll..ll..
