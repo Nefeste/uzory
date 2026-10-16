@@ -1416,13 +1416,17 @@ try {
   await ctxZoom.close();
 
   // убить посреди кисти (docs/specs/2026-09-canvas.md, критерий 4): долгий штрих мышью змейкой по
-  // первой картинке, и посреди него вкладка падает — Page.crash, как `adb shell am kill`: ни ухода с
+  // первой картинке, и посреди него процесс вкладки убит сигналом, как `adb shell am kill`: ни ухода с
   // экрана, ни записи напоследок. Штрих уходит в работу частями раз в секунду (FLUSH_MS в
   // src/canvas/StitchCanvas.tsx), работа пишется сразу за ним (SAVE_MS в src/state/works.ts) —
   // запись работы ловится в IndexedDB. Новая вкладка того же браузера открывает работу: пропал только
   // конец следа — то, что кисть провела после последней записи, не больше секунды с записью (1,25 с)
   {
     const LOST_MS = 1250;
+    // процессы страниц: процесс новой вкладки — тот, которого до неё не было
+    const bcdp = await browser.newBrowserCDPSession();
+    const renderers = async () => (await bcdp.send('SystemInfo.getProcessInfo')).processInfo.filter((r) => r.type === 'renderer').map((r) => r.id);
+    const before = await renderers();
     const ctxKill = await browser.newContext({ viewport: { width: 400, height: 860 } });
     const kp = await ctxKill.newPage();
     kp.on('pageerror', (e) => errors.push(e.message));
@@ -1466,27 +1470,38 @@ try {
       await kp.waitForTimeout(8);
     }
     const writes = (await kp.evaluate(() => (window as unknown as { workWrites: number[] }).workWrites)).map((t) => t + shift);
+    // Page.crash в CI вкладку не ронял (сборка v0.15.2: 30 с без события crash, локально — 28 мс);
+    // сигнал процессу страницы роняет её в любой среде. Page.crash — только если процесс не нашёлся
+    const own = (await renderers()).filter((id) => !before.includes(id));
     const crash = performance.now();
-    const crashed = kp.waitForEvent('crash');
-    void kcdp.send('Page.crash').catch(() => {});
-    await crashed;
-    // записи за время штриха: первая — не позже секунды с записью от начала, дальше так же
-    const during = writes.filter((t) => t > t0);
-    const gaps = [...during, crash].map((t, k) => Math.round(t - (k ? during[k - 1] : t0)));
-    const kp2 = await ctxKill.newPage();
-    kp2.on('pageerror', (e) => errors.push(e.message));
-    await kp2.goto(base);
-    await kp2.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
-    const again = await kp2.getByTestId('first-stitch').innerText();
-    await kp2.getByTestId('first-stitch').click();
-    await kp2.getByTestId('thread-1').waitFor({ timeout: 30_000 });
-    await kp2.getByTestId('thread-1').click();
-    await kp2.waitForTimeout(500);
-    const kept = own1 - Number((await kp2.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
-    // в работе — начало следа: пропало то, что кисть провела после первой не записанной клетки
-    const lost = kept >= reached.length ? 0 : Math.round(crash - reached[kept]);
-    check(during.length >= 2 && Math.max(...gaps) <= LOST_MS && kept > 0 && kept <= reached.length && lost <= LOST_MS,
-      `убить посреди кисти: штрих ${Math.round(crash - t0)} мс, клеток первой нити — ${reached.length}, записей работы — ${during.length} (промежутки ${gaps.join(', ')} мс); после падения вкладки в работе ${kept} — пропали последние ${lost} мс следа («${again}»)`);
+    const crashed = kp.waitForEvent('crash', { timeout: 15_000 }).then(() => true, () => false);
+    let how = `SIGKILL процессу страницы (${own.length})`;
+    if (own.length) for (const id of own) process.kill(id, 'SIGKILL');
+    else {
+      how = 'Page.crash';
+      void kcdp.send('Page.crash').catch((e: Error) => { how += `: ${e.message.split('\n')[0]}`; });
+    }
+    if (!(await crashed)) check(false, `убить посреди кисти: вкладка не упала за 15 с (${how})`);
+    else {
+      // записи за время штриха: первая — не позже секунды с записью от начала, дальше так же
+      const during = writes.filter((t) => t > t0);
+      const gaps = [...during, crash].map((t, k) => Math.round(t - (k ? during[k - 1] : t0)));
+      const kp2 = await ctxKill.newPage();
+      kp2.on('pageerror', (e) => errors.push(e.message));
+      await kp2.goto(base);
+      await kp2.getByTestId('first-stitch').waitFor({ timeout: 60_000 });
+      const again = await kp2.getByTestId('first-stitch').innerText();
+      await kp2.getByTestId('first-stitch').click();
+      await kp2.getByTestId('thread-1').waitFor({ timeout: 30_000 });
+      await kp2.getByTestId('thread-1').click();
+      await kp2.waitForTimeout(500);
+      const kept = own1 - Number((await kp2.getByTestId('where').innerText()).match(/(\d+)\s*$/)?.[1]);
+      // в работе — начало следа: пропало то, что кисть провела после первой не записанной клетки
+      const lost = kept >= reached.length ? 0 : Math.round(crash - reached[kept]);
+      check(during.length >= 2 && Math.max(...gaps) <= LOST_MS && kept > 0 && kept <= reached.length && lost <= LOST_MS,
+        `убить посреди кисти: штрих ${Math.round(crash - t0)} мс, клеток первой нити — ${reached.length}, записей работы — ${during.length} (промежутки ${gaps.join(', ')} мс); вкладка упала (${how}), в работе ${kept} — пропали последние ${lost} мс следа («${again}»)`);
+    }
+    await bcdp.detach();
     await ctxKill.close();
   }
 
