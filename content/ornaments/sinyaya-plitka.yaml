@@ -1,0 +1,37 @@
+# Синяя плитка — по мотивам гжельских изразцов: синяя рамка, в середине цветок.
+# Рисунок по клеткам — своя работа студии; имя промысла — только в комментарии, не в названии
+# (наименования мест происхождения охраняются). Пачка 7 — запас для календаря после 1.0; в выпуск — после «да» (В19).
+id: sinyaya-plitka
+title: Синяя плитка
+collection: ornaments
+order: 77
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    v: ["#1c3f8f", сапфировая]
+    b: ["#4a6fd0", васильковая]
+    l: ["#8ec5e8", голубая]
+  grid: |
+    vvvvvvvvvvvvvvvvvvvvv
+    vvvvvvvvvvvvvvvvvvvvv
+    vvll.............llvv
+    vvll......b......llvv
+    vv.......bbb.......vv
+    vv...ll.bblbb.ll...vv
+    vv...lllbblbblll...vv
+    vv....ll.vlv.ll....vv
+    vv...bb.vvlvv.bb...vv
+    vv..bbbvvvlvvvbbb..vv
+    vv.bblllllllllllbb.vv
+    vv..bbbvvvlvvvbbb..vv
+    vv...bb.vvlvv.bb...vv
+    vv....ll.vlv.ll....vv
+    vv...lllbblbblll...vv
+    vv...ll.bblbb.ll...vv
+    vv.......bbb.......vv
+    vvll......b......llvv
+    vvll.............llvv
+    vvvvvvvvvvvvvvvvvvvvv
+    vvvvvvvvvvvvvvvvvvvvv
