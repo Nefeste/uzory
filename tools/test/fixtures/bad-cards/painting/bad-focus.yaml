@@ -1,0 +1,10 @@
+id: bad-focus
+title: Важные части у старинной схемы — у неё каждая клетка и так замысел
+collection: painting
+order: 1
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: abroad
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 60, threads: 16, chart: [0.1, 0.1, 0.9, 0.9], cells: [60, 40], focus: [[0.3, 0.2, 0.5, 0.4]] }
