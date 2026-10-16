@@ -774,11 +774,17 @@ try {
   await page.getByTestId('pick-zvezda-alatyr-later').click();
   await page.getByTestId('pick-zvezda-alatyr-later').click();
   const picked = await page.getByTestId('sheet-picked').innerText();
+  // комментарий — что поправить (0.15.5): у «Нет» и у картинки без отметки; записывается, когда поле
+  // теряет фокус, — здесь нажатием «Скопировать решения»
+  await page.getByTestId('note-rozetka').fill('  мелко,   не видно лепестков ');
+  await page.getByTestId('note-zvezda-alatyr').fill('темнее фон');
   await page.getByTestId('sheet-copy').click();
   await page.getByTestId('sheet-picks-text').waitFor({ timeout: 5000 }).catch(() => {});
   const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
-  check(picked.startsWith('Отмечено 2 из') && clip.includes('Да (1): Первая картинка (first-picture)') && clip.includes('Нет (1): Розетка (rozetka)')
-    && !clip.includes('Позже'), `отбор в листе: ${picked}; решения — в буфере обмена`);
+  check(picked.startsWith('Отмечено 2 из') && clip.includes('Да (1): Первая картинка (first-picture)')
+    && clip.includes('Нет (1): Розетка (rozetka) — «мелко, не видно лепестков»')
+    && clip.includes('Без отметки, с комментарием (1): Восьмиконечная звезда (zvezda-alatyr) — «темнее фон»')
+    && !clip.includes('Позже'), `отбор в листе: ${picked}; решения с комментариями — в буфере обмена`);
   await page.getByTestId('sheet-filter-unmarked').click();
   await page.waitForTimeout(300);
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,
@@ -792,6 +798,16 @@ try {
   await page.waitForTimeout(300);
   check(flowersOnly && (await page.getByTestId('sheet-first-picture').count()) === 1, 'в листе — коллекция «Цветы» отдельно, «Все» — снова все');
   await page.screenshot({ path: join(OUT, '05-sheet-picks.png') });
+  // отметки и комментарии хранятся: лист открыт заново — всё на месте; нажатие на поле картинку не открывает
+  await page.getByTestId('back').click();
+  await page.getByTestId('home-sheet').click();
+  await page.getByTestId('note-rozetka').waitFor();
+  const keptNote = await page.getByTestId('note-rozetka').inputValue();
+  const keptPicked = await page.getByTestId('sheet-picked').innerText();
+  await page.getByTestId('note-rozetka').click();
+  await page.waitForTimeout(300);
+  check(keptNote === 'мелко, не видно лепестков' && keptPicked.includes('с комментарием — 2') && (await page.getByTestId('sheet-picked').count()) === 1,
+    `лист открыт заново: комментарий «${keptNote}», ${keptPicked}`);
   await page.getByTestId('back').click();
 
   // «Узоры+» (0.12.0, docs/specs/2026-09-plus.md): в сборке для проверки — образец экрана: цены —

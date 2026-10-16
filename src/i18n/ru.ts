@@ -241,10 +241,14 @@ export const ru = {
     notForRelease: 'Только для проверки: в выпуск — после «да» владельца и решения о правах',
     progress: (p: number) => `Вышито ${p} % — откроется с того же места`,
     stats: (singles: string, small: string, minDist: string) => `одиночных ${singles} % · в мелких пятнах ${small} % · различимость ${minDist}`,
-    picksNote: 'Отбор: «Да» — в выпуск, «Нет» — убрать, «Позже» — вернуться к ней. Отметки хранятся здесь; «Скопировать решения» даёт текст для ассистента — он поставит «да» в карточки.',
+    picksNote: 'Отбор: «Да» — в выпуск, «Нет» — убрать, «Позже» — вернуться к ней. Под отметкой можно коротко написать, что поправить. Отметки и комментарии хранятся здесь; «Скопировать решения» даёт текст для ассистента — он поставит «да» в карточки и поправит то, о чём комментарий.',
     picks: { yes: 'Да', no: 'Нет', later: 'Позже' } as Record<'yes' | 'no' | 'later', string>,
-    picked: (n: number, total: number, yes: number, no: number, later: number) =>
-      `Отмечено ${n} из ${total}: да — ${yes}, нет — ${no}, позже — ${later}`,
+    picked: (n: number, total: number, yes: number, no: number, later: number, notes: number) =>
+      `Отмечено ${n} из ${total}: да — ${yes}, нет — ${no}, позже — ${later}${notes ? `; с комментарием — ${notes}` : ''}`,
+    note: 'Комментарий: что поправить',
+    noteLabel: (title: string) => `Комментарий к картинке «${title}»`,
+    noPick: 'Без отметки, с комментарием',
+    item: (title: string, id: string, note: string) => (note ? `${title} (${id}) — «${note}»` : `${title} (${id})`),
     filter: { all: 'Все', unmarked: 'Без отметки' } as Record<'all' | 'unmarked', string>,
     copy: 'Скопировать решения',
     copied: 'Скопировано — вставьте в сообщение ассистенту. Текст ниже можно выделить.',
