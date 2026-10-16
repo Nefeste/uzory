@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акварель. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). Пачка 5 — запас для календаря после 1.0; в выпуск — после «да» владельца (В19).
+id: nims-babochka
+title: Бабочка на розовом кусте
+collection: flowers
+order: 72
+author: { name: Мэри Алта Нимс, life: 1817–1907 }
+made: "XIX век"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: nims-babochka.jpg
+  url: https://clevelandart.org/art/1934.139
+  download: https://openaccess-cdn.clevelandart.org/1934.139/1934.139_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1907"
+pattern:
+  crop: [0.04, 0.04, 0.97, 0.965]   # без подписи
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  min_delta: 0.045   # порог по сетке 70, а не по числу клеток: лепестки не сливаются с листьями
+  canvas: "#e6d8bf"      # бумага листа — фон, не вышивается
