@@ -1,0 +1,34 @@
+# «Детям» (docs/09-content.md, §1): стрекоза с прозрачными голубыми крыльями.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. Пачка 4 — запас для календаря после 1.0;
+# в выпуск — после «да» (В19).
+id: kids-strekoza
+title: Стрекоза
+collection: kids
+order: 40
+free: true
+season: summer   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    k: ["#1f2550", чернильная]
+    t: ["#138a6b", малахитовая]
+    w: ["#8ec5e8", голубая]
+  grid: |
+    .....kk..kk.....
+    .....kkttkk.....
+    ......tttt......
+    ww.....tt.....ww
+    wwww...tt...wwww
+    wwwwwwwttwwwwwww
+    .wwwwwwttwwwwww.
+    .......tt.......
+    ..wwwwwttwwwww..
+    .wwwwwwttwwwwww.
+    ..wwww.tt.wwww..
+    .......tt.......
+    .......tt.......
+    .......tt.......
+    .......tt.......
+    .......tt.......

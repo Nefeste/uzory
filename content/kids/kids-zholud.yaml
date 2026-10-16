@@ -1,0 +1,35 @@
+# «Детям» (docs/09-content.md, §1): жёлудь в шапочке с крапинками.
+# Рисунок по клеткам — своя работа студии; одиночных клеток нет. Пачка 4 — запас для календаря после 1.0;
+# в выпуск — после «да» (В19).
+id: kids-zholud
+title: Жёлудь
+collection: kids
+order: 38
+free: true
+season: autumn   # календарь: только в свой сезон (docs/09-content.md, §9)
+source:
+  url: ""
+  basis: своя работа студии (рисунок по клеткам)
+drawn:
+  legend:
+    b: ["#5c3a24", коричневая]
+    c: ["#9b6b4b", глиняная]
+    o: ["#d9a441", медовая]
+    y: ["#f0c84c", кукурузная]
+  grid: |
+    ......bb......
+    ......bb......
+    ...bbbbbbbb...
+    ..bbccbbccbb..
+    .bbbccbbccbbb.
+    .bccbbccbbccb.
+    .bccbbccbbccb.
+    ..bbbbbbbbbb..
+    ..oyyooooooo..
+    ..oyyooooooo..
+    ..oyyooooooo..
+    ..oyyooooooo..
+    ...oooooooo...
+    ....oooooo....
+    .....oooo.....
+    ......oo......
