@@ -31,6 +31,7 @@ describe('карточки', () => {
     'bad-was.yaml': /was\.2: прежняя версия/,
     'bad-canvas-holes.yaml': /pattern\.canvas_seed 0\.1: .*только у схемы.*pattern\.canvas_holes 6: /,
     'bad-eyes.yaml': /pattern\.eyes \[\[0\.5,0\.5,0\.4,0\.6\]\]: до восьми рамок/,
+    'bad-focus.yaml': /pattern\.focus \[\[0\.3,0\.2,0\.5,0\.4\]\]: до двенадцати рамок/,
   };
   for (const f of readdirSync(dir)) {
     test(`испорченная карточка ${f} не проходит`, () => {

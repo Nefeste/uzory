@@ -5,6 +5,7 @@
 import { deltaOK, rgbToLab } from '../color';
 import { type Pattern, patternError, sizeClass, type SizeClass } from '../pattern';
 import { patternStats, type PatternStats } from '../stats';
+import { FOCUS_SHARE, fewestCells, focusShare } from './focus';
 import { MIN_DELTA } from './palette';
 
 /** Пределы размеров (docs/08-game-design.md, «Размеры узоров»). */
@@ -40,6 +41,8 @@ export interface CheckOptions {
   diagonal?: boolean;
   /** печатная схема ровными красками: одиночные и мелкие пятна — предупреждение */
   exact?: boolean;
+  /** важные части снимка — лица (./focus.ts): их нити могут быть вчетверо реже */
+  focus?: Uint8Array;
 }
 
 export function checkPatternWith(p: Pattern, o: CheckOptions = {}): Checked {
@@ -57,9 +60,10 @@ export function checkPatternWith(p: Pattern, o: CheckOptions = {}): Checked {
   if (n > top.threads[1]) errors.push(`${n} нитей — больше ${top.threads[1]}`);
   if (Math.max(p.w, p.h) > lim.side) warnings.push(`размер ${size}: сторона ${Math.max(p.w, p.h)} больше ${lim.side}`);
   if (n < lim.threads[0] || n > lim.threads[1]) warnings.push(`размер ${size}: ${n} нитей вне ${lim.threads[0]}–${lim.threads[1]}`);
-  const minCells = Math.max(8, Math.ceil(stats.cells * 0.002));
+  const share = o.focus ? focusShare(p.cells, o.focus, n) : null;
   stats.counts.forEach((c, t) => {
-    if (c < minCells) errors.push(`нить ${t + 1} «${p.threads[t].name}»: ${c} клеток, нужно не меньше ${minCells}`);
+    const least = fewestCells(stats.cells, !!share && share[t] > FOCUS_SHARE);
+    if (c < least) errors.push(`нить ${t + 1} «${p.threads[t].name}»: ${c} клеток, нужно не меньше ${least}`);
   });
   const min = MIN_DELTA[size];
   if (n > 1 && stats.minDelta < min) {

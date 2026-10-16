@@ -74,6 +74,11 @@ export interface Card {
      * нитью узора (src/engine/build/eyes.ts; с 15.10.2026). Пусто — глаз нет, как без поля
      */
     eyes?: [number, number, number, number][];
+    /**
+     * важные части — лица: рамка вокруг каждого, доли снимка, как crop; им — своя маленькая палитра, и
+     * чистка не стирает в них глаз и рот (src/engine/build/focus.ts; с 16.10.2026). Пусто — как без поля
+     */
+    focus?: [number, number, number, number][];
   };
   /**
    * Прежние версии узора, уже вышедшие в APK: номер → поля pattern, которыми их узор отличался.
@@ -119,7 +124,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'eyes']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'eyes', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -156,9 +161,12 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.simplify !== undefined && ((p.simplify !== 0 && p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 0, 1 или 2, и не у схемы — её клетки и так замысел`);
   if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
   if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
+  const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
   if (p.eyes !== undefined) {
-    const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
     if (!Array.isArray(p.eyes) || p.eyes.length > 8 || !p.eyes.every(rect) || p.chart) errors.push(`pattern.eyes ${JSON.stringify(p.eyes)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
+  }
+  if (p.focus !== undefined) {
+    if (!Array.isArray(p.focus) || p.focus.length > 12 || !p.focus.every(rect) || p.chart) errors.push(`pattern.focus ${JSON.stringify(p.focus)}: до двенадцати рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
   }
   return errors;
 }

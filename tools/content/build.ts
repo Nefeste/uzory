@@ -25,6 +25,7 @@ import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { findEyes, paintEyes } from '../../src/engine/build/eyes';
+import { focusMask } from '../../src/engine/build/focus';
 import { photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 
@@ -53,7 +54,7 @@ export interface Built {
 }
 
 /** Узор карточки — версии `v`: нынешней или прежней из `was` (её поля pattern — свои). */
-export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Pattern; log?: BuildLog }> {
+export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Pattern; log?: BuildLog; focus?: Uint8Array }> {
   const key = `${card.id}@${v}`;
   if (card.drawn) {
     const keys = Object.keys(card.drawn.legend);
@@ -91,14 +92,17 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     // та же сетка, что у «Своего узора» в приложении
     grid = photoGrid(raster, p);
   }
+  // лица — рамки важных частей снимка: своя маленькая палитра (src/engine/build/focus.ts)
+  const focus = !p.chart && p.focus?.length ? focusMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.focus) : undefined;
   const built = buildPattern(grid, {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
-    clean: SIMPLIFY_CLEAN[p.simplify ?? 0],
+    clean: SIMPLIFY_CLEAN[p.simplify ?? 0], ...(focus ? { focus } : {}),
   });
+  const out = focus ? { ...built, focus } : built;
   // глаза — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
-  if (p.chart || !p.eyes?.length) return built;
+  if (p.chart || !p.eyes?.length) return out;
   const eyes = findEyes(raster, p.crop ?? [0, 0, 1, 1], built.pattern.w, built.pattern.h, p.eyes);
-  return { ...built, pattern: paintEyes(built.pattern, eyes) };
+  return { ...out, pattern: paintEyes(built.pattern, eyes) };
 }
 
 /** Картинка набора; прежняя версия узора (`v` меньше, чем у карточки) — скрытая: только для начатых работ. */
@@ -259,9 +263,9 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
     }
     const t0 = performance.now();
     try {
-      const { pattern, log } = await buildCard(card);
+      const { pattern, log, focus } = await buildCard(card);
       const ms = performance.now() - t0;
-      const checked = checkPattern(pattern, card);
+      const checked = checkPattern(pattern, card, focus);
       if (checked.errors.length) {
         failed.push({ path: card.path, errors: checked.errors });
         continue;
@@ -270,7 +274,7 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
       for (const old of Object.keys(card.was ?? {}).map(Number).sort((a, b) => a - b)) {
         const t1 = performance.now();
         const was = await buildCard(card, old);
-        const wasChecked = checkPattern(was.pattern, card);
+        const wasChecked = checkPattern(was.pattern, card, was.focus);
         if (wasChecked.errors.length) {
           failed.push({ path: card.path, errors: wasChecked.errors.map((e) => `v${old}: ${e}`) });
           continue;

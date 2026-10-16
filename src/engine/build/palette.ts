@@ -4,6 +4,7 @@
 import { deltaOK, labToLch, labToRgb, type Lab, linearToLab, rgbToLab } from '../color';
 import { CANVAS, type Pattern, type SizeClass } from '../pattern';
 import { hash32, rng } from '../seed';
+import { FOCUS_FAR, FOCUS_SHARE, fewestCells, focusShare, focusThreads } from './focus';
 import type { Grid } from './grid';
 import { nameThreads } from './names';
 
@@ -42,6 +43,11 @@ export interface BuildOptions {
   exact?: boolean;
   /** чистка «конфетти»: без упрощения — CLEAN, с упрощением — SIMPLIFY_CLEAN (simplify.ts) */
   clean?: Clean;
+  /**
+   * Важные части снимка — лица (./focus.ts): 1 — клетка в рамке. Им — своя маленькая палитра, а
+   * мелкое пятно в них чистка перекрашивает только в почти тот же цвет. Без поля — как раньше.
+   */
+  focus?: Uint8Array;
 }
 
 /** Чистка «конфетти»: какие области мелкие и как они сливаются. */
@@ -87,6 +93,20 @@ function nearest(c: Lab, centers: Lab[]): number {
   return best;
 }
 
+/** Ближний центр, когда первые `fixed` центров считаются в `far` раз дальше (важные части, ./focus.ts). */
+function nearestFar(c: Lab, centers: Lab[], fixed: number, far: number): number {
+  let best = 0;
+  let bd = Infinity;
+  for (let k = 0; k < centers.length; k++) {
+    const dl = c[0] - centers[k][0];
+    const da = c[1] - centers[k][1];
+    const db = c[2] - centers[k][2];
+    const d = (dl * dl + da * da + db * db) * (k < fixed ? far * far : 1);
+    if (d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+
 /** k-means++ с зерном и не больше KMEANS_ITERS итераций Ллойда. */
 export function kmeans(points: Lab[], k: number, seed: number): Lab[] {
   const r = rng(seed);
@@ -127,6 +147,55 @@ export function kmeans(points: Lab[], k: number, seed: number): Lab[] {
     if (!moved) break;
   }
   return centers;
+}
+
+/**
+ * k-средних вокруг готовых центров (важные части, ./focus.ts): `fixed` не двигаются и считаются в
+ * `far` раз дальше; новые `k` — k-means++ от уже готовых, то есть туда, где точки хуже всего ими
+ * представлены, а итерации Ллойда относят точку к ближнему из всех центров и двигают только новые.
+ * Так нити лица не уходят на волосы и фон в рамке — их уже держат нити всего снимка, — а светлая
+ * щека не уходит в почти такую же по числам, но сиреневую нить рубахи.
+ */
+export function kmeansAround(points: Lab[], fixed: Lab[], k: number, seed: number, far = 1): Lab[] {
+  const r = rng(seed);
+  const n = points.length;
+  const added: Lab[] = [];
+  if (n === 0 || k <= 0) return added;
+  const d2 = new Float64Array(n).fill(Infinity);
+  for (let i = 0; i < n; i++) for (const c of fixed) d2[i] = Math.min(d2[i], (far * deltaOK(points[i], c)) ** 2);
+  while (added.length < Math.min(k, n)) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += d2[i];
+    if (sum === 0) break;
+    let t = r() * sum;
+    let pick = n - 1;
+    for (let i = 0; i < n; i++) {
+      t -= d2[i];
+      if (t <= 0) { pick = i; break; }
+    }
+    added.push(points[pick]);
+    for (let i = 0; i < n; i++) d2[i] = Math.min(d2[i], deltaOK(points[i], points[pick]) ** 2);
+  }
+  const all = [...fixed, ...added];
+  for (let it = 0; it < KMEANS_ITERS; it++) {
+    const sum = added.map(() => [0, 0, 0, 0]);
+    for (const p of points) {
+      const a = nearestFar(p, all, fixed.length, far) - fixed.length;
+      if (a < 0) continue;
+      const s = sum[a];
+      s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[3]++;
+    }
+    let moved = false;
+    for (let c = 0; c < added.length; c++) {
+      if (!sum[c][3]) continue;
+      const next: Lab = [sum[c][0] / sum[c][3], sum[c][1] / sum[c][3], sum[c][2] / sum[c][3]];
+      if (next.some((x, j) => x !== added[c][j])) moved = true;
+      added[c] = next;
+      all[fixed.length + c] = next;
+    }
+    if (!moved) break;
+  }
+  return added;
 }
 
 /**
@@ -266,6 +335,22 @@ function cleanupOneByOne(cells: Int32Array, w: number, h: number, may: ((from: n
   return changed;
 }
 
+/**
+ * Чистка с важными частями (./focus.ts): вне рамок — как всегда; в рамках мелкое пятно
+ * перекрашивается только в почти тот же цвет (ближе EXACT_CLOSE), как у печатной схемы: глаз,
+ * ноздри и рот остаются, рябь соседних оттенков кожи уходит.
+ */
+function cleanupFocus(cells: Int32Array, w: number, h: number, focus: Uint8Array, centers: Lab[], may: ((a: number, b: number) => boolean) | undefined, clean: Clean | undefined): boolean {
+  const before = cells.slice();
+  cleanup(cells, w, h, may, clean);
+  for (let i = 0; i < cells.length; i++) if (focus[i]) cells[i] = before[i];
+  const outside = cells.slice();
+  cleanup(cells, w, h, (a, b) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE && (!may || may(a, b)), clean);
+  for (let i = 0; i < cells.length; i++) if (!focus[i]) cells[i] = outside[i];
+  for (let i = 0; i < cells.length; i++) if (cells[i] !== before[i]) return true;
+  return false;
+}
+
 /** Порядок «как нитки в коробке»: почти серые, затем 12 секторов оттенка, светлые раньше. */
 export function boxOrder(labs: Lab[]): number[] {
   const key = labs.map((lab, i) => {
@@ -297,9 +382,17 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
     const r = rng(hash32(`${o.id}#sample`));
     pts = Array.from({ length: KMEANS_SAMPLE }, () => pts[Math.floor(r() * pts.length)]);
   }
-  let centers = kmeans(pts, o.threads, hash32(o.id));
+  // важные части: из нитей узора — свои, по клеткам рамок (лицо — сотая доля кадра, общая
+  // палитра отдала бы его нитям травы и неба)
+  const focus = o.focus;
+  const kf = focus ? focusThreads(o.threads) : 0;
+  let centers = kmeans(pts, o.threads - kf, hash32(o.id));
+  const shared = centers.length;
+  if (kf) centers = [...centers, ...kmeansAround(stitchIdx.filter((i) => focus![i]).map((i) => labs[i]), centers, kf, hash32(`${o.id}#focus`), FOCUS_FAR)];
   const log: BuildLog = { asked: o.threads, afterKmeans: centers.length, afterMerge: 0, final: 0, singlesBefore: 0, smallBefore: 0 };
-  const assignAll = () => { for (const i of stitchIdx) cells[i] = nearest(labs[i], centers); };
+  const assignAll = () => {
+    for (const i of stitchIdx) cells[i] = focus?.[i] ? nearestFar(labs[i], centers, shared, FOCUS_FAR) : nearest(labs[i], centers);
+  };
   const weights = () => {
     const wt = centers.map(() => 0);
     for (const i of stitchIdx) wt[cells[i]]++;
@@ -321,16 +414,20 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
     log.singlesBefore = (singles * 100) / Math.max(1, stitchIdx.length);
     log.smallBefore = (small * 100) / Math.max(1, stitchIdx.length);
   }
-  const minCells = Math.max(8, Math.ceil(stitchIdx.length * 0.002));
+  const minCells = fewestCells(stitchIdx.length);
+  const minFocus = fewestCells(stitchIdx.length, true);
   // Чистка, слияние маленьких нитей, пересчёт цветов и различимость — пока что-то меняется.
   // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
   for (let round = 0; round < 8; round++) {
     const may = o.exact ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE : undefined;
-    let changed = cleanup(cells, g.w, g.h, may, o.clean);
+    let changed = focus ? cleanupFocus(cells, g.w, g.h, focus, centers, may, o.clean) : cleanup(cells, g.w, g.h, may, o.clean);
     let wt = weights();
     for (;;) {
+      // редкая нить уходит; у нити важных частей порог ниже: на лице у неё и так немного клеток
+      const share = focus ? focusShare(cells, focus, centers.length) : null;
+      const fewest = (k: number) => (share && share[k] > FOCUS_SHARE ? minFocus : minCells);
       let worst = -1;
-      for (let k = 0; k < centers.length; k++) if (wt[k] < minCells && (worst < 0 || wt[k] < wt[worst])) worst = k;
+      for (let k = 0; k < centers.length; k++) if (wt[k] < fewest(k) && (worst < 0 || wt[k] < wt[worst])) worst = k;
       if (worst < 0 || centers.length < 2) break;
       const others = centers.map((c, k) => (k === worst ? [1e9, 1e9, 1e9] as Lab : c));
       const to = nearest(centers[worst], others);

@@ -6,12 +6,14 @@ import type { Card } from './cards';
 
 export { type Checked, DARK_L, DARK_SHARE, EMPTY_CELL, SIZES } from '../../src/engine/build/checks';
 
-export function checkPattern(p: Pattern, card: Card): Checked {
+/** `focus` — клетки важных частей узора (src/engine/build/focus.ts), если у карточки есть рамки лиц. */
+export function checkPattern(p: Pattern, card: Card, focus?: Uint8Array): Checked {
   return checkPatternWith(p, {
     kids: card.collection === 'kids',
     // нарисованный орнамент и старинная схема — замысел человека по клеткам: косая линия в
     // клетку у них не «конфетти»
     diagonal: !!card.drawn || !!card.pattern?.chart,
     exact: !!card.pattern?.exact,
+    ...(focus ? { focus } : {}),
   });
 }
