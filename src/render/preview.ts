@@ -12,6 +12,11 @@ const CLOTH = 0xf3f0e6;
 const cache = new Map<string, string | null>();
 const CACHE_MAX = 600;
 
+/** Забыть готовые превью: «Замер прокрутки» листает библиотеку с ещё не нарисованными. */
+export function clearPreviews(): void {
+  cache.clear();
+}
+
 /**
  * «done» — готовая работа; «scheme» — ещё не начатая: бледные тона без цвета
  * (docs/08-game-design.md, «Превью»); со `stitched` — начатая: цветом там, где вышито.

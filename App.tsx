@@ -29,6 +29,7 @@ import { MineScreen } from './src/screens/MineScreen';
 import { PictureScreen } from './src/screens/PictureScreen';
 import { PlusScreen } from './src/screens/PlusScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
+import { ScrollBenchScreen } from './src/screens/ScrollBenchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
@@ -48,6 +49,7 @@ type Route =
   | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture }
   | { name: 'sheet' }
   | { name: 'bench' }
+  | { name: 'scrollBench' }
   | { name: 'file' }
   | { name: 'settings' }
   | { name: 'about' }
@@ -101,6 +103,7 @@ function Root() {
           onCalendar={() => go({ name: 'calendar' })}
           onSheet={() => go({ name: 'sheet' })}
           onBench={() => go({ name: 'bench' })}
+          onScrollBench={() => go({ name: 'scrollBench' })}
           onFile={() => go({ name: 'file' })}
           onMine={() => go({ name: 'mine' })}
           onPlusSample={() => go({ name: 'plus', sample: true })}
@@ -152,6 +155,9 @@ function Root() {
       break;
     case 'bench':
       screen = <BenchScreen onBack={back} />;
+      break;
+    case 'scrollBench':
+      screen = <ScrollBenchScreen onBack={back} />;
       break;
     case 'file':
       screen = <FileScreen onBack={back} onReplay={(pattern, workId) => go({ name: 'done', pattern, title: pattern.key, workId })} />;

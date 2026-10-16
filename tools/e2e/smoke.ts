@@ -1672,6 +1672,29 @@ try {
     }
   }
 
+  // «Замер прокрутки» (docs/specs/2026-09-library.md, критерий 4): вся библиотека с ещё не
+  // нарисованными превью сама листается вниз до конца и обратно, кадры считает поток интерфейса.
+  // Порог «ни одного кадра дольше 50 мс» — для телефона; здесь — что список едет и замер даёт числа
+  {
+    const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const sp = await ctx.newPage();
+    sp.on('pageerror', (e) => errors.push(e.message));
+    sp.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    await sp.goto(base);
+    await sp.getByTestId('home-scroll-bench').click({ timeout: 60_000 });
+    await sp.getByTestId('scroll-bench-run').click();
+    await sp.getByTestId('scroll-bench-list').waitFor({ timeout: 10_000 });
+    await sp.waitForTimeout(1500);
+    const mid = await sp.getByTestId('scroll-bench-list').evaluate((el) => el.scrollTop).catch(() => 0);
+    await sp.getByTestId('scroll-bench-result').waitFor({ timeout: 90_000 }).catch(() => {});
+    const res = await sp.getByTestId('scroll-bench-result').innerText().catch(() => '');
+    const top = await sp.getByTestId('scroll-bench-list').evaluate((el) => el.scrollTop).catch(() => -1);
+    const n = Number(res.match(/(\d+) кадров/)?.[1] ?? 0);
+    check(mid > 1000 && top === 0 && n > 30 && /дольше 50 мс — \d+/.test(res),
+      `замер прокрутки: на полпути ${Math.round(mid)} точек вниз, в конце — снова наверху; ${res.split('\n').slice(1).join(' · ') || 'чисел нет'}`);
+    await ctx.close();
+  }
+
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
   await page.getByTestId('bench-canvas').waitFor();

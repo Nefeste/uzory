@@ -23,7 +23,7 @@ export const CHECKS = INTERNAL;
 const keyOf = (p: PackPicture) => `${p.id}@${p.v}`;
 const percentOf = (w: WorkEntry) => Math.floor((w.done * 100) / Math.max(1, w.total));
 
-export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onFile, onMine, onPlusSample }: {
+export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onScrollBench, onFile, onMine, onPlusSample }: {
   onStitch: (pic: PackPicture, workId?: string) => void;
   onSettings: () => void;
   onLibrary: () => void;
@@ -31,6 +31,8 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   onCalendar: () => void;
   onSheet: () => void;
   onBench: () => void;
+  /** «Замер прокрутки» библиотеки — в разделе «Для проверки» */
+  onScrollBench: () => void;
   onFile: () => void;
   /** «Свой узор» — пока только в веб-версии (docs/specs/2026-09-custom.md) */
   onMine: () => void;
@@ -146,6 +148,10 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
             <Card onPress={onBench} testID="home-bench">
               <Txt bold style={styles.h3}>{T.home.bench}</Txt>
               <Txt dim>{T.home.benchNote}</Txt>
+            </Card>
+            <Card onPress={onScrollBench} testID="home-scroll-bench">
+              <Txt bold style={styles.h3}>{T.home.scrollBench}</Txt>
+              <Txt dim>{T.home.scrollBenchNote}</Txt>
             </Card>
             <Card onPress={onFile} testID="home-file">
               <Txt bold style={styles.h3}>{T.home.file}</Txt>
