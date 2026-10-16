@@ -53,6 +53,15 @@ describe('проверки узора', () => {
     expect(checkPatternWith(p).errors.join()).toContain('неразличимы');
   });
 
+  test('порог карточки (pattern.min_delta): близкие нити малой с порогом сетки 70 проходят', () => {
+    // лист с бумагой: узор малый по клеткам, сетка — средняя (docs/09-content.md, §6)
+    const p = clean();
+    p.threads[1] = { rgb: 0xc8344a, name: 'светло-кумачовая' };
+    expect(checkPatternWith(p).errors.join()).toContain('неразличимы: 0.065 < 0.08');
+    expect(checkPatternWith(p, { minDelta: 0.045 }).errors).toEqual([]);
+    expect(checkPatternWith(p, { minDelta: 0.07 }).errors.join()).toContain('< 0.07');
+  });
+
   test('нить меньше восьми клеток — ошибка', () => {
     const p = grid([
       ...Array(4).fill('aaaaaaaaaaaa'),

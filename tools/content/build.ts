@@ -97,6 +97,7 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   const built = buildPattern(grid, {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     clean: SIMPLIFY_CLEAN[p.simplify ?? 0], ...(focus ? { focus } : {}),
+    ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
   });
   const out = focus ? { ...built, focus } : built;
   // глаза и кресты — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
@@ -277,7 +278,7 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
       for (const old of Object.keys(card.was ?? {}).map(Number).sort((a, b) => a - b)) {
         const t1 = performance.now();
         const was = await buildCard(card, old);
-        const wasChecked = checkPattern(was.pattern, card, was.focus);
+        const wasChecked = checkPattern(was.pattern, card, was.focus, old);
         if (wasChecked.errors.length) {
           failed.push({ path: card.path, errors: wasChecked.errors.map((e) => `v${old}: ${e}`) });
           continue;

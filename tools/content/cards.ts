@@ -6,6 +6,7 @@ import { parse } from 'yaml';
 import { COLLECTIONS, type CollectionId } from '../../src/engine/library';
 import { isDate } from '../../src/engine/dates';
 import { parseHex } from '../../src/engine/pattern';
+import { MIN_DELTA } from '../../src/engine/build/palette';
 import { SIZES } from './checks';
 
 export const ROOT = join(import.meta.dir, '..', '..');
@@ -70,6 +71,12 @@ export interface Card {
     /** насыщенность до палитры: хрома в OKLab ×chroma, 1 — как есть (dominant.ts, saturate) */
     chroma?: number;
     /**
+     * порог различимости нитей вместо порога размера по числу клеток (MIN_DELTA): у листа с бумагой узор
+     * малый по клеткам, а сетка — средняя, и порог малой сливает лепестки с листьями. Не ниже порога
+     * размера по стороне сетки: до 70 клеток — 0,045 (docs/09-content.md, §6; с 16.10.2026)
+     */
+    min_delta?: number;
+    /**
      * глаза: рамка вокруг каждого, доли снимка, как crop; в рамке сборка находит глаз и вышивает его
      * нитью узора (src/engine/build/eyes.ts; с 15.10.2026). Пусто — глаз нет, как без поля
      */
@@ -130,7 +137,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -167,6 +174,14 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.simplify !== undefined && ((p.simplify !== 0 && p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 0, 1 или 2, и не у схемы — её клетки и так замысел`);
   if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
   if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
+  if (p.min_delta !== undefined) {
+    // размер по стороне сетки: ниже его порога различимости нельзя, выше порога малой — незачем
+    const bySide = (['S', 'M', 'L', 'XL'] as const).find((c) => p.size <= SIZES[c].side) ?? 'XL';
+    const low = MIN_DELTA[bySide];
+    if (typeof p.min_delta !== 'number' || p.min_delta < low || p.min_delta > MIN_DELTA.S) {
+      errors.push(`pattern.min_delta ${String(p.min_delta)}: ${low}…${MIN_DELTA.S} — не ниже порога размера по стороне сетки ${p.size}`);
+    }
+  }
   const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
   if (p.eyes !== undefined) {
     if (!Array.isArray(p.eyes) || p.eyes.length > 8 || !p.eyes.every(rect) || p.chart) errors.push(`pattern.eyes ${JSON.stringify(p.eyes)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);

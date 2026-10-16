@@ -1,0 +1,10 @@
+id: bad-min-delta
+title: Порог различимости ниже порога своей сетки — нити слились бы на глаз
+collection: painting
+order: 1
+author: { name: Иван Шишкин, life: 1832–1898 }
+made: "1889"
+place: "Государственная Третьяковская галерея, Москва"
+museum: abroad
+source: { file: x.jpg, url: "https://example.org", basis: "PD" }
+pattern: { size: 70, threads: 16, min_delta: 0.03 }

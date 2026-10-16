@@ -43,6 +43,11 @@ export interface CheckOptions {
   exact?: boolean;
   /** важные части снимка — лица (./focus.ts): их нити могут быть вчетверо реже */
   focus?: Uint8Array;
+  /**
+   * порог различимости вместо порога размера (MIN_DELTA): у листа с бумагой узор малый по клеткам,
+   * а сетка — средняя (карточка, `pattern.min_delta`; docs/09-content.md, §6)
+   */
+  minDelta?: number;
 }
 
 export function checkPatternWith(p: Pattern, o: CheckOptions = {}): Checked {
@@ -65,7 +70,7 @@ export function checkPatternWith(p: Pattern, o: CheckOptions = {}): Checked {
     const least = fewestCells(stats.cells, !!share && share[t] > FOCUS_SHARE);
     if (c < least) errors.push(`нить ${t + 1} «${p.threads[t].name}»: ${c} клеток, нужно не меньше ${least}`);
   });
-  const min = MIN_DELTA[size];
+  const min = o.minDelta ?? MIN_DELTA[size];
   if (n > 1 && stats.minDelta < min) {
     const [a, b] = stats.closest;
     errors.push(`нити ${a + 1} и ${b + 1} неразличимы: ${stats.minDelta.toFixed(3)} < ${min}`);

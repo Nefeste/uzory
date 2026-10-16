@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акварель и карандаш. Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). Пачка 5 — запас для календаря после 1.0; в выпуск — после «да» владельца (В19).
+id: bessa-rudbekiya
+title: Рудбекия
+collection: flowers
+order: 57
+author: { name: Панкрас Бесса, life: 1772–1846 }
+made: "1828–1835"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: bessa-rudbekiya.jpg
+  url: https://clevelandart.org/art/1955.482
+  download: https://openaccess-cdn.clevelandart.org/1955.482/1955.482_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1846"
+pattern:
+  crop: [0.08, 0.06, 0.95, 0.93]   # без рамки и подписи
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  min_delta: 0.045   # порог по сетке 70, а не по числу клеток: лепестки не сливаются с листьями
+  canvas: "#eeeae6"      # бумага листа — фон, не вышивается
