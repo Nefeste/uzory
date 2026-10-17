@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акварель и карандаш на пергаменте. Оригинал — в Метрополитен-музее;
+# изображение — открытый доступ музея (CC0). Пачка 6 — к календарю 1.0 (issue 105); в выпуск — после «да» владельца (В19).
+id: redoute-erika
+title: Эрика блестящая
+collection: flowers
+order: 89
+author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
+made: "1813"
+place: "Метрополитен-музей, Нью-Йорк"
+museum: abroad
+source:
+  file: redoute-erika.jpg
+  url: https://www.metmuseum.org/art/collection/search/697702
+  download: https://images.metmuseum.org/CRDImages/dp/original/DP880039.jpg
+  basis: "Метрополитен-музей, открытый доступ (Open Access, CC0); автор ум. 1840"
+pattern:
+  crop: [0.12, 0.08, 0.86, 0.91]   # без рамки и подписи
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  min_delta: 0.045   # порог по сетке 70, а не по числу клеток: лепестки не сливаются с листьями
+  canvas: "#efeeeb"      # бумага листа — фон, не вышивается
