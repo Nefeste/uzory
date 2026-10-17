@@ -789,6 +789,23 @@ try {
   await page.waitForTimeout(300);
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,
     '«Без отметки» — только неотмеченные');
+  // отмеченная в «Без отметки» остаётся на экране до смены фильтра: после «Нет» можно дописать,
+  // что поправить (0.15.6); фильтр сменили и вернули — её уже нет
+  await page.getByTestId('pick-zvezda-alatyr-later').click();
+  await page.waitForTimeout(300);
+  const markedStays = (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1;
+  await page.getByTestId('sheet-filter-all').click();
+  await page.getByTestId('sheet-filter-unmarked').click();
+  await page.waitForTimeout(300);
+  const markedGone = (await page.getByTestId('sheet-zvezda-alatyr').count()) === 0;
+  await page.getByTestId('sheet-filter-all').click();
+  await page.getByTestId('pick-zvezda-alatyr-later').click();
+  check(markedStays && markedGone, '«Без отметки»: отмеченная картинка остаётся на экране, пока не сменят фильтр');
+  // «Без «да»» — только картинки не для выпуска: запас без «да» есть, первой картинки (с «да») нет
+  await page.getByTestId('sheet-filter-trial').click();
+  await page.getByTestId('sheet-sinij-tsvetok').waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-sinij-tsvetok').count()) === 1,
+    '«Без «да»» — только картинки не для выпуска');
   await page.getByTestId('sheet-filter-all').click();
   // коллекции — по частям (0.10.2): «Цветы» — только цветы, «Все» — снова все
   await page.getByTestId('sheet-coll-flowers').click();

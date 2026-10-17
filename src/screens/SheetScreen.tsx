@@ -24,7 +24,7 @@ import { previewUri } from '../render/preview';
 import { FONTS } from '../ui/theme';
 import { APP_VERSION } from '../version';
 
-type Filter = 'all' | 'unmarked';
+type Filter = 'all' | 'unmarked' | 'trial';
 
 interface Info {
   uri: string | null;
@@ -92,6 +92,21 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const [filter, setFilter] = useState<Filter>('all');
   // коллекция — чтобы отбирать по частям: двести картинок за раз не отметить
   const [coll, setColl] = useState<CollectionId | 'all'>('all');
+  // отмеченная в «Без отметки» картинка остаётся на экране, пока не сменят фильтр или коллекцию:
+  // после «Нет» можно дописать, что поправить (0.15.6)
+  const [stay, setStay] = useState<ReadonlySet<string>>(() => new Set());
+  const choose = (f: Filter) => {
+    setFilter(f);
+    setStay(new Set());
+  };
+  const chooseColl = (c: CollectionId | 'all') => {
+    setColl(c);
+    setStay(new Set());
+  };
+  const mark = (id: string, v: Pick | null) => {
+    setPick(id, v);
+    if (filter === 'unmarked') setStay((s) => new Set(s).add(id));
+  };
   const [copied, setCopied] = useState<{ ok: boolean; text: string } | null>(null);
   const [works, setWorks] = useState<WorkEntry[]>([]);
   // на широком окне (компьютер, docs/specs/2026-09-web.md) — несколько карточек в ряд;
@@ -111,7 +126,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const marked = rows.filter((pic) => picks[pic.id]).length;
   const noted = rows.filter((pic) => notes[pic.id]).length;
   const inColl = coll === 'all' ? rows : rows.filter((pic) => pic.collection === coll);
-  const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pic.id]) : inColl;
+  // «Без «да»» — картинки не для выпуска: без «да» владельца или музейные без лицензии (`trial`)
+  const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pic.id] || stay.has(pic.id))
+    : filter === 'trial' ? inColl.filter((pic) => pic.trial) : inColl;
   const colls = COLLECTIONS.map((c) => ({ id: c, n: rows.filter((pic) => pic.collection === c).length })).filter((c) => c.n > 0);
   // «Название (id) — «комментарий»»: владельцу — узнать картинку, ассистенту — найти карточку и что поправить
   const copy = async () => {
@@ -123,13 +140,13 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
     <View style={styles.head}>
       <Txt dim style={styles.small}>{T.sheet.picksNote}</Txt>
       <Txt bold testID="sheet-picked">{T.sheet.picked(marked, rows.length, count('yes'), count('no'), count('later'), noted)}</Txt>
-      <Segmented<Filter> value={filter} onChange={setFilter} testID="sheet-filter"
-        options={[{ id: 'all', label: T.sheet.filter.all }, { id: 'unmarked', label: T.sheet.filter.unmarked }]} />
+      <Segmented<Filter> value={filter} onChange={choose} testID="sheet-filter"
+        options={(['all', 'unmarked', 'trial'] as const).map((id) => ({ id, label: T.sheet.filter[id] }))} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colls} testID="sheet-colls">
         {[{ id: 'all' as const, label: `${T.sheet.filter.all} · ${rows.length}` },
           ...colls.map((c) => ({ id: c.id, label: `${T.library.collections[c.id]} · ${c.n}` }))].map((c) => (
           <Button key={c.id} small kind={coll === c.id ? 'primary' : 'secondary'} label={c.label}
-            onPress={() => setColl(c.id)} testID={`sheet-coll-${c.id}`} />
+            onPress={() => chooseColl(c.id)} testID={`sheet-coll-${c.id}`} />
         ))}
       </ScrollView>
       <Button kind="secondary" label={T.sheet.copy} disabled={!marked && !noted} onPress={() => void copy()} testID="sheet-copy" />
@@ -179,7 +196,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
               <View style={styles.decide}>
                 {/* та же отметка ещё раз — снять */}
                 <Segmented<Pick | 'none'> value={picks[pic.id] ?? 'none'} testID={`pick-${pic.id}`}
-                  onChange={(v) => setPick(pic.id, v === 'none' || v === picks[pic.id] ? null : v)}
+                  onChange={(v) => mark(pic.id, v === 'none' || v === picks[pic.id] ? null : v)}
                   options={PICKS.map((v) => ({ id: v, label: T.sheet.picks[v] }))} />
                 <NoteField id={pic.id} title={pic.title} value={notes[pic.id] ?? ''} onCommit={setNote} />
               </View>
