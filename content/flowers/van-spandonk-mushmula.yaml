@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): цветная пунктирная гравюра П. Ф. Леграна по рисунку Г. ван Спандонка; подписи на листе — «G. Van Spaendonck del.», «P. F. Le Grand sculp.». Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). Пачка 7 — к календарю 1.0 (issue 105); в выпуск — после «да» владельца (В19).
+id: van-spandonk-mushmula
+title: Мушмула
+collection: flowers
+order: 97
+author: { name: Герард ван Спандонк, life: 1746–1822 }
+made: "около 1800"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: van-spandonk-mushmula.jpg
+  url: https://clevelandart.org/art/1939.289
+  download: https://openaccess-cdn.clevelandart.org/1939.289/1939.289_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1822"
+pattern:
+  crop: [0.08, 0.04, 0.95, 0.88]   # без подписей внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  min_delta: 0.045   # порог по сетке 70, а не по числу клеток: лепестки не сливаются с листьями
+  canvas: "#ecebe5"      # бумага листа — фон, не вышивается
