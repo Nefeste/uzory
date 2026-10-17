@@ -1,10 +1,12 @@
 // Мои работы (docs/specs/2026-09-library.md, «Мои работы»): «Начатые» — по последнему открытию,
-// превью в нынешнем виде и процент; «Готовые» — по дате окончания. Долгое касание — «Удалить
-// работу?». Испорченная работа — «Работа повреждена», исчезнувшая картинка — «Картинка
-// недоступна»: не удаляются сами, только руками. Работы своих узоров — в «Моих узорах».
+// превью в нынешнем виде и процент; «Готовые» — по дате окончания, касание — экран «Готово» с
+// «Как вышивалось» и «Поделиться». Долгое касание — «Удалить работу?». Испорченная работа —
+// «Работа повреждена», исчезнувшая картинка — «Картинка недоступна»: не удаляются сами, только
+// руками. Работы своих узоров — в «Моих узорах».
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import type { PackPicture } from '../engine/pack';
+import type { Pattern } from '../engine/pattern';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
 import { percentOf, useCatalog } from '../state/catalog';
@@ -15,9 +17,15 @@ import { useSettings } from '../state/settings';
 import { deleteWork, type WorkEntry, workStitched } from '../state/works';
 import { Button, Screen, Segmented, Txt } from '../ui/components';
 
-type Tab = 'started' | 'finished';
+export type WorksTab = 'started' | 'finished';
 
-function WorkRow({ work, onOpen, onRemoved }: { work: WorkEntry; onOpen: (pic: PackPicture, workId?: string) => void; onRemoved: () => void }) {
+/** Начатая — канва с этой работой; готовая — «Готово» с её узором, той версии картинки, что вышита. */
+interface Open {
+  onOpen: (pic: PackPicture, workId: string) => void;
+  onDone: (pic: PackPicture, pattern: Pattern, workId: string) => void;
+}
+
+function WorkRow({ work, onOpen, onDone, onRemoved }: Open & { work: WorkEntry; onRemoved: () => void }) {
   const { theme } = useSettings();
   // узор картинки — один на строку: иначе каждый рендер давал бы новый объект и новую загрузку
   const found = useMemo(() => patternByKey(work.pattern), [work.pattern]);
@@ -50,7 +58,11 @@ function WorkRow({ work, onOpen, onRemoved }: { work: WorkEntry; onOpen: (pic: P
   const state = shown?.broken ? T.works.broken
     : work.finished ? T.works.finishedOn(new Date(work.finished)) : T.common.percent(percentOf(work));
   return (
-    <Pressable onPress={() => found && !shown?.broken && onOpen(found.pic, work.finished ? undefined : work.id)}
+    <Pressable onPress={() => {
+      if (!found || shown?.broken) return;
+      if (work.finished) onDone(found.pic, found.pattern, work.id);
+      else onOpen(found.pic, work.id);
+    }}
       onLongPress={() => setSure(true)} delayLongPress={450} testID={`work-${work.id}`}
       style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.img, { backgroundColor: theme.surfaceAlt }]}>
@@ -73,10 +85,14 @@ function WorkRow({ work, onOpen, onRemoved }: { work: WorkEntry; onOpen: (pic: P
   );
 }
 
-export function WorksScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (pic: PackPicture, workId?: string) => void }) {
+export function WorksScreen({ tab, onTab, onBack, onOpen, onDone }: Open & {
+  /** вкладка — у экрана в стеке: с «Готово» назад — на ту же */
+  tab: WorksTab;
+  onTab: (tab: WorksTab) => void;
+  onBack: () => void;
+}) {
   const { theme } = useSettings();
   const cat = useCatalog();
-  const [tab, setTab] = useState<Tab>('started');
   const list = (cat?.works ?? []).filter((w) => !isMineKey(w.pattern) && (tab === 'started' ? !w.finished : !!w.finished));
   // начатые — по последнему открытию (так лежит указатель), готовые — по дате окончания
   if (tab === 'finished') list.sort((a, b) => (b.finished ?? 0) - (a.finished ?? 0));
@@ -87,13 +103,13 @@ export function WorksScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
         <FlatList data={list} keyExtractor={(w) => w.id} contentContainerStyle={styles.list} testID="works"
           ListHeaderComponent={
             <View style={styles.head}>
-              <Segmented<Tab> value={tab} onChange={setTab} testID="works-tab"
+              <Segmented<WorksTab> value={tab} onChange={onTab} testID="works-tab"
                 options={[{ id: 'started', label: T.works.started }, { id: 'finished', label: T.works.finished }]} />
               {list.length ? <Txt dim style={styles.small}>{T.works.hold}</Txt> : null}
             </View>
           }
           ListEmptyComponent={<Txt dim>{tab === 'started' ? T.works.emptyStarted : T.works.emptyFinished}</Txt>}
-          renderItem={({ item }) => <WorkRow work={item} onOpen={onOpen} onRemoved={cat.reload} />} />
+          renderItem={({ item }) => <WorkRow work={item} onOpen={onOpen} onDone={onDone} onRemoved={cat.reload} />} />
       )}
     </Screen>
   );

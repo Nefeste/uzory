@@ -1,6 +1,8 @@
 // «Готово» и «Как вышивалось» (docs/08-game-design.md, «Готово»): работа целиком в рамке на
 // льняном фоне, повтор всех стежков по порядку за 8–12 секунд, «О картине», «Поделиться» —
 // картинкой PNG, «Дальше» — сегодняшняя картинка дня, если не вышита, иначе следующая в коллекции.
+// Готовая работа из «Моих работ» или «Моих узоров» — тот же экран: «назад» к списку и «Вышить ещё
+// раз» вместо «Дальше». «Настройки» в шапке — стежки на картинке «Поделиться» и обратно сюда.
 import { Kurale_400Regular } from '@expo-google-fonts/kurale/400Regular';
 import { Onest_500Medium } from '@expo-google-fonts/onest/500Medium';
 import { useFont } from '@shopify/react-native-skia';
@@ -58,15 +60,21 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlus }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus }: {
   pattern: Pattern;
   title: string;
   caption?: string;
   workId: string;
   /** картинка библиотеки — для «О картине» и «Дальше»; у своего узора её нет */
   pic?: PackPicture;
-  /** «Дальше»: карточка следующей картинки или главная */
-  onNext: (next: PackPicture | null) => void;
+  /** «Дальше» у только что вышитой работы: карточка следующей картинки или главная */
+  onNext?: (next: PackPicture | null) => void;
+  /** готовая работа открыта из списка: «назад» — к нему; «Дальше» и строки «Узоры+» нет */
+  onBack?: () => void;
+  /** там же «Вышить ещё раз» — карточка картинки, где новая работа начинается */
+  onAgain?: () => void;
+  /** «Настройки» в шапке */
+  onSettings: () => void;
   /** строка «Вся библиотека — в „Узоры+“» — экран подписки */
   onPlus: () => void;
 }) {
@@ -104,12 +112,12 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
   }, []);
 
   // строка «Узоры+» (docs/08-game-design.md, «„Узоры+“ глазами игрока»): только где подписку
-  // можно оформить, у игрока без неё, после бесплатной картинки, не в первые три дня после
+  // можно оформить, у игрока без неё, сразу после бесплатной картинки, не в первые три дня после
   // установки и не чаще раза в сутки; день прошлого показа запомнен при открытии экрана —
   // отметка сегодняшнего показа строку на этом же экране не прячет
   const [shownOn] = useState(player.plusOfferShownOn);
   const offerAccess = cat && pic ? cat.access(pic) : null;
-  const offer = gate && billing.available && !plus.open && offerAccess !== null
+  const offer = !!onNext && gate && billing.available && !plus.open && offerAccess !== null
     && offerOnDone({ today, installed: player.installed, shownOn, free: offerAccess === 'free' || offerAccess === 'daily' });
   useEffect(() => {
     if (offer && player.plusOfferShownOn !== today) updatePlayer({ plusOfferShownOn: today });
@@ -173,7 +181,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
   }
 
   return (
-    <Screen title={T.done.title}>
+    <Screen title={T.done.title} onBack={onBack}
+      right={<Button small kind="ghost" label={T.done.settings} onPress={onSettings} testID="done-settings" />}>
       <View style={styles.body}>
         <View style={[styles.stage, { backgroundColor: theme.bg }]} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
           {area && font && session && cw > 0 ? (
@@ -197,7 +206,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onPlu
               testID="share" style={stacked ? undefined : styles.half} />
           </View>
           {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
-          <Button label={T.done.next} onPress={() => onNext(next())} testID="next" />
+          {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
+          {onAgain ? <Button label={T.done.again} onPress={onAgain} testID="done-again" /> : null}
           {offer ? <Button kind="ghost" small label={T.plus.offer} onPress={onPlus} testID="done-plus" /> : null}
         </View>
         {/* «О картине» — поверх всего экрана, а не только работы: на узком телефоне ей там тесно */}

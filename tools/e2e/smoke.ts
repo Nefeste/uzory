@@ -671,6 +671,9 @@ try {
   check(png?.name === 'uzory-first-picture.png' && dims[0] === firstShare.width && dims[1] === firstShare.height,
     `«Поделиться»: ${png?.name ?? 'файл не скачался'} ${dims.join(' × ')} (по раскладке ${firstShare.width} × ${firstShare.height})`);
   if (png) writeFileSync(join(OUT, '03-share.png'), png.bytes);
+  check(await page.getByTestId('next').isVisible() && await page.getByTestId('done-settings').isVisible()
+    && (await page.getByTestId('back').count()) === 0 && (await page.getByTestId('done-again').count()) === 0,
+    '«Готово» сразу после последнего стежка: «Дальше» и «Настройки», без «назад» и «Вышить ещё раз»');
   await page.getByTestId('replay').click();
   await page.waitForTimeout(3000);
   await page.screenshot({ path: join(OUT, '04-replay.png') });
@@ -706,6 +709,45 @@ try {
   await page.getByTestId('works-tab-finished').click();
   await page.waitForTimeout(600);
   check((await page.locator('[data-testid^="work-w-"]').count()) === 1, 'Мои работы: готовая — первая картинка');
+  // готовая работа — снова «Готово» (просьба владельца 17.10.2026): «Как вышивалось» и «Поделиться»
+  // у любой готовой работы, «Вышить ещё раз» вместо «Дальше», «назад» — к «Готовым»; «Настройки»
+  // в шапке — и та же работа делится уже стежками
+  await page.locator('[data-testid^="work-w-"]').first().click();
+  const reopened = await page.getByTestId('replay').waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  await page.getByTestId('done-stats').waitFor({ timeout: 5000 }).catch(() => {});
+  const reStats = await page.getByTestId('done-stats').innerText().catch(() => '');
+  check(reopened && await page.getByTestId('share').isVisible() && await page.getByTestId('done-again').isVisible()
+    && (await page.getByTestId('next').count()) === 0 && reStats === doneStats,
+    `«Мои работы» → готовая работа: «Готово» с «Как вышивалось», «Поделиться» и «Вышить ещё раз», без «Дальше» (${reStats})`);
+  await page.getByTestId('replay').click();
+  check(await page.getByTestId('skip').waitFor({ timeout: 3000 }).then(() => true, () => false), 'готовая работа из «Моих работ»: «Как вышивалось» показывает стежки');
+  await page.getByTestId('skip').click().catch(() => {});
+  await page.getByTestId('done-again').click();
+  await page.getByTestId('picture-stitch').waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page.getByTestId('picture-stitch').innerText().catch(() => '')) === 'Вышить ещё раз', '«Вышить ещё раз» на «Готово» — карточка картинки, новая работа начинается там');
+  await page.getByTestId('back').click();
+  await page.getByTestId('done-settings').click();
+  await page.getByTestId('set-share-stitches').click();
+  await page.waitForTimeout(200);
+  await page.getByTestId('back').click();
+  await page.getByTestId('replay').waitFor({ timeout: 10_000 });
+  const sharedAgain = page.waitForEvent('download', { timeout: 15_000 });
+  await page.getByTestId('share').click();
+  const pngAgain = await sharedAgain.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
+  const lookFirst = png ? await lookAtShare(png.bytes, first) : null;
+  const lookAgain = pngAgain ? await lookAtShare(pngAgain, first) : null;
+  check(!!lookFirst && !!lookAgain && lookAgain.size && lookAgain.frame && lookFirst.cells > 0
+    && lookFirst.tile >= 0.95 * lookFirst.cells && lookFirst.cross === 0 && lookAgain.cross >= 0.95 * lookAgain.cells && lookAgain.tile === 0,
+    `«Готово» → «Настройки» → «Стежки на картинке»: та же работа делится крестиками (${lookAgain?.cross}/${lookAgain?.cells}), `
+    + `сразу после последнего стежка — ровным цветом (${lookFirst?.tile}/${lookFirst?.cells})`);
+  await page.getByTestId('done-settings').click();
+  await page.getByTestId('set-share-stitches').click();
+  await page.waitForTimeout(200);
+  await page.getByTestId('back').click();
+  await page.getByTestId('replay').waitFor({ timeout: 10_000 });
+  await page.getByTestId('back').click();
+  await page.locator('[data-testid^="work-w-"]').first().waitFor({ timeout: 5000 }).catch(() => {});
+  check((await page.locator('[data-testid^="work-w-"]').count()) === 1, '«назад» с «Готово» — в «Мои работы» на ту же вкладку «Готовые»');
   await page.getByTestId('back').click();
 
   // календарь: у сегодняшнего дня — картинка дня, касание — её карточка
