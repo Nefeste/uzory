@@ -5,6 +5,7 @@ id: pg-paseka
 title: Крестьянская пасека близ Гагр
 collection: russia
 order: 86
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1905–1915"
 about: >

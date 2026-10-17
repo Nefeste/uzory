@@ -4,6 +4,7 @@ id: redoute-liliya-pomponnaya
 title: Лилия помпонная
 collection: flowers
 order: 66
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Пьер-Жозеф Редуте, life: 1759–1840 }
 made: "1802–1816"
 place: "Кливлендский музей искусств, США"

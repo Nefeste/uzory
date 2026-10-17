@@ -7,6 +7,7 @@ collection: kids
 order: 43
 free: true
 season: winter   # календарь: только в свой сезон (docs/09-content.md, §9)
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

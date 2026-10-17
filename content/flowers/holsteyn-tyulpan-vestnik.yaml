@@ -4,6 +4,7 @@ id: holsteyn-tyulpan-vestnik
 title: Тюльпан «Бело-красный вестник»
 collection: flowers
 order: 55
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Питер Холстейн Младший, life: около 1612–1673 }
 made: "около 1645"
 place: "Кливлендский музей искусств, США"

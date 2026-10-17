@@ -52,6 +52,31 @@ export const NOTHING_RELEASED: Released = { catalog: null, json: null, packs: []
 export interface Source {
   picture: Picture;
   pattern: Pattern;
+  /** «в запас» (`stock` в карточке): набор недели берёт такие по очереди, а не все сразу */
+  stock?: boolean;
+}
+
+/** Сколько картинок запаса набор недели берёт сверх дней календаря: большие, огромные и «Детям». */
+export const STOCK_EXTRA = 3;
+
+/** Картинка для календаря картинок дня: малая или средняя, не «Детям» (docs/09-content.md, §9). */
+const forCalendar = (p: Picture) => dailySize(p.size) && p.collection !== 'kids' && !p.hidden;
+
+/**
+ * Запас на неделю (решение владельца 17.10.2026, issue 86): для календаря — `days` малых и средних,
+ * остальных — до `extra`; сначала картинки из `pin`, дальше коллекции по кругу, в каждой — по порядку.
+ */
+export function takeStock(stock: readonly Source[], days: number, pin: ReadonlySet<string> = new Set(), extra = STOCK_EXTRA): Source[] {
+  const take = (list: readonly Source[], n: number): Source[] => {
+    const out = list.filter((s) => pin.has(s.picture.id));
+    const by = COLLECTIONS.map((c) => list.filter((s) => s.picture.collection === c && !pin.has(s.picture.id))
+      .sort((a, b) => a.picture.order - b.picture.order || a.picture.id.localeCompare(b.picture.id)));
+    for (let k = 0; out.length < n && by.some((q) => q.length > k); k++) {
+      for (const q of by) if (q[k] && out.length < n) out.push(q[k]);
+    }
+    return out;
+  };
+  return [...take(stock.filter((s) => forCalendar(s.picture)), days), ...take(stock.filter((s) => !forCalendar(s.picture)), extra)];
 }
 
 /** content/week.yaml */
@@ -144,15 +169,18 @@ export function weekPack(released: Released, built: readonly Source[], plan: Wee
   if (!released.catalog) throw new Error('выпущенного каталога нет — сначала первый каталог со встроенным набором (--base)');
   if (released.catalog.packs.some((p) => p.id === plan.id)) throw new Error(`набор ${plan.id} уже выпущен`);
   const lib = libraryIndex(released.packs.map((p) => p.pack));
-  const fresh = built
-    .filter((b) => !lib.byKey.has(patternKey(b.picture)))
+  const cal = mergedCalendar(released.packs.map((p) => p.pack));
+  const wasDaily = new Set(cal.map((d) => d.picture));
+  // новые картинки с «да» — все; из запаса — на дни календаря, которых им не хватает, и ещё несколько
+  const unreleased = built.filter((b) => !lib.byKey.has(patternKey(b.picture)));
+  const plain = unreleased.filter((b) => !b.stock);
+  const need = Math.max(0, plan.days - plain.filter((b) => forCalendar(b.picture) && !wasDaily.has(b.picture.id)).length);
+  const fresh = [...plain, ...takeStock(unreleased.filter((b) => b.stock), need, new Set(plan.pin.values()))]
     .map((b) => ({ picture: { ...b.picture, added: plan.from }, pattern: b.pattern }));
   fresh.sort((a, b) => byCollection(a.picture, b.picture));
 
-  const cal = mergedCalendar(released.packs.map((p) => p.pack));
   const last = cal.at(-1);
   const start = last ? maxDate(addDays(last.date, 1), plan.from) : plan.from;
-  const wasDaily = new Set(cal.map((d) => d.picture));
   const latest = new Map<string, Picture>(lib.latest.map((p) => [p.id, p]));
   for (const f of fresh) {
     const cur = latest.get(f.picture.id);
@@ -341,10 +369,11 @@ async function main() {
     if (!CATALOG_KEYS.includes(publicKeyOf(secret))) throw new Error('открытой половины CATALOG_SIGNING_KEY нет в src/state/keys.ts — телефоны не примут каталог (В18)');
   }
 
-  const r = await buildAll({ release: true });
+  // встроенный набор выпуска — без картинок «в запас», набор недели берёт их по очереди
+  const r = await buildAll({ release: true, stock: !base });
   if (r.failed.length) throw new Error(`картинки не собрались: ${r.failed.map((f) => f.path).join(', ')}`);
   // и прежние версии узоров (`was`): они уже выпущены, золотой тест сверяет и их
-  const built = [...r.built, ...r.previous].map((b) => ({ picture: b.picture, pattern: b.pattern }));
+  const built = [...r.built, ...r.previous].map((b) => ({ picture: b.picture, pattern: b.pattern, stock: b.card.stock === true }));
   const golden = goldenErrors(released, built);
   for (const g of golden) console.log(`ошибка: ${g}`);
   if (golden.length) process.exit(1);

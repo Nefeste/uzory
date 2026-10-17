@@ -5,6 +5,7 @@ id: pg-krestyanka-len
 title: Крестьянка мнёт лён
 collection: russia
 order: 79
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1910"
 about: >

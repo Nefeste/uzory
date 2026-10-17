@@ -4,6 +4,7 @@ id: bessa-maurandiya
 title: Маурандия
 collection: flowers
 order: 58
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Панкрас Бесса, life: 1772–1846 }
 made: "1836"
 place: "Кливлендский музей искусств, США"
