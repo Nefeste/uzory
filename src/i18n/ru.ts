@@ -249,7 +249,7 @@ export const ru = {
     noteLabel: (title: string) => `Комментарий к картинке «${title}»`,
     noPick: 'Без отметки, с комментарием',
     item: (title: string, id: string, note: string) => (note ? `${title} (${id}) — «${note}»` : `${title} (${id})`),
-    filter: { all: 'Все', unmarked: 'Без отметки' } as Record<'all' | 'unmarked', string>,
+    filter: { all: 'Все', unmarked: 'Без отметки', trial: 'Без «да»' } as Record<'all' | 'unmarked' | 'trial', string>,
     copy: 'Скопировать решения',
     copied: 'Скопировано — вставьте в сообщение ассистенту. Текст ниже можно выделить.',
     notCopied: 'Не скопировалось — выделите текст ниже.',
