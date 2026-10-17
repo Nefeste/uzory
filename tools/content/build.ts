@@ -157,6 +157,11 @@ export interface CalendarRules {
    * праздник с плавающей датой, день рождения художника
    */
   dates?: ReadonlyMap<string, string>;
+  /**
+   * закреплённые дни (content/calendar.yaml): у игроков они прошли, картинка — как записана, даже
+   * если по правилам теперь не подошла бы
+   */
+  fixed?: readonly CalendarDay[];
 }
 
 /** Как продолжать календарь: сколько дней (нет — пока есть картинки) и коллекция дня перед `from`. */
@@ -166,7 +171,8 @@ export interface CalendarRun {
 }
 
 /**
- * Календарь сборки: с `from` по дню на картинку — малые и средние (docs/09-content.md, §8–9).
+ * Календарь сборки: с `from` по дню на картинку — малые и средние (docs/09-content.md, §8–9),
+ * кроме «Детям»: они бесплатны всегда, и их день ничего не дарит (решение владельца 17.10.2026).
  * - Картинка с днём (`day`) встаёт ровно в свой день — ближайший с `from`, если календарь
  *   до него дотянется; иначе в календарь не идёт.
  * - Картинка со временем года (`season`) встаёт только в свой сезон — первый с `from` — и не
@@ -176,6 +182,9 @@ export interface CalendarRun {
  *   подошла картинка сезона, потом та, где картинок осталось больше, — так коллекции идут
  *   вперемешку до конца, а не одна за другой.
  * - Картинка из `dates` — ровно в свою дату; такой день важнее праздника из карточки.
+ * - Закреплённый день (`fixed`) — как записан, и важнее всего. Доли сезонов считаются вместе с его
+ *   картинкой, поэтому закрепление само ничего не двигает: календарь сдвигают только правки карточек,
+ *   и только после закреплённых дней.
  * Остались одни картинки других сезонов — календарь кончается; `run.days` — не дальше стольких
  * дней, `run.after` — коллекция дня перед `from`: набор недели продолжает выпущенный календарь.
  */
@@ -184,17 +193,25 @@ export function autoCalendar(pictures: Picture[], from: string, rules: CalendarR
   const day = rules.day ?? new Map<string, string>();
   const dates = rules.dates ?? new Map<string, string>();
   const byDate = new Set(dates.values());
-  const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden);
-  const queues = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id) && !byDate.has(p.id)));
+  const byId = new Map(pictures.map((p) => [p.id, p]));
   const pinned = new Map<string, Picture>();
+  for (const d of rules.fixed ?? []) {
+    const p = byId.get(d.picture);
+    if (p) pinned.set(d.date, p);
+  }
+  const fixed = new Set([...pinned.values()].map((p) => p.id));
+  const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden && p.collection !== 'kids');
+  // очереди коллекций — без праздников и дней недели; закреплённые картинки уже вышли из них
+  const all = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id) && !byDate.has(p.id)));
+  const queues = all.map((q) => q.filter((p) => !fixed.has(p.id)));
   for (const [d, id] of dates) {
     const p = daily.find((x) => x.id === id);
-    if (p) pinned.set(d, p);
+    if (p && !pinned.has(d)) pinned.set(d, p);
   }
   // праздники: ближайший такой день, если до него картинок хватит
   for (const p of daily) {
     const md = day.get(p.id);
-    if (!md || byDate.has(p.id)) continue;
+    if (!md || byDate.has(p.id) || fixed.has(p.id)) continue;
     for (let k = 0; k < daily.length; k++) {
       const d = addDays(from, k);
       if (d.slice(5) === md) {
@@ -203,10 +220,10 @@ export function autoCalendar(pictures: Picture[], from: string, rules: CalendarR
       }
     }
   }
-  // время года: k-я из n картинок сезона — не раньше k/(n+1) его длины
+  // время года: k-я из n картинок сезона — не раньше k/(n+1) его длины; n — вместе с закреплёнными
   const notBefore = new Map<string, string>();
   for (const s of SEASONS) {
-    const list = queues.flat().filter((p) => season.get(p.id) === s);
+    const list = all.flat().filter((p) => season.get(p.id) === s);
     if (!list.length) continue;
     const [start, end] = seasonWindow(s, from);
     const len = daysBetween(start, end);
@@ -237,6 +254,25 @@ export function autoCalendar(pictures: Picture[], from: string, rules: CalendarR
     last = pick.collection;
   }
   return out;
+}
+
+/** Закреплённые дни календаря картинок дня: у игроков они уже прошли (docs/09-content.md, §9). */
+export const FIXED_DAYS = join(CONTENT, 'calendar.yaml');
+
+/**
+ * Закреплённые дни из `file` по порядку; файла нет — ни одного. Дни идут подряд с `from`
+ * (`calendar_from` набора), картинка — не дважды; иначе ошибка, и сборка не идёт.
+ */
+export function readFixedDays(from: string, file = FIXED_DAYS): CalendarDay[] {
+  if (!existsSync(file)) return [];
+  const days = Object.entries((parse(readFileSync(file, 'utf8')) ?? {}) as Record<string, unknown>)
+    .map(([date, picture]) => ({ date, picture: String(picture) }));
+  days.forEach((d, i) => {
+    if (d.date !== addDays(from, i)) throw new Error(`content/calendar.yaml: ${d.date} — ждали ${addDays(from, i)}: дни подряд с calendar_from`);
+  });
+  const twice = days.map((d) => d.picture).filter((id, i, all) => all.indexOf(id) !== i);
+  if (twice.length) throw new Error(`content/calendar.yaml: дважды — ${[...new Set(twice)].join(', ')}`);
+  return days;
 }
 
 interface PackMeta { id: string; created: string; calendar_from?: string }
@@ -293,7 +329,8 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
   built.sort((a, b) => col(a.card.collection) - col(b.card.collection) || a.card.order - b.card.order || a.card.id.localeCompare(b.card.id));
   const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
   const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
-  const calendar = autoCalendar(built.map((b) => b.picture), meta.calendar_from ?? meta.created, { season, day });
+  const from = meta.calendar_from ?? meta.created;
+  const calendar = autoCalendar(built.map((b) => b.picture), from, { season, day, fixed: readFixedDays(from) });
   // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
   return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0) };

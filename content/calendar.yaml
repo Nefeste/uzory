@@ -1,0 +1,26 @@
+# Закреплённые дни календаря картинок дня (решение владельца 17.10.2026, issue 87): у игроков
+# они уже прошли, и сборка их не трогает — продолжает календарь со следующего дня
+# (docs/09-content.md, §9). Дописывает bun tools/content/calendar.ts --write перед правкой
+# карточек, которая сдвигает календарь. В PR выпуска 1.0 файл начинается заново — с дня выхода,
+# вместе с calendar_from в content/pack.yaml (docs/05-process.md, «Первый каталог»).
+2026-09-28: first-picture
+2026-09-29: kids-domik
+2026-09-30: zvezda-alatyr
+2026-10-01: kids-rybka
+2026-10-02: romb-koltsa
+2026-10-03: klenovyy-list
+2026-10-04: rozetka
+2026-10-05: kids-solnyshko
+2026-10-06: kayma-rushnika
+2026-10-07: kids-kotik
+2026-10-08: rayskie-yablochki
+2026-10-09: romb-s-krestom
+2026-10-10: kids-korablik
+2026-10-11: romby-vasilkovye
+2026-10-12: redoute-roza-zhozefina
+2026-10-13: zvezda-malaya
+2026-10-14: list-na-asfalte
+2026-10-15: zvezda-bolshaya
+2026-10-16: kids-kurochka
+2026-10-17: rozetka-bolshaya
+2026-10-18: lambdin-rozy

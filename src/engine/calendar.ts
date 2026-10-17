@@ -1,6 +1,7 @@
 // Календарь картинок дня (docs/09-content.md, §9). Расписанное в наборах — как есть;
 // за его концом картинкой дня становится ещё не бывшая картинкой дня малая или средняя
-// картинка библиотеки, выбранная по дате: у всех с одинаковой библиотекой — одна и та же.
+// картинка библиотеки, кроме «Детям» (они бесплатны всегда — их день ничего не дарит), выбранная
+// по дате: у всех с одинаковой библиотекой — одна и та же.
 import { addDays, daysBetween } from './dates';
 import type { CalendarDay, Picture } from './library';
 import { dailySize } from './pattern';
@@ -47,7 +48,7 @@ export class Daily {
     for (const [date, id] of this.planned) if (this.pinned[date] === undefined) this.mark(id, date);
     for (const id of this.planned.values()) this.used.add(id);
     this.pool = src.pictures
-      .filter((p) => !p.hidden && dailySize(p.size))
+      .filter((p) => !p.hidden && dailySize(p.size) && p.collection !== 'kids')
       .map((p) => p.id)
       .sort();
   }

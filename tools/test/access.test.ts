@@ -95,6 +95,13 @@ describe('календарь', () => {
     expect([...a.range('2026-10-06', far)]).toEqual([...b.range('2026-10-06', far)]);
   });
 
+  test('за концом календаря «Детям» картинкой дня не становятся: их день ничего не дарит (17.10.2026)', () => {
+    const withKids = [...pictures, ...Array.from({ length: 20 }, (_, i) => pic(`k${i}`, { collection: 'kids', size: 'S' }))];
+    const ids = [...new Daily({ calendar, pictures: withKids }).range('2026-10-06', addDays('2026-10-06', 99)).values()];
+    expect(ids).toHaveLength(100);
+    expect(ids.filter((id) => id.startsWith('k'))).toEqual([]);
+  });
+
   test('когда кончились все, круг начинается заново', () => {
     const d = new Daily({ calendar, pictures });
     const all = [...d.range('2026-10-06', addDays('2026-10-06', 99)).values()];

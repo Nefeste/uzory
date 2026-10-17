@@ -98,10 +98,11 @@ describe('набор недели', () => {
     const F = pic('f-orn', 'ornaments', { order: 3 });
     const G = pic('g-kid', 'kids', { order: 2 });
     const w = weekPack(base(), [A, B, C, D, E, BIG, F, G].map((p) => src(p)), plan());
-    // малые и средние, ещё не бывшие картинкой дня: C, D, E, F, G — пять дней из семи
-    expect(w.calendar.map((d) => d.date)).toEqual([0, 1, 2, 3, 4].map((k) => addDays('2026-10-12', k)));
-    expect(new Set(w.calendar.map((d) => d.picture))).toEqual(new Set(['c-kid', 'd-orn', 'e-flo', 'f-orn', 'g-kid']));
-    noSameInARow(w.calendar, [C, D, E, F, G]);
+    // малые и средние, ещё не бывшие картинкой дня, — D, E, F: три дня из семи; C и G — «Детям»,
+    // в календаре их нет (решение владельца 17.10.2026)
+    expect(w.calendar.map((d) => d.date)).toEqual([0, 1, 2].map((k) => addDays('2026-10-12', k)));
+    expect(new Set(w.calendar.map((d) => d.picture))).toEqual(new Set(['d-orn', 'e-flo', 'f-orn']));
+    noSameInARow(w.calendar, [D, E, F]);
   });
 
   test('календарь продолжает выпущенный без разрыва и без той же коллекции на стыке', () => {
