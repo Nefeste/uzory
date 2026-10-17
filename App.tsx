@@ -10,7 +10,7 @@ import type { CollectionId } from './src/engine/library';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
 import { installCrashHandlers } from './src/state/crashlog';
-import { FIRST_PICTURE, patternOf } from './src/state/library';
+import { FIRST_PICTURE, patternOf, pictureById } from './src/state/library';
 import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
@@ -33,7 +33,7 @@ import { ScrollBenchScreen } from './src/screens/ScrollBenchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
-import { WorksScreen } from './src/screens/WorksScreen';
+import { WorksScreen, type WorksTab } from './src/screens/WorksScreen';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
 import { FONT_FILES } from './src/ui/fonts';
 import { whoMade } from './src/ui/PicAbout';
@@ -46,7 +46,8 @@ type Route =
   | { name: 'stitch'; pic: PackPicture; workId?: string }
   | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
   | { name: 'mine' }
-  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture }
+  /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
+  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture; listed?: boolean }
   | { name: 'sheet' }
   | { name: 'bench' }
   | { name: 'scrollBench' }
@@ -56,7 +57,7 @@ type Route =
   | { name: 'library' }
   | { name: 'collection'; id: CollectionId }
   | { name: 'picture'; pic: PackPicture }
-  | { name: 'works' }
+  | { name: 'works'; tab?: WorksTab }
   | { name: 'calendar' }
   | { name: 'plus'; sample: boolean }
   | { name: 'report'; from: string };
@@ -111,7 +112,10 @@ function Root() {
       );
       break;
     case 'mine':
-      screen = <MineScreen onBack={back} owner onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })} />;
+      screen = (
+        <MineScreen onBack={back} owner onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
+          onDone={(pattern, title, workId) => go({ name: 'done', pattern, title, workId, listed: true })} />
+      );
       break;
     case 'stitchMine':
       screen = (
@@ -143,10 +147,15 @@ function Root() {
     }
     case 'done': {
       const { pic } = route;
-      screen = (
+      // из списка готовых — «назад» к нему и «Вышить ещё раз»: карточка нынешней версии картинки
+      screen = route.listed ? (
+        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
+          onBack={back} onAgain={pic ? () => go({ name: 'picture', pic: pictureById(pic.id) ?? pic }) : undefined}
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} />
+      ) : (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
           onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
-          onPlus={plus} />
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} />
       );
       break;
     }
@@ -178,7 +187,11 @@ function Root() {
       screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })} onPlus={plus} />;
       break;
     case 'works':
-      screen = <WorksScreen onBack={back} onOpen={(pic, workId) => go(workId ? { name: 'stitch', pic, workId } : { name: 'picture', pic })} />;
+      screen = (
+        <WorksScreen tab={route.tab ?? 'started'} onTab={(tab) => patch(route.k, { tab })} onBack={back}
+          onOpen={(pic, workId) => go({ name: 'stitch', pic, workId })}
+          onDone={(pic, pattern, workId) => go({ name: 'done', pattern, title: pic.title, caption: caption(pic), workId, pic, listed: true })} />
+      );
       break;
     case 'calendar':
       screen = <CalendarScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;

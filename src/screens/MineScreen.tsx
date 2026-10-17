@@ -29,10 +29,12 @@ let draft: Draft | null = null;
 /** Сборка — через столько после последней правки: рамку тянут, а узор не пересобирается на каждый сдвиг. */
 const DEBOUNCE_MS = 250;
 
-export function MineScreen({ onBack, onStitch, owner }: {
+export function MineScreen({ onBack, onStitch, onDone, owner }: {
   onBack: () => void;
   /** открыть канву: узор, название, работа (нет — новая) */
   onStitch: (pattern: Pattern, title: string, workId?: string) => void;
+  /** «Готовая работа»: экран «Готово» с последней законченной работой узора */
+  onDone: (pattern: Pattern, title: string, workId: string) => void;
   /** закрытая веб-версия: карточка для библиотеки */
   owner: boolean;
 }) {
@@ -52,7 +54,7 @@ export function MineScreen({ onBack, onStitch, owner }: {
   }, [photo, crop, side, threads, simplify, title]);
   const [result, setResult] = useState<{ key: string; build: MineBuild } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry }[]>([]);
+  const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry; done?: WorkEntry }[]>([]);
   const [sure, setSure] = useState<string | null>(null);
   const alive = useRef(true);
   useEffect(() => () => {
@@ -65,7 +67,8 @@ export function MineScreen({ onBack, onStitch, owner }: {
     for (const entry of list) {
       const pattern = await loadMine(entry.id);
       // указатель работ — от свежих к старым: первая с этим узором и есть последняя
-      rows.push({ entry, pattern, uri: pattern ? previewUri(pattern, 'done', 240) : null, work: works.find((w) => w.pattern === mineKey(entry.id)) });
+      const own = works.filter((w) => w.pattern === mineKey(entry.id));
+      rows.push({ entry, pattern, uri: pattern ? previewUri(pattern, 'done', 240) : null, work: own[0], done: own.find((w) => w.finished) });
     }
     if (alive.current) setMine(rows);
   };
@@ -226,7 +229,7 @@ export function MineScreen({ onBack, onStitch, owner }: {
         <SectionTitle>{T.mine.list}</SectionTitle>
         {mine.length === 0 ? <Txt dim>{T.mine.empty}</Txt> : null}
         <View style={styles.list}>
-          {mine.map(({ entry, uri, pattern, work }) => (
+          {mine.map(({ entry, uri, pattern, work, done }) => (
             <Card key={entry.id} style={styles.item} testID={`mine-item-${entry.id}`}>
               {uri ? <Image source={{ uri }} style={styles.itemImg} resizeMode="contain" /> : null}
               <View style={styles.itemText}>
@@ -236,6 +239,9 @@ export function MineScreen({ onBack, onStitch, owner }: {
                   {pattern ? (
                     <Button small label={work && !work.finished ? T.mine.continue(Math.floor((work.done * 100) / Math.max(1, work.total))) : work ? T.mine.again : T.mine.stitch}
                       onPress={() => onStitch(pattern, entry.title, work && !work.finished ? work.id : undefined)} testID={`mine-open-${entry.id}`} />
+                  ) : null}
+                  {pattern && done ? (
+                    <Button small kind="secondary" label={T.mine.done} onPress={() => onDone(pattern, entry.title, done.id)} testID={`mine-done-${entry.id}`} />
                   ) : null}
                   <Button small kind="ghost" label={sure === entry.id ? T.mine.removeSure : T.mine.remove} onPress={() => void remove(entry.id)} testID={`mine-remove-${entry.id}`} />
                 </View>
