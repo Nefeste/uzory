@@ -5,6 +5,7 @@ id: vetka-s-yagodami
 title: Ветка с ягодами
 collection: ornaments
 order: 79
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

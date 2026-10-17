@@ -7,7 +7,8 @@
 //
 // «Нет», «Позже» и комментарии карточек не меняют: по ним ассистент правит картинки и пишет в PR, что
 // сделано. Неизвестный id, картинка в двух группах или текст не из листа — ошибка, и ничего не пишется.
-// «Да» запасу на «Новое» после выхода — по решению о нём (issue 86, docs/05-process.md, «Ритм после 1.0»).
+// «Да» запасу — сразу (решение владельца 17.10.2026, issue 86): у его карточек пометка `stock`, и с «да»
+// они идут не в 1.0, а по очереди в наборы недели после выхода (docs/05-process.md, «Ритм после 1.0»).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pluralRu } from '../../src/i18n/plural';
 import { ru } from '../../src/i18n/ru';
@@ -90,7 +91,9 @@ function main() {
   lines.push('', `«Да» — ${yes.length}, из них новых ${fresh.length}${write ? ' (approved записан)' : ' (запишет --write)'}:`);
   for (const it of fresh) {
     const { card } = cards.get(it.id)!;
-    lines.push(`- ${it.title} (${it.id})${card!.museum === 'ru' && !card!.license ? ' — музейная: в выпуск после В12' : ''}${it.note ? ` — «${it.note}»` : ''}`);
+    const where = card!.museum === 'ru' && !card!.license ? ' — музейная: в выпуск после В12'
+      : card!.stock ? ' — в запас: не в 1.0, а в наборы недели после выхода' : '';
+    lines.push(`- ${it.title} (${it.id})${where}${it.note ? ` — «${it.note}»` : ''}`);
   }
   for (const [pick, title] of [['no', '«Нет»'], ['later', '«Позже»'], [null, 'Только комментарий']] as const) {
     const group = d.items.filter((it) => it.pick === pick);

@@ -9,13 +9,13 @@ import { readCatalog } from '../../src/engine/catalog';
 import { addDays } from '../../src/engine/dates';
 import type { CalendarDay, CollectionId, Picture } from '../../src/engine/library';
 import { openPack, writePack } from '../../src/engine/pack';
-import type { Pattern, SizeClass } from '../../src/engine/pattern';
+import { dailySize, type Pattern, type SizeClass } from '../../src/engine/pattern';
 import { newKeyPair, verifyCatalog } from '../../src/engine/sign';
 import { utf8Decode } from '../../src/engine/utf8';
 import { makeCatalog, signJson } from '../content/catalog';
 import {
   baseCatalog, freezeReleased, goldenErrors, isoWeek, loadReleased, NOTHING_RELEASED, patternDigest, reader, readWeek,
-  type Released, type Source, weekPack, type WeekPlan,
+  type Released, type Source, STOCK_EXTRA, takeStock, weekPack, type WeekPlan,
 } from '../content/week';
 
 /** Шахматка квадратами 2 × 2 в две нити; `shift` меняет клетки местами. */
@@ -211,5 +211,50 @@ describe('выпущенное с сервера', () => {
     const dir = serverDir(base(), newKeyPair().secret);
     await expect(loadReleased(reader(dir), [])).rejects.toThrow('ключей нет');
     expect((await loadReleased(reader(dir), [], true)).packs).toHaveLength(1);
+  });
+});
+
+describe('запас в наборе недели (решение владельца 17.10.2026, issue 86)', () => {
+  // запас с «да»: 5 цветов и 4 орнамента — малые, 3 огромных снимка и 2 «Детям»; выпущено — base()
+  const stock = [
+    ...[3, 4, 5, 6, 7].map((o) => pic(`s-flo-${o}`, 'flowers', { order: o })),
+    ...[3, 4, 5, 6].map((o) => pic(`s-orn-${o}`, 'ornaments', { order: o })),
+    ...[1, 2, 3].map((o) => pic(`s-rus-${o}`, 'russia', { order: o, size: 'XL' })),
+    ...[2, 3].map((o) => pic(`s-kid-${o}`, 'kids', { order: o })),
+  ];
+  const stockSrc = stock.map((p): Source => ({ ...src(p), stock: true }));
+  const released1 = [A, B, C, D, E, BIG].map((p) => src(p));
+
+  test('из запаса — малые и средние на дни календаря, коллекции по кругу, и ещё три прочих', () => {
+    const w = weekPack(base(), [...released1, ...stockSrc], plan());
+    expect(STOCK_EXTRA).toBe(3);
+    expect(new Set(w.pictures.map((p) => p.id))).toEqual(new Set([
+      's-orn-3', 's-flo-3', 's-orn-4', 's-flo-4', 's-orn-5', 's-flo-5', 's-orn-6', // семь дней календаря
+      's-rus-1', 's-kid-2', 's-rus-2', // прочие — три
+    ]));
+    expect(w.calendar).toHaveLength(7);
+    expect(w.calendar.some((d) => d.picture.startsWith('s-kid') || d.picture.startsWith('s-rus'))).toBe(false);
+  });
+
+  test('новые картинки без пометки — все; запас — только на дни, которых им не хватает', () => {
+    const n1 = pic('n-orn', 'ornaments', { order: 9 });
+    const n2 = pic('n-flo', 'flowers', { order: 9 });
+    const w = weekPack(base(), [...released1, src(n1), src(n2), ...stockSrc], plan());
+    const ids = w.pictures.map((p) => p.id);
+    expect(ids).toContain('n-orn');
+    expect(ids).toContain('n-flo');
+    expect(ids.filter((id) => id.startsWith('s-orn') || id.startsWith('s-flo'))).toHaveLength(5);
+    expect(ids.filter((id) => id.startsWith('s-rus') || id.startsWith('s-kid'))).toHaveLength(3);
+  });
+
+  test('картинка запаса из pin — в наборе, хоть бы очередь до неё и не дошла', () => {
+    const w = weekPack(base(), [...released1, ...stockSrc], plan({ pin: new Map([['2026-10-14', 's-flo-7']]) }));
+    expect(w.calendar.find((d) => d.date === '2026-10-14')?.picture).toBe('s-flo-7');
+    expect(w.pictures.filter((p) => dailySize(p.size) && p.collection !== 'kids')).toHaveLength(7);
+  });
+
+  test('запас кончился — берёт сколько есть', () => {
+    expect(takeStock(stockSrc.slice(0, 2), 7).map((s) => s.picture.id)).toEqual(['s-flo-3', 's-flo-4']);
+    expect(takeStock([], 7)).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ title: Мяч
 collection: kids
 order: 44
 free: true
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 source:
   url: ""
   basis: своя работа студии (рисунок по клеткам)

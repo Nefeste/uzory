@@ -109,6 +109,11 @@ export interface Card {
   added?: string;
   free?: boolean;
   hidden?: boolean;
+  /**
+   * «в запас» (решение владельца 17.10.2026, issue 86): с «да» — но во встроенный набор выпуска не
+   * идёт, его по очереди берут наборы недели после выхода (docs/05-process.md, «Ритм после 1.0»)
+   */
+  stock?: true;
   /** время года: в календаре сборки картинка встаёт только в свой сезон (docs/09-content.md, §9) */
   season?: Season;
   /** день «ММ-ДД» — праздник: в календаре сборки картинка встаёт ровно в этот день (§9) */
@@ -259,6 +264,7 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (new Set(urls).size < 2) errors.push('у рассказа — два открытых источника (about_sources: два разных адреса)');
   }
   if (card.approved !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(card.approved))) errors.push(`approved «${String(card.approved)}» — дата`);
+  if (card.stock !== undefined && card.stock !== true) errors.push(`stock: ${String(card.stock)} — только true («в запас»), иначе поля нет`);
   if (card.season !== undefined && !SEASONS.includes(card.season)) errors.push(`season «${String(card.season)}» — одно из: ${SEASONS.join(', ')}`);
   if (card.day !== undefined && !(typeof card.day === 'string' && /^\d{2}-\d{2}$/.test(card.day) && isDate(`2028-${card.day}`))) {
     errors.push(`day «${String(card.day)}» — день года «ММ-ДД», например «12-31»`);

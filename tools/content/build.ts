@@ -5,8 +5,8 @@
 //
 //   bun tools/content/build.ts               все картинки → dist/ и src/content/generated/
 //   bun tools/content/build.ts --check       только проверки, как в CI
-//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права; и музыка);
-//                                            ни одной такой картинки — ошибка
+//   bun tools/content/build.ts --release     только то, что можно выпускать (approved, права; и музыка),
+//                                            без картинок «в запас»; ни одной такой картинки — ошибка
 //   bun tools/content/build.ts --only painting
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -277,7 +277,19 @@ export function readFixedDays(from: string, file = FIXED_DAYS): CalendarDay[] {
 
 interface PackMeta { id: string; created: string; calendar_from?: string }
 
-export async function buildAll(opts: { only?: string; release?: boolean } = {}) {
+/**
+ * Почему карточка не идёт во встроенный набор выпуска; null — идёт. Картинка «в запас» (`stock`) с
+ * «да» идёт только в наборы недели после выхода — с `stock` (решение владельца 17.10.2026, issue 86).
+ */
+export function notInRelease(card: Card, stock = false): string | null {
+  return releasable(card) ?? (card.stock && !stock ? 'в запас: в наборы недели после выхода, не в 1.0' : null);
+}
+
+/**
+ * Набор из карточек. `release` — только то, что можно выпускать (`notInRelease`); `stock` — и картинки
+ * «в запас»: их берёт набор недели, а встроенный набор выпуска — нет.
+ */
+export async function buildAll(opts: { only?: string; release?: boolean; stock?: boolean } = {}) {
   const meta = parse(readFileSync(join(CONTENT, 'pack.yaml'), 'utf8')) as PackMeta;
   const built: Built[] = [];
   /** прежние версии узоров из `was`: в набор — скрытыми, после всех картинок */
@@ -297,8 +309,9 @@ export async function buildAll(opts: { only?: string; release?: boolean } = {}) 
     }
     ids.add(card.id);
     const trial = releasable(card);
-    if (opts.release && trial) {
-      skipped.push({ path: card.path, why: trial });
+    const out = opts.release ? notInRelease(card, opts.stock) : null;
+    if (out) {
+      skipped.push({ path: card.path, why: out });
       continue;
     }
     const t0 = performance.now();

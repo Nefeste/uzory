@@ -5,6 +5,7 @@ id: pg-chasovnya-petrozavodsk
 title: Часовня Петра I в Петрозаводске
 collection: russia
 order: 87
+stock: true   # в запас: с «да» — не в 1.0, а в наборы недели после выхода (issue 86)
 author: { name: Сергей Прокудин-Горский, life: 1863–1944 }
 made: "1905–1915"
 about: >

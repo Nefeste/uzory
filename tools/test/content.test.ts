@@ -7,7 +7,7 @@ import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildLimitMs, slowPictures, toPicture } from '../content/build';
+import { buildAll, buildLimitMs, notInRelease, slowPictures, toPicture } from '../content/build';
 import { type Card, listCards, readCard, releasable } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
@@ -24,6 +24,7 @@ describe('карточки', () => {
     'both-ways.yaml': /ровно одно/,
     'Bad_Id.yaml': /латиница/,
     'bad-season.yaml': /season «зима»/,
+    'bad-stock.yaml': /stock: false — только true/,
     'bad-day.yaml': /day «02-30»/,
     'about-one-source.yaml': /два открытых источника/,
     'bad-grid.yaml': /pattern\.grid «median»/,
@@ -42,6 +43,14 @@ describe('карточки', () => {
       expect(errors.join('; ')).toMatch(expected[f]);
     });
   }
+
+  test('«в запас» с «да» — не во встроенный набор выпуска, а в наборы недели (17.10.2026, issue 86)', () => {
+    const card = { id: 'x', approved: '2026-10-17', stock: true } as Card;
+    expect(notInRelease(card)).toBe('в запас: в наборы недели после выхода, не в 1.0');
+    expect(notInRelease(card, true)).toBeNull();
+    expect(notInRelease({ ...card, stock: undefined })).toBeNull();
+    expect(notInRelease({ ...card, approved: undefined })).toBe('нет «да» владельца (approved)');
+  });
 
   test('музейный предмет без лицензии и без «да» владельца — не в выпуск', () => {
     const c = { approved: '2026-10-01', museum: 'ru', license: null } as unknown as Parameters<typeof releasable>[0];
@@ -114,7 +123,8 @@ describe('сборка', () => {
     const { built } = await once();
     // с «да» узор уходит в APK по тегу версии, и на нём начинают работы; закрепляет его тот же PR:
     // bun tools/content/week.ts --base --freeze (docs/05-process.md, «Выкладывание наборов»)
-    const loose = built.filter((b) => !b.trial && released[b.pattern.key] === undefined).map((b) => b.pattern.key);
+    // картинки «в запас» с «да» в APK не идут: их узоры закрепляет PR набора недели (issue 86)
+    const loose = built.filter((b) => !b.trial && !b.card.stock && released[b.pattern.key] === undefined).map((b) => b.pattern.key);
     expect(loose).toEqual([]);
   }, 300_000);
 
