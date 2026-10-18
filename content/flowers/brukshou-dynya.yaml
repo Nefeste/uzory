@@ -1,0 +1,22 @@
+# «Цветы» (docs/09-content.md, §1): акватинта и пунктир (печать в цвете, раскраска от руки) из «Британской помоны» Брукшоу, таблица LXXII; подпись на листе — «Painted & Published by the Author G. Brookshaw». Оригинал — в Кливлендском музее искусств;
+# изображение — открытый доступ музея (CC0). Пачка 7 — к календарю 1.0 (issue 105); в выпуск — после «да» владельца (В19).
+id: brukshou-dynya
+title: Дыня
+collection: flowers
+order: 102
+author: { name: Джордж Брукшоу, life: 1751–1823 }
+made: "1812"
+place: "Кливлендский музей искусств, США"
+museum: abroad
+source:
+  file: brukshou-dynya.jpg
+  url: https://clevelandart.org/art/2020.167
+  download: https://openaccess-cdn.clevelandart.org/2020.167/2020.167_web.jpg
+  basis: "Кливлендский музей искусств, открытый доступ (Open Access, CC0); автор ум. 1823"
+pattern:
+  crop: [0.08, 0.07, 0.95, 0.90]   # без подписи внизу
+  size: 70
+  simplify: 1   # тонкие стебли без «конфетти»
+  threads: 16
+  min_delta: 0.045   # порог по сетке 70, а не по числу клеток: лепестки не сливаются с листьями
+  canvas: "#5a453b"      # тёмный фон листа — не вышивается
