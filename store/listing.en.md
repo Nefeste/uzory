@@ -17,12 +17,15 @@ Color by number as cross-stitch: folk ornaments, paintings, old Russia. No ads
 Uzory is color by number made to feel like cross-stitch. Every picture is a chart on linen canvas with numbered cells. Pick a thread and stitch — tap a cell or brush your finger across the canvas. From afar your work looks like real embroidery, and when it is finished the game replays how it was stitched, stitch by stitch.
 
 WHAT TO STITCH
+• More than three hundred pictures in eight collections — from small five-minute patterns to large paintings and old photographs for several evenings.
 • Ornaments inspired by Russian folk embroidery: eight-pointed stars, rhombs, rosettes, towel borders.
-• Paintings from the 19th and early 20th century that are in the public domain, each with a short story.
-• Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago.
-• Flowers, nature, cities and simple pictures for kids.
+• Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago, each with a short story.
+• Paintings — 19th and early 20th century landscapes from the Metropolitan Museum of Art, in the public domain, each with a short story.
+• Flowers — botanical plates by Redouté and still lifes by Van Gogh, Renoir and Fantin-Latour.
+• Old charts — patterns from real embroidery sheets of 1850–1890.
+• Nature and cities in the studio's own photographs; simple pictures for kids.
 • A new picture every day — free, forever. Missed a week? Past daily pictures wait in the calendar.
-• From small five-minute patterns to large paintings and old photographs for several evenings. The larger the pattern, the finer the detail: the largest have more than a hundred thousand stitches, with faces and fabric patterns you can make out.
+• The larger the pattern, the finer the detail: the largest have more than a hundred thousand stitches, with faces and fabric patterns you can make out.
 
 CALM
 • No timers, no energy, no streaks.
@@ -38,7 +41,8 @@ EASY ON THE EYES
 
 HONEST
 • No ads at all. No sign-up. The whole library works offline.
-• The Uzory+ subscription unlocks the full library and new pictures every week. No trial that silently turns paid; works you started can be finished after it ends.
+• Free: every tool, today's picture and every past daily picture since you installed, the kids' collection and the first five pictures of every collection.
+• The Uzory+ subscription, monthly or yearly, unlocks the full library and new pictures every week. No trial that silently turns paid; works you started can be finished after it ends.
 
 Only real pictures: public-domain works, the studio's own photos and ornaments. No AI-generated images.
 
