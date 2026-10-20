@@ -52,6 +52,8 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
   const [period, setPeriod] = useState<PlusPeriod>('year');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  /** почему цен нет: нет RuStore или сети (spec, «Неудачные случаи») */
+  const [why, setWhy] = useState<BillingFail | null>(null);
   const backLater = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (backLater.current) clearTimeout(backLater.current);
@@ -61,8 +63,12 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
   useEffect(() => {
     if (sample) return;
     let alive = true;
-    void billing.products().then((p) => {
-      if (alive) setProducts(p);
+    void billing.products().then(async (p) => {
+      if (!alive) return;
+      setProducts(p);
+      if (p) return;
+      const w = await billing.availability();
+      if (alive) setWhy(w);
     });
     void plus.refresh();
     return () => {
@@ -138,6 +144,7 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
         ) : (
           <>
             {products === null ? <Txt dim testID="plus-no-price">{T.plus.noPrice}</Txt> : null}
+            {products === null && why && FAILS[why] ? <Txt testID="plus-why">{FAILS[why]}</Txt> : null}
             {products ? (
               <View style={styles.options} accessibilityRole="radiogroup">
                 {(['month', 'year'] as const).map((per) => {

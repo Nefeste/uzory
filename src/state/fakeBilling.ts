@@ -59,5 +59,9 @@ export function fakeBilling(read: () => string | null, write: (raw: string) => v
       const r = parse(read());
       return silent(r.mode) ? null : state(r, now());
     },
+    availability: async () => {
+      const mode = parse(read()).mode;
+      return mode === 'no-store' || mode === 'offline' ? mode : null;
+    },
   };
 }
