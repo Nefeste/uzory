@@ -141,11 +141,9 @@ and are not repeated here. This project's own rules:
   (`assets/music/music.yaml`, `docs/09-content.md` §10) — never NC, ND or SA, never a recording
   "found on the internet". The owner approves every piece (`approved`, like pictures); release
   builds take only approved ones. Files are made by `bun tools/audio/music.ts`, never by hand.
-- **Money and pressure**: the studio rules (no ads in play, no currency or boosters for money, no
-  energy, timers or streaks, no auto-converting trial, started work stays available after a
-  subscription ends) are in the charter's
-  [`docs/05-rules.md`](https://github.com/Nefeste/gornitsa/blob/main/docs/05-rules.md); here,
-  narrower: no ads at all (ADR 0008, 0011), and the subscription is offered only in the three
+- **Money and pressure**: the studio rules are in the charter's
+  [`docs/05-rules.md`](https://github.com/Nefeste/gornitsa/blob/main/docs/05-rules.md#деньги)
+  («Деньги», «Без давления»); here, narrower: no ads at all (ADR 0008, 0011), and the subscription is offered only in the three
   places listed in `docs/08-game-design.md` (ADR 0009).
 - **No server logic** (ADR 0007): the server serves static packs and a catalog; the only data it
   sees are the anonymous counters in the catalog query (ADR 0012). Never add identifiers.
