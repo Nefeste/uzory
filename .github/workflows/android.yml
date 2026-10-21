@@ -159,6 +159,12 @@ jobs:
     if: needs.key.outputs.build == 'yes'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # Номер приложения в консоли RuStore (переменная репозитория, не секрет) — как в «Нардах»: нужен
+    # и prebuild (plugins/with-rustore.js), и сборке JS (src/state/billing.ts), поэтому — на всё
+    # задание. Нет переменной — RuStore Pay в сборку не входит и покупок в ней нет
+    # (docs/specs/2026-09-plus.md, «Что изменилось», 20.10.2026).
+    env:
+      EXPO_PUBLIC_RUSTORE_APP_ID: ${{ vars.RUSTORE_APP_ID || '' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.key.outputs.matrix) }}
@@ -301,6 +307,19 @@ jobs:
 
             TARGET_SDK="$("$BT/aapt2" dump badging "$FILE" | sed -nE "s/^targetSdkVersion:'([0-9]+)'.*/\1/p")"
             echo "target API: $TARGET_SDK" | tee -a "$GITHUB_STEP_SUMMARY"
+
+            # 4. RuStore Pay: номер приложения в манифесте есть ровно тогда, когда задана переменная
+            # RUSTORE_APP_ID (plugins/with-rustore.js); без неё покупок в сборке нет
+            # (без конвейера в grep -q: под pipefail обрыв printf выглядел бы как «не нашлось»)
+            PAY="$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$FILE" | grep -A2 'console_app_id_value' || true)"
+            if [ -n "$EXPO_PUBLIC_RUSTORE_APP_ID" ]; then
+              if [ -z "$PAY" ]; then echo "::error::RUSTORE_APP_ID задан, а RuStore Pay в манифест не встал (plugins/with-rustore.js)."; exit 1; fi
+              case "$PAY" in *"$EXPO_PUBLIC_RUSTORE_APP_ID"*) ;; *) echo "$PAY"; echo "::warning::Номер приложения RuStore в манифесте не прочитался как $EXPO_PUBLIC_RUSTORE_APP_ID — сверьте вывод aapt2 выше." ;; esac
+              echo "- RuStore Pay: есть, приложение $EXPO_PUBLIC_RUSTORE_APP_ID — подписка «Узоры+» покупается" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              if [ -n "$PAY" ]; then echo "::error::RUSTORE_APP_ID не задан, а RuStore Pay в манифесте есть."; exit 1; fi
+              echo "- RuStore Pay: нет (переменной RUSTORE_APP_ID нет) — покупок в сборке нет" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
           fi
 
       - name: Собрать
@@ -365,6 +384,8 @@ jobs:
           echo "sha=$(sed -n 2p dist/signature-apk.txt)" >> "$GITHUB_OUTPUT"
       - name: Заметки релиза
         id: ver
+        env:
+          PAY_ID: ${{ vars.RUSTORE_APP_ID || '' }}
         run: |
           V=$(node -p "require('./repo/app.json').expo.version")
           echo "version=$V" >> "$GITHUB_OUTPUT"
@@ -379,6 +400,11 @@ jobs:
               echo "**uzory-${{ github.run_number }}.aab** — только для загрузки в магазины, принимающие AAB (на телефон не ставится)."
             fi
             echo "Подписаны ${{ steps.sig.outputs.label }}, SHA-256 сертификата: \`${{ steps.sig.outputs.sha }}\`."
+            if [ -n "$PAY_ID" ]; then
+              echo "Подписка «Узоры+» — через RuStore Pay (приложение $PAY_ID в консоли RuStore)."
+            else
+              echo "Покупок в этой сборке нет: не задана переменная RUSTORE_APP_ID."
+            fi
             echo "Собрано из коммита ${{ github.sha }} (тег ${{ github.ref_name }}), сборка ${{ github.run_number }}."
           } > release.md
           cat release.md
