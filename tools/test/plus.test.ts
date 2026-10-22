@@ -89,6 +89,8 @@ describe('заглушка RuStore Pay сценария', () => {
       const silent = mode === 'offline' || mode === 'no-store';
       expect(await billing.products()).toEqual(silent ? null : FAKE_PRODUCTS);
       expect(await billing.status()).toEqual(silent ? null : { status: 'none', checkedAt: now });
+      // почему цен нет — экран «Узоры+» говорит это под «Не удалось узнать цену»
+      expect(await billing.availability()).toBe(silent ? mode : null);
     }
   });
 

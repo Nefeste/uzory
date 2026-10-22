@@ -1676,17 +1676,20 @@ try {
       check(line === '', `в первые три дня после установки строки «Узоры+» на «Готово» нет${line ? ` (а есть «${line}»)` : ''}`);
       await ctx.close();
     }
-    // нет RuStore: цены не узнать — кнопка неактивна; «Восстановить покупки» говорит, что не спросить
+    // нет RuStore: цены не узнать — кнопка неактивна, под ценой — почему (20.10.2026); «Восстановить
+    // покупки» говорит, что не спросить
     {
       const { ctx, pg } = await plusPage('no-store', 3);
       await toPlus(pg);
       const noPrice = await pg.getByTestId('plus-no-price').innerText().catch(() => '');
+      await pg.getByTestId('plus-why').waitFor({ timeout: 5000 }).catch(() => {});
+      const why = await pg.getByTestId('plus-why').innerText().catch(() => '');
       const disabled = (await pg.getByTestId('plus-buy').getAttribute('aria-disabled')) === 'true';
       await pg.getByTestId('plus-restore').click();
       await pg.getByTestId('plus-said').waitFor({ timeout: 5000 }).catch(() => {});
       const said = await pg.getByTestId('plus-said').innerText().catch(() => '');
-      check(noPrice.includes('Не удалось узнать цену') && disabled && said.includes('Не удалось спросить RuStore'),
-        `нет RuStore: «${noPrice}», кнопка неактивна, «Восстановить покупки» — «${said}»`);
+      check(noPrice.includes('Не удалось узнать цену') && why.includes('Установите или обновите RuStore') && disabled && said.includes('Не удалось спросить RuStore'),
+        `нет RuStore: «${noPrice}» — «${why}», кнопка неактивна, «Восстановить покупки» — «${said}»`);
       await ctx.close();
     }
   }

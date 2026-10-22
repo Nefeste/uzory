@@ -152,7 +152,9 @@ ADR [0019](https://github.com/Nefeste/gornitsa/blob/main/adr/0019-ci-on-pr.md); 
 
 **Белый список разрешений APK**: `INTERNET` (каталог и наборы), `ACCESS_NETWORK_STATE`,
 `VIBRATE`, `MODIFY_AUDIO_SETTINGS` (`expo-audio`, как у «Анамнеза») и служебные разрешения,
-которые приносят RuStore Pay и Review SDK (список фиксируется после первой сборки).
+которые приносят RuStore Pay и Review SDK (список фиксируется после первой сборки с ними: RuStore
+Pay входит в сборку, когда задан `RUSTORE_APP_ID`; в «Нардах» с RuStore Pay и рекламой появилось
+`RECEIVE_BOOT_COMPLETED` — чьё, неизвестно).
 **Запрещены** и вырезаются в `app.json`: `AD_ID` (рекламы нет — ADR [0008](adr/0008-no-ads.md)),
 `WAKE_LOCK` (его приносит плеер `expo-audio`, а игре он не нужен), доступ к файлам,
 камере, контактам, показ поверх окон. Новое разрешение сборка не пропустит: нужное
@@ -168,7 +170,7 @@ ADR [0019](https://github.com/Nefeste/gornitsa/blob/main/adr/0019-ci-on-pr.md); 
 | `DEPLOY_KNOWN_HOSTS` (переменная) | ключ сервера для SSH — без неё ключ принимается без сверки (выложенное всё равно сверяется скачиванием) | `ssh-keyscan -t ed25519 <сервер>` — одна строка |
 | `CATALOG_SIGNING_KEY` | закрытый ключ Ed25519 для подписи каталога ([`03-server-api.md`](03-server-api.md)) | создать один раз у себя: `bun tools/content/keygen.ts`; копию хранить у владельца отдельно; открытый ключ — в `src/state/keys.ts` (В18) |
 | `RUSTORE_API_TOKEN`, `RUSTORE_KEY_ID` | загрузка в RuStore | консоль RuStore → «API RuStore» |
-| `RUSTORE_APP_ID` (переменная) | приложение в RuStore Pay | консоль RuStore |
+| `RUSTORE_APP_ID` (переменная) | номер приложения в консоли RuStore для RuStore Pay: `android.yml` передаёт его в сборку (`EXPO_PUBLIC_RUSTORE_APP_ID`); нет — RuStore Pay в сборку не входит и покупок нет | консоль RuStore; у «Узоров» — 2063773260 ([`store/preorder.md`](../store/preorder.md)) |
 
 ### Как завести ключ подписи (один раз, В8)
 
@@ -307,7 +309,9 @@ https://gornitsa.games/uzory/v1/` (с `--check` — только сверка, �
 2. Все проверки [`06-testing.md`](06-testing.md) зелёные.
 3. Встроенный набор собран из `main`, календарь картинок дня расписан минимум на 120 дней
    вперёд ([`09-content.md`](09-content.md)).
-4. Сборка поставлена на опорный телефон с RuStore: покупка в тестовом режиме RuStore Pay,
+4. Сборка поставлена на опорный телефон с RuStore: покупка в тестовом режиме RuStore Pay (шаги —
+   [спецификация «Узоров+»](specs/2026-09-plus.md), «Как проверить на телефоне»; в итогах сборки —
+   «RuStore Pay: есть»),
    восстановление покупки после переустановки, окончание подписки (начатое дошивается),
    работа без сети, скачивание набора, крупный шрифт, большая картинка — от начала до конца;
    замеры — по памятке [`06-testing.md`](06-testing.md), §6: что открыть, где взять число, порог.
