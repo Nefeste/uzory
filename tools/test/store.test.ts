@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import type { CollectionId } from '../../src/engine/library';
 import { readTracks } from '../audio/tracks';
-import { listCards, readCard, releasable } from '../content/cards';
+import { notInRelease } from '../content/build';
+import { listCards, readCard } from '../content/cards';
 
 const STORE = join(import.meta.dir, '..', '..', 'store');
 const read = (f: string) => readFileSync(join(STORE, f), 'utf8');
@@ -69,8 +70,8 @@ describe('карточка RuStore', () => {
 /**
  * Обещания — по выпуску (docs/specs/2026-09-v1.md, «Карточка RuStore»: ни одного обещания, которого нет
  * в игре). Тексты магазина и сайта, памятка тестировщику (у них APK выпуска) и надписи баннера не называют
- * коллекцию, в которой нет ни одной картинки с «да» владельца и правами, и музыку, пока ни у одной пьесы
- * нет «да» (В6). Появятся в выпуске — их можно вписать.
+ * коллекцию, в которой нет ни одной видимой картинки выпуска — с «да» владельца и правами, не скрытой и
+ * не «в запас», — и музыку, пока ни у одной пьесы нет «да» (В6). Появятся в выпуске — их можно вписать.
  */
 describe('обещания — по выпуску', () => {
   const NAMED: Record<CollectionId, RegExp> = {
@@ -101,7 +102,8 @@ describe('обещания — по выпуску', () => {
     const released = new Set<string>();
     for (const f of listCards()) {
       const { card } = readCard(f);
-      if (card && releasable(card) === null) released.add(card.collection);
+      // скрытая («нет» владельца после «да», ADR 0010) — в наборе только для начатых работ
+      if (card && notInRelease(card) === null && !card.hidden) released.add(card.collection);
     }
     expect(released.size).toBeGreaterThan(0);
     const bad: string[] = [];
