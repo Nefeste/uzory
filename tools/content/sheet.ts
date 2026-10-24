@@ -7,13 +7,15 @@
 //   bun tools/content/sheet.ts --ids a,b,c --name fragments   выбранные → dist/sheet/fragments-N.png
 //   bun tools/content/sheet.ts --variants <id>  сетка 70/100/120 × 16/24/32 нити (П3)
 //   bun tools/content/sheet.ts --deltas <id>    сетка 70/100/120 × порог различимости 0,05/0,04/0,03
+//   bun tools/content/sheet.ts --smooth a,b,c --name X   как сейчас и сглаживание 1 и 2 (smooth.ts)
+//                                               → dist/sheet/smooth-X-N.png
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp, { type OverlayOptions } from 'sharp';
 import { estimateMinutes, type Pattern } from '../../src/engine/pattern';
 import { renderFrame } from '../canvas/ck';
-import { ROOT, readCard, listCards } from './cards';
-import { type Built, buildAll } from './build';
+import { type Card, ROOT, readCard, listCards } from './cards';
+import { type Built, buildAll, buildCard } from './build';
 import { decode } from './image';
 import { buildPattern } from '../../src/engine/build/palette';
 import { photoGrid } from '../../src/engine/build/photo';
@@ -54,17 +56,16 @@ async function render(p: Pattern, mosaic: boolean, height = H): Promise<Buffer> 
   return sharp(Buffer.from(f.png())).resize({ height, width: Math.round((height * p.w) / p.h), kernel: 'nearest' }).png().toBuffer();
 }
 
-async function sourceTile(b: Built): Promise<Buffer | null> {
-  if (!b.card.source.file) return null;
-  const file = join(b.card.dir, b.card.source.file);
+async function sourceTile(card: Card, h = H): Promise<Buffer | null> {
+  if (!card.source.file) return null;
+  const file = join(card.dir, card.source.file);
   const img = sharp(file).rotate();
   const meta = await img.metadata();
   const w0 = meta.width ?? 1;
   const h0 = meta.height ?? 1;
-  const h = H;
   const w = Math.round((w0 * h) / h0);
   // рамка кадра, у старинной схемы — рамка сетки
-  const [l, t, r, bt] = b.card.pattern?.chart ?? b.card.pattern?.crop ?? [0, 0, 1, 1];
+  const [l, t, r, bt] = card.pattern?.chart ?? card.pattern?.crop ?? [0, 0, 1, 1];
   const frame = Buffer.from(`<svg width="${w}" height="${h}"><rect x="${l * w}" y="${t * h}" width="${(r - l) * w}" height="${(bt - t) * h}" fill="none" stroke="#b3162f" stroke-width="3"/></svg>`);
   // ширина — та же, что у рамки: sharp округляет её по-своему, и рамка на пиксель шире не ляжет
   return img.resize({ width: w, height: h, fit: 'fill' }).composite([{ input: frame }]).png().toBuffer();
@@ -87,8 +88,8 @@ function caption(b: Built): Buffer {
 async function row(b: Built): Promise<Buffer> {
   const big = Math.max(b.pattern.w, b.pattern.h) > 40;
   const tiles = (big
-    ? [await sourceTile(b), await far(b.pattern), await close(b.pattern, false), await close(b.pattern, true)]
-    : [await sourceTile(b), await render(b.pattern, false), await render(b.pattern, true)]).filter(Boolean) as Buffer[];
+    ? [await sourceTile(b.card), await far(b.pattern), await close(b.pattern, false), await close(b.pattern, true)]
+    : [await sourceTile(b.card), await render(b.pattern, false), await render(b.pattern, true)]).filter(Boolean) as Buffer[];
   const metas = await Promise.all(tiles.map((t) => sharp(t).metadata()));
   const cap = caption(b);
   const capMeta = await sharp(cap).metadata();
@@ -151,9 +152,76 @@ async function variants(id: string, mode: 'threads' | 'deltas') {
   console.log(out);
 }
 
+/** Подпись под плиткой листа сглаживания. */
+function smoothLabel(lines: string[], width: number): Buffer {
+  const text = lines.map((t, i) => `<text x="8" y="${22 + i * 21}" font-family="DejaVu Sans, sans-serif" font-size="${i ? 15 : 18}" fill="${t.startsWith('⚠') ? '#b3162f' : '#1a1b1e'}">${esc(t)}</text>`).join('');
+  return Buffer.from(`<svg width="${width}" height="${14 + lines.length * 21}"><rect width="100%" height="100%" fill="#f7f7f2"/>${text}</svg>`);
+}
+
+/**
+ * Лист сглаживания (src/engine/build/smooth.ts): по строке на картинку — исходник с кадром, узор
+ * как сейчас, сглаживание 1 и 2; издалека вышито целиком, под ним — кусок из середины вблизи, как на
+ * экране вышивания, и числа проверок. Карточки не меняются: сглаживание — на копии в памяти.
+ */
+async function smoothSheet(ids: string[], name: string) {
+  const files = listCards();
+  const rows: Buffer[] = [];
+  for (const id of ids) {
+    const file = files.find((f) => f.endsWith(`/${id}.yaml`));
+    if (!file) throw new Error(`карточки ${id} нет`);
+    const { card, errors } = readCard(file);
+    if (!card?.pattern || card.pattern.chart) throw new Error(`${id}: ${errors.join('; ') || 'не снимок и не картина'}`);
+    const tiles: { img: Buffer; cap: string[] }[] = [];
+    const src = await sourceTile(card, 360);
+    tiles.push({ img: src!, cap: [card.title, `${id} · сетка ${card.pattern.size}, заказано ${card.pattern.threads} нитей`] });
+    for (const level of [0, 1, 2] as const) {
+      const variant: Card = level ? { ...card, pattern: { ...card.pattern, simplify: undefined, smooth: level } } : card;
+      const t = performance.now();
+      const b = await buildCard(variant);
+      const ms = performance.now() - t;
+      const c = checkPattern(b.pattern, variant, b.focus);
+      const s = c.stats;
+      const img = await far(b.pattern, 360);
+      const near = await close(b.pattern, false, 300);
+      const m = await sharp(img).metadata();
+      const width = Math.max(m.width ?? 0, 300);
+      const stacked = await sharp({ create: { width, height: 360 + 12 + 300, channels: 3, background: '#ecede6' } })
+        .composite([{ input: img, left: 0, top: 0 }, { input: near, left: 0, top: 372 }]).png().toBuffer();
+      tiles.push({
+        img: stacked,
+        cap: [
+          level ? `сглаживание ${level}` : 'как сейчас',
+          `${b.pattern.threads.length} нитей · одиночных ${s.singles.toFixed(2)} %`,
+          `в мелких пятнах ${s.small.toFixed(2)} %`,
+          `сборка ${(ms / 1000).toFixed(1)} с${b.guard ? ` · охрана ${b.guard.toFixed(3)}` : level ? ' · без охраны' : ''}`,
+          ...c.errors.slice(0, 2).map((e) => `⚠ ${e.slice(0, 48)}`),
+        ],
+      });
+    }
+    const metas = await Promise.all(tiles.map((t) => sharp(t.img).metadata()));
+    const caps = tiles.map((t, i) => smoothLabel(t.cap, Math.max(300, metas[i].width ?? 0)));
+    const capMetas = await Promise.all(caps.map((c) => sharp(c).metadata()));
+    const colW = metas.map((m, i) => Math.max(m.width ?? 0, capMetas[i].width ?? 0));
+    const imgH = Math.max(...metas.map((m) => m.height ?? 0));
+    const width = colW.reduce((sum, w) => sum + w + 16, 16);
+    const height = 16 + imgH + 8 + Math.max(...capMetas.map((m) => m.height ?? 0)) + 16;
+    let x = 16;
+    const parts: OverlayOptions[] = [];
+    tiles.forEach((t, i) => {
+      parts.push({ input: t.img, left: x, top: 16 }, { input: caps[i], left: x, top: 16 + imgH + 8 });
+      x += colW[i] + 16;
+    });
+    rows.push(await sharp({ create: { width, height, channels: 3, background: '#ecede6' } }).composite(parts).png().toBuffer());
+  }
+  mkdirSync(OUT, { recursive: true });
+  for (let i = 0; i < rows.length; i += 4) await stack(rows.slice(i, i + 4), join(OUT, `smooth-${name}-${i / 4 + 1}.png`));
+}
+
 if (import.meta.main) {
   const args = process.argv.slice(2);
-  if (args.includes('--variants')) {
+  if (args.includes('--smooth')) {
+    await smoothSheet(args[args.indexOf('--smooth') + 1].split(','), args.includes('--name') ? args[args.indexOf('--name') + 1] : 'selected');
+  } else if (args.includes('--variants')) {
     await variants(args[args.indexOf('--variants') + 1], 'threads');
   } else if (args.includes('--deltas')) {
     await variants(args[args.indexOf('--deltas') + 1], 'deltas');

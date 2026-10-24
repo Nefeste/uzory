@@ -48,6 +48,11 @@ export interface BuildOptions {
    * мелкое пятно в них чистка перекрашивает только в почти тот же цвет. Без поля — как раньше.
    */
   focus?: Uint8Array;
+  /**
+   * Мягкий переход на ровном месте (./soft.ts): сдвиг клетки к светлому оттенку (+) или тёмному (−)
+   * в долях пути между двумя ближними нитями. Без поля — ближняя нить, как раньше.
+   */
+  soft?: Float32Array;
 }
 
 /** Чистка «конфетти»: какие области мелкие и как они сливаются. */
@@ -59,6 +64,12 @@ export interface Clean {
    * цвет соседа. Все сразу — шашечка двух нитей меняется цветами, а не сливается.
    */
   oneByOne: boolean;
+  /**
+   * Мелкая область перекрашивается только в нить ближе этого (OKLab), как у точной схемы
+   * (EXACT_CLOSE): рябь соседних оттенков уходит, а контрастная деталь — окно, глаз, тонкая
+   * линия — остаётся. Без поля — в любую соседнюю нить, как было.
+   */
+  guard?: number;
 }
 
 /** Чистка библиотеки и узора без упрощения. */
@@ -91,6 +102,30 @@ function nearest(c: Lab, centers: Lab[]): number {
     if (d < bd) { bd = d; best = k; }
   }
   return best;
+}
+
+/**
+ * Ближняя нить с мягким переходом (./soft.ts): клетка между двумя ближними нитями — светлая, если её
+ * доля пути от тёмной до светлой плюс сдвиг `s` больше половины. Клетка в стороне от отрезка между
+ * ними — например, облако между двумя оттенками неба — берёт ближнюю.
+ */
+function nearestSoft(c: Lab, centers: Lab[], s: number): number {
+  let b1 = 0, b2 = -1, d1 = Infinity, d2 = Infinity;
+  for (let k = 0; k < centers.length; k++) {
+    const d = (c[0] - centers[k][0]) ** 2 + (c[1] - centers[k][1]) ** 2 + (c[2] - centers[k][2]) ** 2;
+    if (d < d1) { b2 = b1; d2 = d1; b1 = k; d1 = d; } else if (d < d2) { b2 = k; d2 = d; }
+  }
+  if (b2 < 0) return b1;
+  // тёмная — с меньшей светлотой; при равной — с меньшим номером
+  const [dark, light] = centers[b1][0] < centers[b2][0] || (centers[b1][0] === centers[b2][0] && b1 < b2) ? [b1, b2] : [b2, b1];
+  const p = centers[dark], q = centers[light];
+  const e = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+  const ee = e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
+  if (!ee) return b1;
+  const cp = [c[0] - p[0], c[1] - p[1], c[2] - p[2]];
+  const u = (cp[0] * e[0] + cp[1] * e[1] + cp[2] * e[2]) / ee;
+  if (cp[0] * cp[0] + cp[1] * cp[1] + cp[2] * cp[2] - u * u * ee > ee / 4) return b1;
+  return u + s > 0.5 ? light : dark;
 }
 
 /** Ближний центр, когда первые `fixed` центров считаются в `far` раз дальше (важные части, ./focus.ts). */
@@ -391,7 +426,8 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   if (kf) centers = [...centers, ...kmeansAround(stitchIdx.filter((i) => focus![i]).map((i) => labs[i]), centers, kf, hash32(`${o.id}#focus`), FOCUS_FAR)];
   const log: BuildLog = { asked: o.threads, afterKmeans: centers.length, afterMerge: 0, final: 0, singlesBefore: 0, smallBefore: 0 };
   const assignAll = () => {
-    for (const i of stitchIdx) cells[i] = focus?.[i] ? nearestFar(labs[i], centers, shared, FOCUS_FAR) : nearest(labs[i], centers);
+    const soft = o.soft;
+    for (const i of stitchIdx) cells[i] = focus?.[i] ? nearestFar(labs[i], centers, shared, FOCUS_FAR) : soft?.[i] ? nearestSoft(labs[i], centers, soft[i]) : nearest(labs[i], centers);
   };
   const weights = () => {
     const wt = centers.map(() => 0);
@@ -419,7 +455,8 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // Чистка, слияние маленьких нитей, пересчёт цветов и различимость — пока что-то меняется.
   // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
   for (let round = 0; round < 8; round++) {
-    const may = o.exact ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE : undefined;
+    const guard = o.exact ? EXACT_CLOSE : o.clean?.guard;
+    const may = guard !== undefined ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < guard : undefined;
     let changed = focus ? cleanupFocus(cells, g.w, g.h, focus, centers, may, o.clean) : cleanup(cells, g.w, g.h, may, o.clean);
     let wt = weights();
     for (;;) {
