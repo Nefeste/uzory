@@ -304,6 +304,16 @@ export function packVersions(card: Card, opts: { release?: boolean; stock?: bool
 }
 
 /**
+ * Картинки для календаря: нынешние версии и картинки, которые в наборе только прежней версией (повторный
+ * отбор: в выпуске нынешняя ждёт «да»). Они скрытые и в очередь дней не идут, но их закреплённый день —
+ * как был: телефон даст ему запасную картинку, как дню скрытой (src/engine/calendar.ts).
+ */
+export function calendarPictures(built: readonly { picture: Picture }[], previous: readonly { picture: Picture }[]): Picture[] {
+  const current = new Set(built.map((b) => b.picture.id));
+  return [...built.map((b) => b.picture), ...previous.map((p) => p.picture).filter((p) => !current.has(p.id))];
+}
+
+/**
  * Набор из карточек. `release` — только то, что можно выпускать (`notInRelease`); `stock` — и картинки
  * «в запас»: их берёт набор недели, а встроенный набор выпуска — нет.
  */
@@ -362,7 +372,7 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
   const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
   const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
   const from = meta.calendar_from ?? meta.created;
-  const calendar = autoCalendar(built.map((b) => b.picture), from, { season, day, fixed: readFixedDays(from) });
+  const calendar = autoCalendar(calendarPictures(built, previous), from, { season, day, fixed: readFixedDays(from) });
   // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
   return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0) };
