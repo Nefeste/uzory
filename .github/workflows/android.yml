@@ -119,6 +119,24 @@ jobs:
           T="${TAG#v}"; T="${T#.}"
           if [ "$T" != "$V" ]; then echo "::error::Тег $TAG — это версия $T, а в app.json этого коммита — $V. Тег ставится на коммит main с версией $V: v$V."; exit 1; fi
           echo "Тег $TAG — версия $V"
+      # С 1.0.0 сборка идёт в магазин (store/release.md): без оплаты RuStore и без постоянного ключа она
+      # не собирается вовсе — в RuStore не уйдёт «подписка не продаётся» или файл, который не выкладывается.
+      # Сборки 0.Y.Z — для проверки, им можно и то и другое. Так же в «Нардах» с их 1.0.0 (23.10.2026).
+      - name: Выпуск в магазин — оплата RuStore и постоянный ключ
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          APP_ID: ${{ vars.RUSTORE_APP_ID }}
+          HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+          CERT: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          V="$(node -p "require('./app.json').expo.version")"
+          case "$V" in 0.*) echo "Версия $V — сборка для проверки: без RuStore Pay и без ключа — можно."; exit 0 ;; esac
+          bad=0
+          printf '%s' "$APP_ID" | grep -qE '^[0-9]+$' || { echo "::error::Переменная RUSTORE_APP_ID — номер приложения в консоли RuStore (цифры): без него в выпуске подписку не купить."; bad=1; }
+          [ "$HAS_KEY" = "true" ] || { echo "::error::Секреты постоянного ключа заданы не все (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD): в магазин — только им (ADR 0014)."; bad=1; }
+          [ -n "$CERT" ] || { echo "::error::Нет переменной ANDROID_CERT_SHA256: отпечаток постоянного ключа сверяется на готовом APK."; bad=1; }
+          [ "$bad" = 0 ] && echo "Версия $V — выпуск в магазин: номер приложения RuStore и постоянный ключ на месте."
+          exit "$bad"
       - id: k
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -405,6 +423,8 @@ jobs:
             else
               echo "Покупок в этой сборке нет: не задана переменная RUSTORE_APP_ID."
             fi
+            # с 1.0.0 — файл для RuStore: номер приложения и ключ проверило задание «Ключ подписи»
+            case "$V" in 0.*) ;; *) echo "Выпуск для RuStore: первую версию — в консоль руками, следующие — workflow «RuStore»; на модерацию — после проверки на телефоне (store/release.md)." ;; esac
             echo "Собрано из коммита ${{ github.sha }} (тег ${{ github.ref_name }}), сборка ${{ github.run_number }}."
           } > release.md
           cat release.md

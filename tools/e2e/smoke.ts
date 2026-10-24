@@ -1671,13 +1671,16 @@ try {
       await pg.getByTestId('plus-buy').click();
       await pg.getByTestId('plus-said').waitFor({ timeout: 5000 }).catch(() => {});
       const failed = await pg.getByTestId('plus-said').innerText().catch(() => '');
+      // под причиной — что ответил RuStore (из «Нард», 23.10.2026): по этой строке видно, что чинить
+      const said = await pg.getByTestId('plus-said-detail').innerText().catch(() => '');
       await mode('ok');
       await pg.getByTestId('plus-buy').click();
       await pg.getByTestId('plus-active').waitFor({ timeout: 5000 }).catch(() => {});
       const bought = await pg.getByTestId('plus-said').innerText().catch(() => '');
       const back = await pg.getByTestId('picture-stitch').waitFor({ timeout: 5000 }).then(() => true, () => false);
-      check(quiet && failed.includes('Платёж не прошёл') && bought.includes('вся библиотека открыта') && back,
-        `покупка: отказ — тихо, сбой — «${failed}», успех — «${bought}» и назад на карточку, уже с «Вышивать»`);
+      check(quiet && failed.includes('Платёж не прошёл') && said.startsWith('Ответ RuStore: RuStorePaymentCommonException')
+        && bought.includes('вся библиотека открыта') && back,
+        `покупка: отказ — тихо, сбой — «${failed}» и «${said}», успех — «${bought}» и назад на карточку, уже с «Вышивать»`);
       await ctx.close();
     }
     // на второй день после установки — строки нет

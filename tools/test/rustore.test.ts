@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import { PLUS_OFFLINE_MS, plusOpen } from '../../src/engine/plus';
 import type { PayNative, RsProduct, RsPurchase } from '../../src/money/rustore';
 import { rustoreBilling } from '../../src/money/rustoreBilling';
-import { failOf, kopecksOf, plusStateOf, productsOf } from '../../src/money/rustoreRules';
+import { causeOf, failOf, kopecksOf, plusStateOf, productsOf, rsDetail, rsText } from '../../src/money/rustoreRules';
 
 const DAY = 86400000;
 const NOW = Date.parse('2026-10-20T12:00:00Z');
@@ -89,14 +89,31 @@ describe('цены и ошибки RuStore', () => {
     expect(failOf(new Error('сеть'))).toBe('failed');
     expect(failOf(null)).toBe('failed');
   });
+
+  test('«Ответ RuStore»: знакомые тексты SDK — в причину; строка — в одну, не длиннее 200 знаков; код и текст ошибки', () => {
+    // тексты — как в Pay SDK 11.1.0 и core 10.5.0 (разбор «Нард», 23.10.2026)
+    expect(causeOf('ru.rustore.sdk.core.exception.RuStoreNotInstalledException: RuStore not installed')).toBe('no-store');
+    expect(causeOf('RuStore outdated')).toBe('no-store');
+    expect(causeOf('Application signature not correct')).toBeNull();
+    expect(causeOf('Console application id is not provided')).toBeNull();
+    expect(rsText('  Application\n signature   not correct ')).toBe('Application signature not correct');
+    expect(rsText('а'.repeat(300))).toHaveLength(200);
+    expect(rsText('   ')).toBeUndefined();
+    expect(rsText(undefined)).toBeUndefined();
+    expect(rsDetail(err('RuStorePaySignatureException'))).toBe('RuStorePaySignatureException: RuStorePaySignatureException');
+    expect(rsDetail(Object.assign(new Error('Application signature not correct'), { code: 'RuStorePaymentCommonException' })))
+      .toBe('RuStorePaymentCommonException: Application signature not correct');
+    expect(rsDetail(new Error('сеть'))).toBe('сеть');
+    expect(rsDetail(null)).toBeUndefined();
+  });
 });
 
 /** Поддельный нативный модуль: записывает вызовы, отвечает по заданному. */
-function fakePay(o: { purchases?: () => RsPurchase[]; buy?: () => void; products?: RsProduct[]; available?: boolean; installed?: boolean } = {}) {
+function fakePay(o: { purchases?: () => RsPurchase[]; buy?: () => void; products?: RsProduct[]; available?: boolean; cause?: string; installed?: boolean } = {}) {
   const calls: { name: string; args: unknown[] }[] = [];
   const rec = (name: string, args: unknown[]) => calls.push({ name, args });
   const pay: PayNative = {
-    getPurchaseAvailability: async () => (rec('getPurchaseAvailability', []), { availability: o.available ?? true }),
+    getPurchaseAvailability: async () => (rec('getPurchaseAvailability', []), { availability: o.available ?? true, ...(o.cause ? { cause: o.cause } : {}) }),
     getProducts: async (ids) => (rec('getProducts', [ids]), o.products ?? []),
     getPurchases: async (...a) => (rec('getPurchases', a), (o.purchases ?? (() => []))()),
     getPurchase: async (id) => (rec('getPurchase', [id]), {}),
@@ -122,7 +139,7 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
       expect(await b.products()).toBeNull();
       expect(await b.status()).toBeNull();
       expect(await b.purchase('uzory_plus_year')).toEqual({ ok: false, fail: 'no-store' });
-      expect(await b.availability()).toBe('no-store');
+      expect(await b.availability()).toEqual({ fail: 'no-store' });
     }
     expect(calls).toEqual([]);
   });
@@ -162,10 +179,14 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
       f.pay.purchase = async () => { throw err(code); };
       return rustoreBilling(f.pay, APP_ID, () => NOW);
     };
+    // отказ игрока — тихо, без строки; остальное — с ответом RuStore
     expect(await failing('ProductPurchaseCancelled').purchase('uzory_plus_year')).toEqual({ ok: false, fail: 'cancelled' });
-    expect(await failing('ProductPurchaseException').purchase('uzory_plus_year')).toEqual({ ok: false, fail: 'failed' });
-    expect(await failing('RuStorePaymentNetworkException').purchase('uzory_plus_year')).toEqual({ ok: false, fail: 'offline' });
-    expect(await failing('RuStoreNotInstalledException').purchase('uzory_plus_year')).toEqual({ ok: false, fail: 'no-store' });
+    expect(await failing('ProductPurchaseException').purchase('uzory_plus_year'))
+      .toEqual({ ok: false, fail: 'failed', detail: 'ProductPurchaseException: ProductPurchaseException' });
+    expect(await failing('RuStorePaymentNetworkException').purchase('uzory_plus_year'))
+      .toEqual({ ok: false, fail: 'offline', detail: 'RuStorePaymentNetworkException: RuStorePaymentNetworkException' });
+    expect(await failing('RuStoreNotInstalledException').purchase('uzory_plus_year'))
+      .toEqual({ ok: false, fail: 'no-store', detail: 'RuStoreNotInstalledException: RuStoreNotInstalledException' });
     const paid = await failing('ProductPurchaseCancelled', [sub('uzory_plus_month', 'ACTIVE', '2026-11-20T12:00:00Z')]).purchase('uzory_plus_month');
     expect(paid.ok && paid.state.status).toBe('active');
   });
@@ -178,18 +199,24 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
     expect(await rustoreBilling(broken.pay, APP_ID).status()).toBeNull();
   });
 
-  test('почему цен нет: RuStore не установлен — «установите RuStore»; иначе причина не видна', async () => {
-    expect(await rustoreBilling(fakePay().pay, APP_ID).availability()).toBeNull();
-    expect(await rustoreBilling(fakePay({ available: false, installed: false }).pay, APP_ID).availability()).toBe('no-store');
-    expect(await rustoreBilling(fakePay({ available: false }).pay, APP_ID).availability()).toBeNull();
+  test('почему цен нет: RuStore не установлен — «установите RuStore»; иначе причина не видна; ответ RuStore — как есть', async () => {
+    const at = (o: Parameters<typeof fakePay>[0]) => rustoreBilling(fakePay(o).pay, APP_ID).availability();
+    expect(await at({})).toEqual({ fail: null });
+    expect(await at({ available: false, installed: false })).toEqual({ fail: 'no-store' });
+    expect(await at({ available: false })).toEqual({ fail: null });
+    // любая ошибка SDK по дороге приходит ответом «недоступно» — только текстом (разбор «Нард», 23.10.2026)
+    expect(await at({ available: false, cause: 'Application signature not correct' }))
+      .toEqual({ fail: null, detail: 'Application signature not correct' });
+    expect(await at({ available: false, cause: 'RuStore outdated' })).toEqual({ fail: 'no-store', detail: 'RuStore outdated' });
+    expect(await at({ available: false, cause: 'Что-то новое', installed: false })).toEqual({ fail: 'no-store', detail: 'Что-то новое' });
     const thrown = (code: string) => {
       const f = fakePay();
       f.pay.getPurchaseAvailability = async () => { throw err(code); };
       return rustoreBilling(f.pay, APP_ID).availability();
     };
-    expect(await thrown('RuStoreOutdatedException')).toBe('no-store');
-    expect(await thrown('RuStorePaymentNetworkException')).toBe('offline');
-    expect(await thrown('RuStorePaymentCommonException')).toBeNull();
+    expect(await thrown('RuStoreOutdatedException')).toEqual({ fail: 'no-store', detail: 'RuStoreOutdatedException: RuStoreOutdatedException' });
+    expect(await thrown('RuStorePaymentNetworkException')).toEqual({ fail: 'offline', detail: 'RuStorePaymentNetworkException: RuStorePaymentNetworkException' });
+    expect(await thrown('RuStorePaymentCommonException')).toEqual({ fail: null, detail: 'RuStorePaymentCommonException: RuStorePaymentCommonException' });
   });
 });
 
