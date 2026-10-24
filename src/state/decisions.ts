@@ -18,20 +18,26 @@ export interface DecisionLabels {
   picks: Record<Pick, string>;
   /** группа картинок с комментарием, но без отметки */
   noPick: string;
-  /** картинка в тексте: «Название (id)», а комментарий — после неё */
+  /** картинка в тексте: «Название (id@v)», а комментарий — после неё */
   item: (title: string, id: string, note: string) => string;
 }
 
-/** Группы по порядку листа: «Да», «Нет», «Позже» и картинки, у которых есть только комментарий. */
+/** Отметка и комментарий — у версии картинки: новая версия узора приходит на отбор без прежней отметки. */
+export const pickKey = (pic: { id: string; v: number }) => `${pic.id}@${pic.v}`;
+
+/**
+ * Группы по порядку листа: «Да», «Нет», «Позже» и картинки, у которых есть только комментарий. Отметки и
+ * комментарии — по версии картинки (pickKey), и версия же — в тексте: «Название (id@v)».
+ */
 export function decisionGroups(
-  rows: readonly { id: string; title: string }[],
+  rows: readonly { id: string; v: number; title: string }[],
   picks: Readonly<Record<string, Pick>>,
   notes: Readonly<Record<string, string>>,
   labels: DecisionLabels,
 ): [string, string[]][] {
-  const item = (pic: { id: string; title: string }) => labels.item(pic.title, pic.id, notes[pic.id] ?? '');
+  const item = (pic: { id: string; v: number; title: string }) => labels.item(pic.title, pickKey(pic), notes[pickKey(pic)] ?? '');
   return [
-    ...PICKS.map((v): [string, string[]] => [labels.picks[v], rows.filter((pic) => picks[pic.id] === v).map(item)]),
-    [labels.noPick, rows.filter((pic) => !picks[pic.id] && notes[pic.id]).map(item)],
+    ...PICKS.map((v): [string, string[]] => [labels.picks[v], rows.filter((pic) => picks[pickKey(pic)] === v).map(item)]),
+    [labels.noPick, rows.filter((pic) => !picks[pickKey(pic)] && notes[pickKey(pic)]).map(item)],
   ];
 }

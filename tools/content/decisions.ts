@@ -13,6 +13,9 @@
 // листа — ошибка, и ничего не пишется.
 // «Да» запасу — сразу (решение владельца 17.10.2026, issue 86): у его карточек пометка `stock`, и с «да»
 // они идут не в 1.0, а по очереди в наборы недели после выхода (docs/05-process.md, «Ритм после 1.0»).
+// Повторный отбор (с 0.16.2): у картинки в тексте — версия, «Название (id@v)». «Да» новой версии, у
+// карточки которой «да» было у прежней (`approved_v`), — снять approved_v и записать дату; решение по
+// другой версии, чем в карточке, — ошибка: картинку пересобрали после отбора, её надо смотреть снова.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pluralRu } from '../../src/i18n/plural';
 import { ru } from '../../src/i18n/ru';
@@ -21,6 +24,8 @@ import { listCards, readCard } from './cards';
 
 export interface Decision {
   id: string;
+  /** версия, которую смотрел владелец (с 0.16.2: «id@v»); в тексте до 0.16.2 версии нет */
+  v?: number;
   title: string;
   /** null — без отметки, только комментарий */
   pick: Pick | null;
@@ -36,8 +41,9 @@ export interface Decisions {
 
 const HEAD = /^Узоры (\S+) — отбор картинок, (\d{4}-\d{2}-\d{2})$/;
 const GROUP = /^(.+?) \((\d+)\): (.*)$/;
-// картинка в строке группы: «Название (id)» и, если есть, « — «комментарий»»; название — всё до « (id)»
-const ITEM = /\(([a-z0-9][a-z0-9-]*)\)(?: — «([^»]*)»)?(?:, |$)/g;
+// картинка в строке группы: «Название (id@v)» (до 0.16.2 — «(id)») и, если есть, « — «комментарий»»;
+// название — всё до « (id@v)»
+const ITEM = /\(([a-z0-9][a-z0-9-]*)(?:@([1-9]\d*))?\)(?: — «([^»]*)»)?(?:, |$)/g;
 
 /** Текст «Скопировать решения» → решения по картинкам; текст не из листа — ошибка. */
 export function parseDecisions(text: string, labels = ru.sheet): Decisions {
@@ -56,7 +62,7 @@ export function parseDecisions(text: string, labels = ru.sheet): Decisions {
     const found: Decision[] = [];
     let from = 0;
     for (const m of group[3].matchAll(ITEM)) {
-      found.push({ id: m[1], title: group[3].slice(from, m.index).trim(), pick, note: m[2] ?? '' });
+      found.push({ id: m[1], ...(m[2] ? { v: Number(m[2]) } : {}), title: group[3].slice(from, m.index).trim(), pick, note: m[3] ?? '' });
       from = m.index + m[0].length;
     }
     if (found.length !== Number(group[2]) || from !== group[3].length) {
@@ -69,10 +75,21 @@ export function parseDecisions(text: string, labels = ru.sheet): Decisions {
   return { version: head[1], date: head[2], items };
 }
 
-/** Карточка с «да»: строка `approved` в конце; уже с «да» — без изменений (false). */
+/**
+ * Карточка с «да»: строка `approved` в конце; уже с «да» — без изменений (false). На повторном отборе
+ * (`approved_v`: «да» было у прежней версии) — «да» нынешней: approved_v снимается, дата — новая.
+ */
 export function approve(yaml: string, date: string): { yaml: string; changed: boolean } {
+  if (/^approved_v:/m.test(yaml)) {
+    return { yaml: yaml.replace(/^approved_v:.*\n?/m, '').replace(/^approved:.*$/m, `approved: ${date}`), changed: true };
+  }
   if (/^approved:/m.test(yaml)) return { yaml, changed: false };
   return { yaml: `${yaml.replace(/\n*$/, '\n')}approved: ${date}\n`, changed: true };
+}
+
+/** Решения по другой версии, чем в карточке: картинку пересобрали после отбора — её надо смотреть снова. */
+export function staleDecisions(items: readonly Decision[], versionOf: (id: string) => number): string[] {
+  return items.filter((it) => it.v !== undefined && it.v !== versionOf(it.id)).map((it) => `${it.id}@${it.v} (в карточке — v ${versionOf(it.id)})`);
 }
 
 /**
@@ -81,8 +98,14 @@ export function approve(yaml: string, date: string): { yaml: string; changed: bo
  */
 export function hide(yaml: string, d: { date: string; version: string; note: string }): { yaml: string; changed: boolean } {
   if (!/^approved:/m.test(yaml) || /^hidden:/m.test(yaml)) return { yaml, changed: false };
-  const lines = [
-    `# «Нет» владельца ${d.date} в «Листе узоров» ${d.version}${d.note ? `: «${d.note}»` : ''}.`,
+  const said = `# «Нет» владельца ${d.date} в «Листе узоров» ${d.version}${d.note ? `: «${d.note}»` : ''}`;
+  // повторный отбор: «нет» — новой версии; прежняя с «да» (approved_v) остаётся в наборе выпуска скрытой
+  const lines = /^approved_v:/m.test(yaml) ? [
+    `${said} — новой версии на повторном отборе.`,
+    '# Скрыта: прежняя версия с «да» (approved_v) — в наборе для начатых работ (ADR 0010).',
+    'hidden: true',
+  ] : [
+    `${said}.`,
     '# Скрыта (ADR 0010): узор — в наборе для начатых работ, в библиотеке и календаре картинки нет.',
     '# Вернуть — новой версией узора (`v`, `was`) и новым «да».',
     'hidden: true',
@@ -102,11 +125,14 @@ function main() {
   }));
   const unknown = d.items.filter((it) => !cards.get(it.id)?.card);
   if (unknown.length) throw new Error(`нет таких карточек: ${unknown.map((it) => it.id).join(', ')}`);
+  const stale = staleDecisions(d.items, (id) => cards.get(id)!.card!.v);
+  if (stale.length) throw new Error(`решения по другой версии узора — картинку пересобрали после отбора: ${stale.join(', ')}`);
 
   const n = d.items.length;
   const lines = [`Решения ${d.date} (Узоры ${d.version}): ${n} ${pluralRu(n, 'картинка', 'картинки', 'картинок')}.`];
   const yes = d.items.filter((it) => it.pick === 'yes');
-  const fresh = yes.filter((it) => !cards.get(it.id)!.card!.approved);
+  // новое «да» — и нынешней версии на повторном отборе (approved_v: «да» было у прежней)
+  const fresh = yes.filter((it) => !cards.get(it.id)!.card!.approved || cards.get(it.id)!.card!.approved_v !== undefined);
   lines.push('', `«Да» — ${yes.length}, из них новых ${fresh.length}${write ? ' (approved записан)' : ' (запишет --write)'}:`);
   for (const it of fresh) {
     const { card } = cards.get(it.id)!;

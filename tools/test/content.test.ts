@@ -7,8 +7,8 @@ import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildLimitMs, notInRelease, readFixedDays, slowPictures, toPicture } from '../content/build';
-import { type Card, listCards, readCard, releasable } from '../content/cards';
+import { buildAll, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
+import { type Card, listCards, readCard, releasable, releasableAt } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
 
@@ -32,6 +32,7 @@ describe('карточки', () => {
     'bad-smooth.yaml': /pattern\.smooth 1: 0, 1 или 2, не у схемы и не вместе с simplify/,
     'bad-soft.yaml': /pattern\.soft 0\.5: true, и не у схемы/,
     'bad-tone.yaml': /pattern\.tone 1\.5: 0,1…1, и не у схемы/,
+    'bad-approved-v.yaml': /approved_v 1: версия с «да» — прежняя, из was, и только вместе с approved/,
     'bad-min-delta.yaml': /pattern\.min_delta 0\.03: 0\.045…0\.08 — не ниже порога размера по стороне сетки 70/,
     'bad-was.yaml': /was\.2: прежняя версия/,
     'bad-canvas-holes.yaml': /pattern\.canvas_seed 0\.1: .*только у схемы.*pattern\.canvas_holes 6: /,
@@ -53,6 +54,22 @@ describe('карточки', () => {
     expect(notInRelease(card, true)).toBeNull();
     expect(notInRelease({ ...card, stock: undefined })).toBeNull();
     expect(notInRelease({ ...card, approved: undefined })).toBe('нет «да» владельца (approved)');
+  });
+
+  test('повторный отбор (approved_v): нынешняя версия ждёт «да», прежние с «да» — в выпуск скрытыми (ADR 0010)', () => {
+    const card = { id: 'x', v: 3, approved: '2026-10-03', approved_v: 2, was: { 1: {}, 2: {} } } as unknown as Card;
+    expect(releasable(card)).toBe('версия 3 — на отборе: «да» у версии 2');
+    expect([releasableAt(card, 2), releasableAt(card, 1)]).toEqual([null, null]);
+    expect(packVersions(card, { release: true })).toEqual({ out: 'версия 3 — на отборе: «да» у версии 2', olds: [1, 2] });
+    // версия 2 — тоже на отборе, «да» — только у первой: вторая в выпуск не идёт
+    expect(packVersions({ ...card, approved_v: 1 } as Card, { release: true })).toEqual({ out: 'версия 3 — на отборе: «да» у версии 1', olds: [1] });
+    // сборка для проверки — все версии; без «да» в выпуск — ни одной; с «да» у нынешней — все
+    expect(packVersions(card)).toEqual({ out: null, olds: [1, 2] });
+    expect(packVersions({ ...card, approved: undefined, approved_v: undefined } as Card, { release: true })).toEqual({ out: 'нет «да» владельца (approved)', olds: [] });
+    expect(packVersions({ ...card, approved_v: undefined } as Card, { release: true })).toEqual({ out: null, olds: [1, 2] });
+    // запас и музейный предмет без лицензии — ни одной версии в выпуск
+    expect(packVersions({ ...card, stock: true } as Card, { release: true }).olds).toEqual([]);
+    expect(packVersions({ ...card, museum: 'ru', license: null } as unknown as Card, { release: true }).olds).toEqual([]);
   });
 
   test('музейный предмет без лицензии и без «да» владельца — не в выпуск', () => {

@@ -834,9 +834,10 @@ try {
   await page.getByTestId('sheet-copy').click();
   await page.getByTestId('sheet-picks-text').waitFor({ timeout: 5000 }).catch(() => {});
   const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
-  check(picked.startsWith('Отмечено 2 из') && clip.includes('Да (1): Первая картинка (first-picture)')
-    && clip.includes('Нет (1): Розетка (rozetka) — «мелко, не видно лепестков»')
-    && clip.includes('Без отметки, с комментарием (1): Восьмиконечная звезда (zvezda-alatyr) — «темнее фон»')
+  // у картинки в тексте — версия (0.16.2): отметка — у версии, и новая версия узора приходит без неё
+  check(picked.startsWith('Отмечено 2 из') && clip.includes('Да (1): Первая картинка (first-picture@1)')
+    && clip.includes('Нет (1): Розетка (rozetka@1) — «мелко, не видно лепестков»')
+    && clip.includes('Без отметки, с комментарием (1): Восьмиконечная звезда (zvezda-alatyr@1) — «темнее фон»')
     && !clip.includes('Позже'), `отбор в листе: ${picked}; решения с комментариями — в буфере обмена`);
   await page.getByTestId('sheet-filter-unmarked').click();
   await page.waitForTimeout(300);

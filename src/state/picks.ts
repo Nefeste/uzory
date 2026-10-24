@@ -1,7 +1,8 @@
 // Отбор картинок владельцем (docs/09-content.md, §8; docs/05-process.md): у каждой картинки
 // листа — «да», «нет» или «позже» и, если нужно, короткий комментарий — что поправить; всё это
-// хранится на этом телефоне или в этом браузере. Решения уходят ассистенту текстом
-// (src/state/decisions.ts), и он ставит `approved` в карточки. Только в сборках для проверки (0.x).
+// хранится на этом телефоне или в этом браузере, по версии картинки (pickKey: id@v). Решения уходят
+// ассистенту текстом (src/state/decisions.ts), и он ставит `approved` в карточки. Только в сборках для
+// проверки (0.x).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cleanNote, type Pick, PICKS } from './decisions';
 import { KEYS, loadJson, saveJson } from './storage';
@@ -10,9 +11,9 @@ export type { Pick } from './decisions';
 
 export function usePicks(): {
   picks: Readonly<Record<string, Pick>>;
-  setPick: (id: string, v: Pick | null) => void;
+  setPick: (key: string, v: Pick | null) => void;
   notes: Readonly<Record<string, string>>;
-  setNote: (id: string, text: string) => void;
+  setNote: (key: string, text: string) => void;
 } {
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
