@@ -70,6 +70,13 @@ export interface Card {
      */
     smooth?: 0 | 1 | 2;
     /**
+     * мягкое небо (src/engine/build/soft.ts; с 24.10.2026): на больших ровных местах граница соседних
+     * оттенков идёт волной, а не прямыми полосами; true — да, без поля — нет
+     */
+    soft?: true;
+    /** тон выцветшего снимка, сила 0,1…1 (src/engine/build/tone.ts; с 24.10.2026); без поля — как на снимке */
+    tone?: number;
+    /**
      * цвет клетки снимка: `mean` — среднее по её площади (по умолчанию), `dominant` — того, чего в клетке
      * больше (src/engine/build/dominant.ts; у своих снимков — с 15.10.2026)
      */
@@ -148,7 +155,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -186,6 +193,8 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.smooth !== undefined && ((p.smooth !== 0 && p.smooth !== 1 && p.smooth !== 2) || p.chart || (p.smooth && p.simplify))) {
     errors.push(`pattern.smooth ${String(p.smooth)}: 0, 1 или 2, не у схемы и не вместе с simplify — упрощение в нём уже есть`);
   }
+  if (p.soft !== undefined && (p.soft !== true || p.chart)) errors.push(`pattern.soft ${String(p.soft)}: true, и не у схемы — её ровные места и так замысел`);
+  if (p.tone !== undefined && (typeof p.tone !== 'number' || p.tone < 0.1 || p.tone > 1 || p.chart)) errors.push(`pattern.tone ${String(p.tone)}: 0,1…1, и не у схемы`);
   if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
   if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
   if (p.min_delta !== undefined) {

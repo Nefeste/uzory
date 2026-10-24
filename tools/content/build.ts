@@ -29,6 +29,7 @@ import { focusMask } from '../../src/engine/build/focus';
 import { photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 import { buildGuarded } from '../../src/engine/build/smooth';
+import { softField } from '../../src/engine/build/soft';
 
 /** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
 export const PACK_MAX_BYTES = 8 * 1024 * 1024;
@@ -98,6 +99,8 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   const opts = {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     ...(focus ? { focus } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
+    // мягкое небо: на больших ровных местах граница оттенков — волной (src/engine/build/soft.ts)
+    ...(p.soft ? { soft: softField(grid, card.id) } : {}),
   };
   // сглаживание: чистка с охраной деталей — самой строгой, с которой узор проходит проверки
   const built = p.smooth
