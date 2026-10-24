@@ -9,7 +9,8 @@ import { dailySize } from '../engine/pattern';
 import { nextCharge, type PlusPeriod } from '../engine/plus';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
-import { billing, type BillingFail, type Product } from '../state/billing';
+import { type Availability, billing, type BillingFail, type Product } from '../state/billing';
+import { logError } from '../state/crashlog';
 import { useCatalog } from '../state/catalog';
 import { patternOf } from '../state/library';
 import { usePlayer } from '../state/player';
@@ -51,9 +52,10 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
   const [products, setProducts] = useState<Product[] | null | undefined>(sample ? SAMPLE_PRODUCTS : undefined);
   const [period, setPeriod] = useState<PlusPeriod>('year');
   const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
-  /** почему цен нет: нет RuStore или сети (spec, «Неудачные случаи») */
-  const [why, setWhy] = useState<BillingFail | null>(null);
+  /** итог покупки или «Восстановить покупки»; `detail` — что ответил RuStore, если отказал */
+  const [said, setSaid] = useState<{ text: string; bad?: boolean; detail?: string } | null>(null);
+  /** почему цен нет: нет RuStore или сети и что ответил RuStore (spec, «Неудачные случаи») */
+  const [why, setWhy] = useState<Availability | null>(null);
   const backLater = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (backLater.current) clearTimeout(backLater.current);
@@ -104,7 +106,11 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
       setSaid({ text: T.plus.bought });
       // успех — и назад, откуда пришли: карточка картинки — уже с «Вышивать» (спецификация, «Покупка»)
       backLater.current = setTimeout(onBack, BACK_MS);
-    } else if (FAILS[r.fail]) setSaid({ text: FAILS[r.fail]!, bad: true });
+      return;
+    }
+    // оплата не прошла — ответ RuStore и в журнал сбоев: он уходит в отчёт тестировщика
+    if (r.fail === 'failed') logError('error', r.detail ?? r.fail, 'billing-buy');
+    if (FAILS[r.fail]) setSaid({ text: FAILS[r.fail]!, bad: true, detail: r.detail });
   };
 
   const restore = async () => {
@@ -115,8 +121,10 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
     setBusy(true);
     setSaid(null);
     const open = await plus.refresh();
+    // RuStore не ответил — спросить, что с ним: его ответ — строкой под причиной
+    const w = open === null ? await billing.availability() : null;
     setBusy(false);
-    if (open === null) setSaid({ text: T.plus.restoreFailed, bad: true });
+    if (open === null) setSaid({ text: T.plus.restoreFailed, bad: true, detail: w?.detail });
     else setSaid({ text: open ? T.plus.restored : T.plus.nothingToRestore });
   };
 
@@ -144,7 +152,8 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
         ) : (
           <>
             {products === null ? <Txt dim testID="plus-no-price">{T.plus.noPrice}</Txt> : null}
-            {products === null && why && FAILS[why] ? <Txt testID="plus-why">{FAILS[why]}</Txt> : null}
+            {products === null && why?.fail && FAILS[why.fail] ? <Txt testID="plus-why">{FAILS[why.fail]}</Txt> : null}
+            {products === null && why?.detail ? <Txt dim style={styles.small} testID="plus-why-detail">{T.plus.rustoreSaid(why.detail)}</Txt> : null}
             {products ? (
               <View style={styles.options} accessibilityRole="radiogroup">
                 {(['month', 'year'] as const).map((per) => {
@@ -177,6 +186,7 @@ export function PlusScreen({ onBack, sample }: { onBack: () => void; sample: boo
         )}
 
         {said ? <Txt style={said.bad ? { color: theme.danger } : undefined} testID="plus-said">{said.text}</Txt> : null}
+        {said?.detail ? <Txt dim style={styles.small} testID="plus-said-detail">{T.plus.rustoreSaid(said.detail)}</Txt> : null}
 
         <View style={styles.links}>
           <Button kind="ghost" small label={T.plus.restore} onPress={() => void restore()} disabled={busy} testID="plus-restore" />

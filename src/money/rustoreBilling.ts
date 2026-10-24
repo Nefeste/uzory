@@ -9,9 +9,9 @@
 // а спрашивать его зря — значит показывать игроку ошибку RuStore. Почту и идентификатор игрока
 // (`appUserEmail`, `appUserId`) игра в RuStore Pay не передаёт (docs/10-money.md, «RuStore»).
 import { plusOpen, type PlusState } from '../engine/plus';
-import type { Billing, BillingFail } from '../state/billingApi';
+import type { Availability, Billing } from '../state/billingApi';
 import type { PayNative } from './rustore';
-import { failOf, PLUS_PRODUCTS, PRODUCT_IDS, plusStateOf, productsOf, rsCode } from './rustoreRules';
+import { causeOf, failOf, PLUS_PRODUCTS, PRODUCT_IDS, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from './rustoreRules';
 
 export function rustoreBilling(pay: PayNative | null, appId: string, now: () => number = Date.now): Billing {
   if (!pay || !appId.trim()) {
@@ -20,7 +20,7 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
       products: async () => null,
       purchase: async () => ({ ok: false, fail: 'no-store' }),
       status: async () => null,
-      availability: async () => 'no-store',
+      availability: async () => ({ fail: 'no-store' }),
     };
   }
 
@@ -60,20 +60,25 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
           const s = await status();
           if (s && plusOpen(s, now())) return { ok: true, state: s };
         }
-        return { ok: false, fail };
+        // отказ игрока — тихо; остальное — что ответил RuStore, строкой на экране
+        return fail === 'cancelled' ? { ok: false, fail } : { ok: false, fail, detail: rsDetail(e) };
       }
     },
     status,
-    async availability(): Promise<BillingFail | null> {
+    async availability(): Promise<Availability> {
       try {
         const a = await pay.getPurchaseAvailability();
-        if (a.availability) return null;
-        // причина приходит строкой SDK; нет RuStore — видно отдельным методом
-        return (await pay.isRuStoreInstalled().catch(() => true)) ? null : 'no-store';
+        if (a.availability) return { fail: null };
+        // любая ошибка SDK по дороге приходит сюда же, только текстом (rustoreRules.ts, causeOf);
+        // он и идёт игроку строкой «Ответ RuStore»
+        const detail = rsText(a.cause);
+        const known = detail ? causeOf(detail) : null;
+        if (known) return { fail: known, detail };
+        // нет RuStore — видно и отдельным методом
+        const installed = await pay.isRuStoreInstalled().catch(() => true);
+        return { fail: installed ? null : 'no-store', detail };
       } catch (e) {
-        const code = rsCode(e);
-        return code === 'RuStoreNotInstalledException' || code === 'RuStoreOutdatedException' ? 'no-store'
-          : code === 'RuStorePaymentNetworkException' ? 'offline' : null;
+        return { fail: unavailableOf(e), detail: rsDetail(e) };
       }
     },
   };

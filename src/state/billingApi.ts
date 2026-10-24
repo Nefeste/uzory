@@ -18,19 +18,26 @@ export interface Product {
 /** Почему не вышло: нет RuStore, нет сети, платёж не прошёл; отказ игрока — тихо назад. */
 export type BillingFail = 'no-store' | 'offline' | 'failed' | 'cancelled';
 
+/**
+ * Почему магазин не ответил: `fail` — что сказать игроку (`null` — причина не видна, тогда только «Не удалось
+ * узнать цену»), `detail` — что ответил RuStore, как есть: строка «Ответ RuStore» на экране «Узоры+»; по ней
+ * видно, дело в консоли RuStore или в сборке (так «Нарды» нашли причину на проверке 1.0.0, 23.10.2026).
+ */
+export interface Availability {
+  fail: BillingFail | null;
+  detail?: string;
+}
+
 export interface Billing {
   /** есть ли где купить: false — сборка не для RuStore или RuStore Pay ещё не подключён */
   available: boolean;
   /** цены из магазина; null — магазин не ответил */
   products(): Promise<Product[] | null>;
-  purchase(id: ProductId): Promise<{ ok: true; state: PlusState } | { ok: false; fail: BillingFail }>;
+  purchase(id: ProductId): Promise<{ ok: true; state: PlusState } | { ok: false; fail: BillingFail; detail?: string }>;
   /** права сейчас — при запуске, на экране «Узоры+», по «Восстановить покупки»; null — не узнали */
   status(): Promise<PlusState | null>;
-  /**
-   * Почему магазин не ответил — когда цен нет: нет или устарел RuStore, нет сети; `null` —
-   * причина не видна (тогда только «Не удалось узнать цену»).
-   */
-  availability(): Promise<BillingFail | null>;
+  /** Почему магазин не ответил — когда цен нет или права не узнать: нет или устарел RuStore, нет сети, что сказал RuStore. */
+  availability(): Promise<Availability>;
 }
 
 /** Магазина нет: ни цен, ни покупок, ни прав — прежний ответ остаётся как есть. */
@@ -39,5 +46,5 @@ export const noBilling: Billing = {
   products: async () => null,
   purchase: async () => ({ ok: false, fail: 'no-store' }),
   status: async () => null,
-  availability: async () => 'no-store',
+  availability: async () => ({ fail: 'no-store' }),
 };

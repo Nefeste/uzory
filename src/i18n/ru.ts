@@ -391,6 +391,8 @@ export const ru = {
     restored: 'Покупки восстановлены: вся библиотека открыта.',
     nothingToRestore: 'Действующей подписки в RuStore нет.',
     restoreFailed: 'Не удалось спросить RuStore. Попробуйте позже.',
+    /** что ответил RuStore, как есть — мелко под причиной: по этой строке видно, что чинить */
+    rustoreSaid: (s: string) => `Ответ RuStore: ${s}`,
     onlyRustore: 'Подписка доступна в версии из RuStore.',
     locked: 'Эта картинка — в «Узоры+»',
     more: 'Подробнее',

@@ -3,7 +3,7 @@
 // сценария (src/state/fakeBilling.ts).
 import { describe, expect, test } from 'bun:test';
 import { nextCharge, normalizePlus, offerOnDone, PLUS_OFFLINE_MS, plusOpen } from '../../src/engine/plus';
-import { FAKE_PRODUCTS, fakeBilling } from '../../src/state/fakeBilling';
+import { FAKE_DETAIL, FAKE_PRODUCTS, fakeBilling } from '../../src/state/fakeBilling';
 
 const DAY = 86400000;
 const now = Date.UTC(2026, 9, 5, 12);
@@ -84,19 +84,20 @@ describe('заглушка RuStore Pay сценария', () => {
   test('отказ, сбой, нет сети, нет RuStore — так магазин и отвечает; без сети и RuStore цен и прав нет', async () => {
     for (const mode of ['cancelled', 'failed', 'offline', 'no-store'] as const) {
       const { box, billing } = store(JSON.stringify({ mode }));
-      expect(await billing.purchase('uzory_plus_month')).toEqual({ ok: false, fail: mode });
+      // сбой платежа — с «Ответом RuStore», как у настоящего магазина (строка под причиной)
+      expect(await billing.purchase('uzory_plus_month')).toEqual(mode === 'failed' ? { ok: false, fail: mode, detail: FAKE_DETAIL } : { ok: false, fail: mode });
       expect(JSON.parse(box.raw!)).toEqual({ mode });
       const silent = mode === 'offline' || mode === 'no-store';
       expect(await billing.products()).toEqual(silent ? null : FAKE_PRODUCTS);
       expect(await billing.status()).toEqual(silent ? null : { status: 'none', checkedAt: now });
       // почему цен нет — экран «Узоры+» говорит это под «Не удалось узнать цену»
-      expect(await billing.availability()).toBe(silent ? mode : null);
+      expect(await billing.availability()).toEqual({ fail: silent ? mode : null });
     }
   });
 
   test('режим меняется без перезагрузки; испорченная запись — «покупка проходит»', async () => {
     const { box, billing } = store(JSON.stringify({ mode: 'failed' }));
-    expect(await billing.purchase('uzory_plus_month')).toEqual({ ok: false, fail: 'failed' });
+    expect(await billing.purchase('uzory_plus_month')).toEqual({ ok: false, fail: 'failed', detail: FAKE_DETAIL });
     box.raw = JSON.stringify({ mode: 'ok' });
     expect((await billing.purchase('uzory_plus_month')).ok).toBe(true);
     expect(JSON.parse(box.raw!).bought).toEqual({ product: 'month', at: now });

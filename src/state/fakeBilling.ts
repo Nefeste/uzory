@@ -13,6 +13,9 @@ export type FakeMode = 'ok' | BillingFail;
 const MODES: readonly FakeMode[] = ['ok', 'cancelled', 'failed', 'offline', 'no-store'];
 const DAY = 86400000;
 
+/** «Ответ RuStore» заглушки на сбой платежа — в духе текстов Pay SDK: сценарий видит строку под причиной. */
+export const FAKE_DETAIL = 'RuStorePaymentCommonException: payment failed (e2e stub)';
+
 export const FAKE_PRODUCTS: Product[] = [
   { id: 'uzory_plus_month', period: 'month', price: '249 ₽', kopecks: 24900 },
   { id: 'uzory_plus_year', period: 'year', price: '1490 ₽', kopecks: 149000 },
@@ -49,6 +52,7 @@ export function fakeBilling(read: () => string | null, write: (raw: string) => v
     products: async () => (silent(parse(read()).mode) ? null : FAKE_PRODUCTS.map((p) => ({ ...p }))),
     purchase: async (id) => {
       const r = parse(read());
+      if (r.mode === 'failed') return { ok: false, fail: r.mode, detail: FAKE_DETAIL };
       if (r.mode !== 'ok') return { ok: false, fail: r.mode };
       const t = now();
       const next: FakeRecord = { mode: r.mode, bought: { product: id === 'uzory_plus_year' ? 'year' : 'month', at: t } };
@@ -61,7 +65,7 @@ export function fakeBilling(read: () => string | null, write: (raw: string) => v
     },
     availability: async () => {
       const mode = parse(read()).mode;
-      return mode === 'no-store' || mode === 'offline' ? mode : null;
+      return { fail: mode === 'no-store' || mode === 'offline' ? mode : null };
     },
   };
 }
