@@ -7,7 +7,7 @@ import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildLimitMs, notInRelease, slowPictures, toPicture } from '../content/build';
+import { buildAll, buildLimitMs, notInRelease, readFixedDays, slowPictures, toPicture } from '../content/build';
 import { type Card, listCards, readCard, releasable } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
@@ -143,6 +143,9 @@ describe('сборка', () => {
       expect(lib.latest.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
       expect(pack.json.pictures.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
     }
-    expect(calendar.every((d) => built.some((b) => b.picture.id === d.picture && !b.picture.hidden))).toBe(true);
+    // закреплённые дни — как были, даже если картинку дня потом скрыли («нет» владельца 24.10.2026):
+    // телефон даёт такому дню запасную картинку (src/engine/calendar.ts); остальные дни — только нынешние картинки
+    const fixed = new Set(readFixedDays(calendar[0].date).map((d) => d.date));
+    expect(calendar.filter((d) => !fixed.has(d.date) && !built.some((b) => b.picture.id === d.picture && !b.picture.hidden))).toEqual([]);
   }, 300_000);
 });

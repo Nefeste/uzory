@@ -3,10 +3,14 @@
 // запускает:
 //
 //   bun tools/content/decisions.ts решения.txt            что в тексте: «Да», «Нет», «Позже», комментарии
-//   bun tools/content/decisions.ts решения.txt --write    и поставить `approved: <дата решения>` картинкам с «Да»
+//   bun tools/content/decisions.ts решения.txt --write    и поставить `approved: <дата решения>` картинкам с «Да»,
+//                                                         а картинки с «да», получившие «Нет», скрыть
 //
-// «Нет», «Позже» и комментарии карточек не меняют: по ним ассистент правит картинки и пишет в PR, что
-// сделано. Неизвестный id, картинка в двух группах или текст не из листа — ошибка, и ничего не пишется.
+// «Нет» картинке, у которой уже есть «да», — `hidden: true` с комментарием владельца (ADR 0010): узор
+// остаётся в наборе для начатых работ, а библиотека и календарь картинку не показывают (так 24.10.2026 —
+// 170 картинок). «Нет» картинке без «да», «Позже» и комментарии карточек не меняют: по ним ассистент
+// правит картинки и пишет в PR, что сделано. Неизвестный id, картинка в двух группах или текст не из
+// листа — ошибка, и ничего не пишется.
 // «Да» запасу — сразу (решение владельца 17.10.2026, issue 86): у его карточек пометка `stock`, и с «да»
 // они идут не в 1.0, а по очереди в наборы недели после выхода (docs/05-process.md, «Ритм после 1.0»).
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -71,6 +75,21 @@ export function approve(yaml: string, date: string): { yaml: string; changed: bo
   return { yaml: `${yaml.replace(/\n*$/, '\n')}approved: ${date}\n`, changed: true };
 }
 
+/**
+ * «Нет» картинке с «да» (ADR 0010): `hidden: true` в конце карточки, а над ним — когда и что сказал
+ * владелец. Без «да» или уже скрытая — без изменений (false): такую в выпуск не пускали, её правят руками.
+ */
+export function hide(yaml: string, d: { date: string; version: string; note: string }): { yaml: string; changed: boolean } {
+  if (!/^approved:/m.test(yaml) || /^hidden:/m.test(yaml)) return { yaml, changed: false };
+  const lines = [
+    `# «Нет» владельца ${d.date} в «Листе узоров» ${d.version}${d.note ? `: «${d.note}»` : ''}.`,
+    '# Скрыта (ADR 0010): узор — в наборе для начатых работ, в библиотеке и календаре картинки нет.',
+    '# Вернуть — новой версией узора (`v`, `was`) и новым «да».',
+    'hidden: true',
+  ];
+  return { yaml: `${yaml.replace(/\n*$/, '\n')}${lines.join('\n')}\n`, changed: true };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const file = args.find((a) => !a.startsWith('--'));
@@ -95,15 +114,26 @@ function main() {
       : card!.stock ? ' — в запас: не в 1.0, а в наборы недели после выхода' : '';
     lines.push(`- ${it.title} (${it.id})${where}${it.note ? ` — «${it.note}»` : ''}`);
   }
+  // «Нет» картинке с «да» — скрыть (ADR 0010); без «да» — правка руками
+  const shown = (it: Decision) => !!cards.get(it.id)!.card!.approved && !cards.get(it.id)!.card!.hidden;
+  const withdrawn = d.items.filter((it) => it.pick === 'no' && shown(it));
+  const item = (it: Decision) => `- ${it.title} (${it.id})${it.note ? ` — «${it.note}»` : ''}`;
+  if (withdrawn.length) {
+    lines.push('', `«Нет» картинкам с «да» — ${withdrawn.length}${write ? ' (скрыты: hidden)' : ' (скроет --write)'}:`, ...withdrawn.map(item));
+  }
   for (const [pick, title] of [['no', '«Нет»'], ['later', '«Позже»'], [null, 'Только комментарий']] as const) {
-    const group = d.items.filter((it) => it.pick === pick);
+    const group = d.items.filter((it) => it.pick === pick && !withdrawn.includes(it));
     if (!group.length) continue;
-    lines.push('', `${title} — ${group.length}:`, ...group.map((it) => `- ${it.title} (${it.id})${it.note ? ` — «${it.note}»` : ''}`));
+    lines.push('', `${title} — ${group.length}:`, ...group.map(item));
   }
   if (write) {
     for (const it of fresh) {
       const path = cards.get(it.id)!.file;
       writeFileSync(path, approve(readFileSync(path, 'utf8'), d.date).yaml);
+    }
+    for (const it of withdrawn) {
+      const path = cards.get(it.id)!.file;
+      writeFileSync(path, hide(readFileSync(path, 'utf8'), { date: d.date, version: d.version, note: it.note }).yaml);
     }
   }
   console.log(lines.join('\n'));

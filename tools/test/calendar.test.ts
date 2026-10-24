@@ -159,6 +159,14 @@ describe('закреплённые дни', () => {
     expect(next.filter((d) => d.picture === 'bolshaya')).toHaveLength(1);
   });
 
+  test('картинку закреплённого дня потом скрыли — день как был, новых дней у скрытых нет (24.10.2026)', () => {
+    const fixed = cal.slice(0, 3);
+    const gone = new Set([...fixed.map((d) => d.picture), cal[5].picture]);
+    const next = autoCalendar(pics.map((p) => (gone.has(p.id) ? { ...p, hidden: true as const } : p)), '2026-11-20', { ...rules, fixed });
+    expect(next.slice(0, 3)).toEqual(fixed);
+    expect(next.slice(3).filter((d) => gone.has(d.picture))).toEqual([]);
+  });
+
   test('файл: дни подряд с calendar_from, картинка не дважды; файла нет — дней нет', () => {
     const dir = mkdtempSync(join(tmpdir(), 'uzory-calendar-'));
     const file = (name: string, text: string) => {

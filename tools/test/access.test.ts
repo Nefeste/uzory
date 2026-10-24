@@ -87,6 +87,30 @@ describe('календарь', () => {
     }
   });
 
+  test('картинку дня потом скрыли — её день получает запасную, как за концом расписания; остальные на месте (24.10.2026)', () => {
+    const withGone = [...calendar.slice(0, 2), { date: '2026-10-03', picture: 'gone' }, ...calendar.slice(2)];
+    const d = new Daily({ calendar: withGone, pictures });
+    const spare = d.on('2026-10-03')!;
+    const p = pictures.find((q) => q.id === spare)!;
+    expect(['S', 'M']).toContain(p.size);
+    expect(p.hidden).toBeUndefined();
+    expect(calendar.some((c) => c.picture === spare)).toBe(false);
+    expect(d.isFallback('2026-10-03')).toBe(true);
+    expect(d.isFallback('2026-10-04')).toBe(false);
+    expect(d.on('2026-10-04')).toBe(calendar[2].picture);
+    expect(d.dailyFrom('gone', '2026-10-01', '2026-10-31')).toBeUndefined();
+    expect(d.dailyFrom(spare, '2026-10-01', '2026-10-31')).toBe('2026-10-03');
+    // за концом расписания запасная не повторяется; на другом телефоне — та же
+    expect([...d.range('2026-10-06', '2026-11-04').values()]).not.toContain(spare);
+    expect(new Daily({ calendar: withGone, pictures: [...pictures].reverse() }).on('2026-10-03')).toBe(spare);
+    // показанную телефон закрепил — она и остаётся
+    expect(new Daily({ calendar: withGone, pictures, pinned: { '2026-10-03': 'p02' } }).on('2026-10-03')).toBe('p02');
+    // скрытый последний день — просто день за концом расписания
+    const tail = new Daily({ calendar: [...calendar, { date: '2026-10-06', picture: 'gone' }], pictures });
+    expect(tail.last).toBe('2026-10-05');
+    expect(tail.on('2026-10-06')).toBe(new Daily({ calendar, pictures }).on('2026-10-06'));
+  });
+
   test('одинаково на любом телефоне с той же библиотекой — с какого дня ни спроси', () => {
     const a = new Daily({ calendar, pictures });
     const b = new Daily({ calendar, pictures: [...pictures].reverse() });

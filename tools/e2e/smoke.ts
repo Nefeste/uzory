@@ -158,17 +158,18 @@ async function farAway(page: Page, p: Pattern, t: number, done: number) {
     return cx < 0 || cy < 0 || cx >= p.w || cy >= p.h ? -1 : cy * p.w + cx;
   };
   const used = new Set<number>([done]);
-  // невышитая клетка выбранной нити (из `only`, если задано), видная при камере `good` — не у края,
-  // не под строкой подсказок, не на мини-карте; при камере `bad` на её месте — клетка другой нити
-  const pick = (good: Camera, bad?: Camera, only?: ReadonlySet<number>) => {
+  // невышитая клетка нити `th` (выбранной, если не сказано иначе; из `only`, если задано), видная при
+  // камере `good` — не у края, не под строкой подсказок, не на мини-карте; при камере `bad` на её месте —
+  // клетка другой нити
+  const pick = (good: Camera, bad?: Camera, only?: ReadonlySet<number>, th = t) => {
     for (let i = 0; i < p.cells.length; i++) {
-      if (p.cells[i] !== t || used.has(i) || (only && !only.has(i))) continue;
+      if (p.cells[i] !== th || used.has(i) || (only && !only.has(i))) continue;
       const x = good.tx + ((i % p.w) + 0.5) * good.s;
       const y = good.ty + (Math.floor(i / p.w) + 0.5) * good.s;
       if (x < 40 || y < 40 || x > W - 40 || y > H - 80 || inMap(mapRect(p.w, p.h, W, H, good.s), x, y)) continue;
       if (bad) {
         const j = cellAt(bad, x, y);
-        if (inMap(mapRect(p.w, p.h, W, H, bad.s), x, y) || (j >= 0 && p.cells[j] === t)) continue;
+        if (inMap(mapRect(p.w, p.h, W, H, bad.s), x, y) || (j >= 0 && p.cells[j] === th)) continue;
       }
       used.add(i);
       return { x, y, i };
@@ -235,7 +236,9 @@ async function farAway(page: Page, p: Pattern, t: number, done: number) {
   // «Где ещё?» (docs/specs/2026-09-canvas.md, «Камера»): «0» — весь узор, номера не видны. Группа — по
   // движку (`nearestGroup`) от середины экрана; вышиты пока две клетки. Камера летит к группе в масштабе
   // открытия: щелчок по клетке группы вышивает, а при приближении к середине узора на её месте была бы
-  // другая нить (если группа не у самой середины)
+  // другая нить. Нить — та, у которой такая клетка есть: у нити, что заливает всё вокруг середины,
+  // щелчок попал бы в неё и без полёта (так у «Крестьянских девушек», первой в «России в цвете»
+  // с 24.10.2026), — её выбирают в полосе нитей, как игрок
   await page.keyboard.press('0');
   await page.waitForTimeout(600);
   const ws = fitScale(p.w, p.h, W, H);
@@ -243,20 +246,28 @@ async function farAway(page: Page, p: Pattern, t: number, done: number) {
   const stitched = new Uint8Array(p.cells.length);
   stitched[done] = 1;
   if (hit) stitched[hit.i] = 1;
-  const g = nearestGroup(p, stitched, t, (W / 2 - whole.tx) / whole.s, (H / 2 - whole.ty) / whole.s);
   const at = (cx: number, cy: number): Camera => ({ s: OPEN_DP, tx: clampX(W / 2 - cx * OPEN_DP, OPEN_DP, p.w, W), ty: clampY(H / 2 - cy * OPEN_DP, OPEN_DP, p.h, H) });
-  const flown = g ? at(g.cx, g.cy) : whole;
   const middle = at(p.w / 2, p.h / 2);
-  const apart = Math.abs(flown.tx - middle.tx) >= OPEN_DP || Math.abs(flown.ty - middle.ty) >= OPEN_DP;
+  let way: { th: number; g: NonNullable<ReturnType<typeof nearestGroup>>; cell: { x: number; y: number; i: number } } | null = null;
+  for (let k = 0; k < p.threads.length && !way; k++) {
+    const th = (t + k) % p.threads.length;
+    const g = nearestGroup(p, stitched, th, (W / 2 - whole.tx) / whole.s, (H / 2 - whole.ty) / whole.s);
+    if (!g) continue;
+    const flown = at(g.cx, g.cy);
+    const apart = Math.abs(flown.tx - middle.tx) >= OPEN_DP || Math.abs(flown.ty - middle.ty) >= OPEN_DP;
+    const cell = apart ? pick(flown, middle, new Set(g.cells), th) : null;
+    if (cell) way = { th, g, cell };
+  }
+  if (way && way.th !== t) await page.getByTestId(`thread-${way.th + 1}`).click();
+  await page.waitForTimeout(300);
   const l5 = await left();
   await page.getByTestId('where').click();
   await page.waitForTimeout(800);
-  const inGroup = pick(flown, apart ? middle : undefined, new Set(g?.cells ?? []));
-  if (inGroup) await page.mouse.click(box.x + inGroup.x, box.y + inGroup.y);
+  if (way) await page.mouse.click(box.x + way.cell.x, box.y + way.cell.y);
   await leftTo(l5 - 1);
   const l6 = await left();
-  check(whole.s < NUMBERS_DP && !!g && !!inGroup && l6 === l5 - 1,
-    `«Где ещё?»: со всего узора — к ближайшей группе нити (${g?.cells.length ?? 0} кл.) в масштабе открытия, щелчок по ней вышил (осталось ${l5} → ${l6})`);
+  check(whole.s < NUMBERS_DP && !!way && l6 === l5 - 1,
+    `«Где ещё?»: со всего узора — к ближайшей группе нити ${way ? way.th + 1 : '—'} (${way?.g.cells.length ?? 0} кл.) в масштабе открытия, щелчок по ней вышил (осталось ${l5} → ${l6})`);
 }
 
 const { built } = await buildAll();
@@ -852,7 +863,7 @@ try {
   // коллекции — по частям (0.10.2): «Цветы» — только цветы, «Все» — снова все
   await page.getByTestId('sheet-coll-flowers').click();
   await page.waitForTimeout(300);
-  const flowersOnly = (await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-van-gogh-podsolnukhi').count()) === 1;
+  const flowersOnly = (await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-redoute-roza-zhozefina').count()) === 1;
   await page.getByTestId('sheet-coll-all').click();
   await page.waitForTimeout(300);
   check(flowersOnly && (await page.getByTestId('sheet-first-picture').count()) === 1, 'в листе — коллекция «Цветы» отдельно, «Все» — снова все');

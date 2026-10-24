@@ -53,7 +53,7 @@ game replays how it was stitched.
   borders.
 - Public-domain paintings, each with a short story.
 - Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago.
-- Flowers, nature, cities and simple pictures for kids.
+- Old charts from real embroidery sheets and simple pictures for kids.
 - A new picture every day — free, forever.
 
 Sizes range from small five-minute patterns to large paintings and old photographs for several

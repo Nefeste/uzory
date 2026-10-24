@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ru } from '../../src/i18n/ru';
 import { cleanNote, decisionGroups, NOTE_MAX } from '../../src/state/decisions';
-import { approve, parseDecisions } from '../content/decisions';
+import { approve, hide, parseDecisions } from '../content/decisions';
 
 const rows = [
   { id: 'first-picture', title: 'Первая картинка' },
@@ -71,5 +71,23 @@ describe('текст решений → карточки (tools/content/decision
     expect(approve('id: rozetka\ntitle: Розетка', '2026-10-17').yaml).toBe('id: rozetka\ntitle: Розетка\napproved: 2026-10-17\n');
     const done = 'id: rozetka\napproved: 2026-10-03\n';
     expect(approve(done, '2026-10-17')).toEqual({ yaml: done, changed: false });
+  });
+
+  test('«нет» картинке с «да» — hidden в конце карточки и слова владельца над ним (ADR 0010); без «да» — ничего', () => {
+    const d = { date: '2026-10-24', version: '0.15.9', note: 'Недостаточно детализации' };
+    expect(hide('id: pg-senokos\napproved: 2026-10-03', d)).toEqual({
+      yaml: [
+        'id: pg-senokos',
+        'approved: 2026-10-03',
+        '# «Нет» владельца 2026-10-24 в «Листе узоров» 0.15.9: «Недостаточно детализации».',
+        '# Скрыта (ADR 0010): узор — в наборе для начатых работ, в библиотеке и календаре картинки нет.',
+        '# Вернуть — новой версией узора (`v`, `was`) и новым «да».',
+        'hidden: true',
+        '',
+      ].join('\n'),
+      changed: true,
+    });
+    expect(hide('id: mak\napproved: 2026-10-03\n', { ...d, note: '' }).yaml).toContain('в «Листе узоров» 0.15.9.\n');
+    for (const same of ['id: mak\n', 'id: mak\napproved: 2026-10-03\nhidden: true\n']) expect(hide(same, d)).toEqual({ yaml: same, changed: false });
   });
 });
