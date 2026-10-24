@@ -59,6 +59,12 @@ export interface Clean {
    * цвет соседа. Все сразу — шашечка двух нитей меняется цветами, а не сливается.
    */
   oneByOne: boolean;
+  /**
+   * Мелкая область перекрашивается только в нить ближе этого (OKLab), как у точной схемы
+   * (EXACT_CLOSE): рябь соседних оттенков уходит, а контрастная деталь — окно, глаз, тонкая
+   * линия — остаётся. Без поля — в любую соседнюю нить, как было.
+   */
+  guard?: number;
 }
 
 /** Чистка библиотеки и узора без упрощения. */
@@ -419,7 +425,8 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // Чистка, слияние маленьких нитей, пересчёт цветов и различимость — пока что-то меняется.
   // Цвета сразу округляются до sRGB: различимость проверяется у тех цветов, что уйдут в набор.
   for (let round = 0; round < 8; round++) {
-    const may = o.exact ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < EXACT_CLOSE : undefined;
+    const guard = o.exact ? EXACT_CLOSE : o.clean?.guard;
+    const may = guard !== undefined ? (a: number, b: number) => deltaOK(centers[a], centers[b]) < guard : undefined;
     let changed = focus ? cleanupFocus(cells, g.w, g.h, focus, centers, may, o.clean) : cleanup(cells, g.w, g.h, may, o.clean);
     let wt = weights();
     for (;;) {

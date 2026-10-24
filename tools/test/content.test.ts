@@ -29,6 +29,7 @@ describe('карточки', () => {
     'about-one-source.yaml': /два открытых источника/,
     'bad-grid.yaml': /pattern\.grid «median»/,
     'bad-chroma.yaml': /pattern\.chroma 2/,
+    'bad-smooth.yaml': /pattern\.smooth 1: 0, 1 или 2, не у схемы и не вместе с simplify/,
     'bad-min-delta.yaml': /pattern\.min_delta 0\.03: 0\.045…0\.08 — не ниже порога размера по стороне сетки 70/,
     'bad-was.yaml': /was\.2: прежняя версия/,
     'bad-canvas-holes.yaml': /pattern\.canvas_seed 0\.1: .*только у схемы.*pattern\.canvas_holes 6: /,

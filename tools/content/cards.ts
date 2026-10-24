@@ -64,6 +64,12 @@ export interface Card {
     /** упрощение перед палитрой: 1 — немного, 2 — сильно, 0 — нет, как без поля (src/engine/build/simplify.ts) */
     simplify?: 0 | 1 | 2;
     /**
+     * сглаживание с сохранением деталей вместо simplify (src/engine/build/smooth.ts; с 24.10.2026):
+     * 1 — упрощение по клеткам и чистка с охраной контрастных деталей, 2 — ещё и сдвиг среднего по
+     * цвету на снимке; 0 — нет, как без поля
+     */
+    smooth?: 0 | 1 | 2;
+    /**
      * цвет клетки снимка: `mean` — среднее по её площади (по умолчанию), `dominant` — того, чего в клетке
      * больше (src/engine/build/dominant.ts; у своих снимков — с 15.10.2026)
      */
@@ -142,7 +148,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -177,6 +183,9 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
   if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
   if (p.simplify !== undefined && ((p.simplify !== 0 && p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 0, 1 или 2, и не у схемы — её клетки и так замысел`);
+  if (p.smooth !== undefined && ((p.smooth !== 0 && p.smooth !== 1 && p.smooth !== 2) || p.chart || (p.smooth && p.simplify))) {
+    errors.push(`pattern.smooth ${String(p.smooth)}: 0, 1 или 2, не у схемы и не вместе с simplify — упрощение в нём уже есть`);
+  }
   if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
   if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
   if (p.min_delta !== undefined) {

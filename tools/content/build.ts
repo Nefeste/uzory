@@ -28,6 +28,7 @@ import { findEyes, findLines, paintEyes } from '../../src/engine/build/eyes';
 import { focusMask } from '../../src/engine/build/focus';
 import { photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
+import { buildGuarded } from '../../src/engine/build/smooth';
 
 /** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
 export const PACK_MAX_BYTES = 8 * 1024 * 1024;
@@ -54,7 +55,7 @@ export interface Built {
 }
 
 /** Узор карточки — версии `v`: нынешней или прежней из `was` (её поля pattern — свои). */
-export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Pattern; log?: BuildLog; focus?: Uint8Array }> {
+export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Pattern; log?: BuildLog; focus?: Uint8Array; guard?: number }> {
   const key = `${card.id}@${v}`;
   if (card.drawn) {
     const keys = Object.keys(card.drawn.legend);
@@ -94,11 +95,14 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   }
   // лица — рамки важных частей снимка: своя маленькая палитра (src/engine/build/focus.ts)
   const focus = !p.chart && p.focus?.length ? focusMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.focus) : undefined;
-  const built = buildPattern(grid, {
+  const opts = {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
-    clean: SIMPLIFY_CLEAN[p.simplify ?? 0], ...(focus ? { focus } : {}),
-    ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
-  });
+    ...(focus ? { focus } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
+  };
+  // сглаживание: чистка с охраной деталей — самой строгой, с которой узор проходит проверки
+  const built = p.smooth
+    ? buildGuarded(grid, opts, (pattern) => !checkPattern(pattern, card, focus, v).errors.length)
+    : buildPattern(grid, { ...opts, clean: SIMPLIFY_CLEAN[p.simplify ?? 0] });
   const out = focus ? { ...built, focus } : built;
   // глаза и кресты — поверх готового узора, нитями узора (src/engine/build/eyes.ts)
   if (p.chart || (!p.eyes?.length && !p.lines?.length)) return out;
