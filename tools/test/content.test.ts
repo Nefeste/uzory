@@ -1,14 +1,16 @@
 // Сборка картинок (docs/06-testing.md, «Картинки»): проверки ловят испорченные карточки,
 // сборка детерминирована до байта, выпущенные узоры не меняются (ADR 0010).
 import { describe, expect, test } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stringify } from 'yaml';
 import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
-import { type Card, listCards, readCard, releasable, releasableAt } from '../content/cards';
+import { buildAll, buildCard, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
+import { type Card, CONTENT, listCards, readCard, releasable, releasableAt } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
 
@@ -30,8 +32,8 @@ describe('карточки', () => {
     'bad-grid.yaml': /pattern\.grid «median»/,
     'bad-chroma.yaml': /pattern\.chroma 2/,
     'bad-smooth.yaml': /pattern\.smooth 1: 0, 1 или 2, не у схемы и не вместе с simplify/,
-    'bad-soft.yaml': /pattern\.soft 0\.5: true, и не у схемы/,
-    'bad-tone.yaml': /pattern\.tone 1\.5: 0,1…1, и не у схемы/,
+    'bad-soft.yaml': /pattern\.soft 0\.5: true или false, и не у схемы/,
+    'bad-tone.yaml': /pattern\.tone 1\.5: 0 или 0,1…1, и не у схемы/,
     'bad-approved-v.yaml': /approved_v 1: версия с «да» — прежняя, из was, и только вместе с approved/,
     'bad-min-delta.yaml': /pattern\.min_delta 0\.03: 0\.045…0\.08 — не ниже порога размера по стороне сетки 70/,
     'bad-was.yaml': /was\.2: прежняя версия/,
@@ -71,6 +73,23 @@ describe('карточки', () => {
     expect(packVersions({ ...card, stock: true } as Card, { release: true }).olds).toEqual([]);
     expect(packVersions({ ...card, museum: 'ru', license: null } as unknown as Card, { release: true }).olds).toEqual([]);
   });
+
+  test('новые поля — у новой версии, прежняя выключает их в was (smooth 0, soft false, tone 0): её узор — тот же до байта (ADR 0010)', async () => {
+    // так пересобирается картинка с «нет» (issue 121); без полей в was прежняя версия унаследовала бы их от нынешней.
+    // Узор — свой, из исходника «Бегонии»: тест не зависит от того, как собрана сама карточка
+    const { card } = readCard(join(CONTENT, 'nature', 'begoniya.yaml'));
+    const old = { ...card!, v: 1, pattern: { size: 70, threads: 20, grid: 'dominant', chroma: 1.15 }, was: undefined, approved_v: undefined, hidden: undefined } as Card;
+    const next = { ...old, v: 2, pattern: { ...old.pattern!, smooth: 1, soft: true, tone: 0.6 }, was: { 1: { smooth: 0, soft: false, tone: 0 } }, approved_v: 1 } as Card;
+    const dir = join(mkdtempSync(join(tmpdir(), 'uzory-was-')), 'nature');
+    mkdirSync(dir);
+    const { path: _path, dir: _dir, ...yaml } = next;
+    writeFileSync(join(dir, 'begoniya.yaml'), stringify(yaml));
+    expect(readCard(join(dir, 'begoniya.yaml')).errors).toEqual([]);
+    expect(patternDigest((await buildCard(next, 1)).pattern)).toBe(patternDigest((await buildCard(old)).pattern));
+    expect(patternDigest((await buildCard(next)).pattern)).not.toBe(patternDigest((await buildCard(old)).pattern));
+    // без выключения прежняя версия унаследовала бы новые поля — и узор начатых работ изменился бы
+    expect(patternDigest((await buildCard({ ...next, was: { 1: {} } } as Card, 1)).pattern)).not.toBe(patternDigest((await buildCard(old)).pattern));
+  }, 60_000);
 
   test('музейный предмет без лицензии и без «да» владельца — не в выпуск', () => {
     const c = { approved: '2026-10-01', museum: 'ru', license: null } as unknown as Parameters<typeof releasable>[0];
