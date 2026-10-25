@@ -9,9 +9,9 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import type { CollectionId, Picture } from '../../src/engine/library';
 import type { SizeClass } from '../../src/engine/pattern';
-import { autoCalendar, FIXED_DAYS, readFixedDays, seasonOf } from '../content/build';
+import { autoCalendar, calendarPictures, FIXED_DAYS, readFixedDays, seasonOf } from '../content/build';
 import { fixedYaml } from '../content/calendar';
-import { CONTENT, listCards, readCard, releasable, type Season } from '../content/cards';
+import { CONTENT, listCards, readCard, releasableAt, type Season } from '../content/cards';
 
 const pic = (id: string, collection: CollectionId, size: SizeClass = 'S'): Picture => ({
   id, v: 1, title: id, collection, order: 0, size, source: { url: '', basis: '' }, added: '2026-09-01',
@@ -167,6 +167,18 @@ describe('закреплённые дни', () => {
     expect(next.slice(3).filter((d) => gone.has(d.picture))).toEqual([]);
   });
 
+  test('картинка закреплённого дня — на повторном отборе: в выпуске только прежней версией, а день — как был (approved_v)', () => {
+    const fixed = cal.slice(0, 3);
+    const again = fixed[1].picture;
+    const built = pics.filter((p) => p.id !== again).map((picture) => ({ picture }));
+    const previous = [{ picture: { ...pics.find((p) => p.id === again)!, hidden: true as const } }];
+    expect(autoCalendar(calendarPictures(built, previous), '2026-11-20', { ...rules, fixed }).slice(0, 3)).toEqual(fixed);
+    // без прежней версии день выпал бы, и календарь сдвинулся бы с самого начала
+    expect(autoCalendar(built.map((b) => b.picture), '2026-11-20', { ...rules, fixed }).slice(0, 3)).not.toEqual(fixed);
+    // прежние версии картинки, у которой в наборе есть нынешняя, в календарь не добавляются
+    expect(calendarPictures(built.slice(0, 2), [{ picture: { ...built[0].picture, hidden: true } }])).toEqual(built.slice(0, 2).map((b) => b.picture));
+  });
+
   test('файл: дни подряд с calendar_from, картинка не дважды; файла нет — дней нет', () => {
     const dir = mkdtempSync(join(tmpdir(), 'uzory-calendar-'));
     const file = (name: string, text: string) => {
@@ -181,12 +193,12 @@ describe('закреплённые дни', () => {
     expect(() => readFixedDays('2026-09-28', file('twice.yaml', '2026-09-28: a\n2026-09-29: a\n'))).toThrow('дважды — a');
   });
 
-  test('content/calendar.yaml: дни подряд с calendar_from, у каждой картинки — карточка с «да»', () => {
+  test('content/calendar.yaml: дни подряд с calendar_from, у каждой картинки — карточка с «да» (на повторном отборе — у прежней версии)', () => {
     const meta = parse(readFileSync(join(CONTENT, 'pack.yaml'), 'utf8')) as { calendar_from: string };
     const days = readFixedDays(meta.calendar_from);
     expect(days.length).toBeGreaterThan(0);
     const cards = new Map(listCards().map((f) => readCard(f).card).filter((c) => !!c).map((c) => [c!.id, c!]));
-    const bad = days.filter((d) => !cards.has(d.picture) || releasable(cards.get(d.picture)!) !== null);
+    const bad = days.filter((d) => !cards.has(d.picture) || releasableAt(cards.get(d.picture)!, cards.get(d.picture)!.approved_v ?? cards.get(d.picture)!.v) !== null);
     expect(bad).toEqual([]);
     expect(FIXED_DAYS).toBe(join(CONTENT, 'calendar.yaml'));
   });

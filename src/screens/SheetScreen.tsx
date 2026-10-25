@@ -13,7 +13,7 @@ import { estimateMinutes } from '../engine/pattern';
 import { patternStats } from '../engine/stats';
 import { T } from '../i18n';
 import { copyText } from '../state/clip';
-import { decisionGroups, NOTE_MAX, PICKS } from '../state/decisions';
+import { decisionGroups, NOTE_MAX, PICKS, pickKey } from '../state/decisions';
 import { patternOf, pictures } from '../state/library';
 import { type Pick, usePicks } from '../state/picks';
 import { usePlayer } from '../state/player';
@@ -55,7 +55,7 @@ function infoOf(pic: PackPicture): Info {
  * Комментарий к картинке — что поправить (просьба владельца 16.10.2026: по одному «Нет» не понять,
  * что править). Записывается, когда поле теряет фокус или уходит с экрана вместе с карточкой.
  */
-function NoteField({ id, title, value, onCommit }: { id: string; title: string; value: string; onCommit: (id: string, text: string) => void }) {
+function NoteField({ id, store, title, value, onCommit }: { id: string; store: string; title: string; value: string; onCommit: (key: string, text: string) => void }) {
   const { theme } = useSettings();
   // набранное и ещё не записанное; null — в поле записанный комментарий
   const [draft, setDraft] = useState<string | null>(null);
@@ -67,16 +67,16 @@ function NoteField({ id, title, value, onCommit }: { id: string; title: string; 
   const commit = () => {
     const text = pending.current.text;
     pending.current.text = null;
-    if (text !== null) onCommit(id, text);
+    if (text !== null) onCommit(store, text);
     setDraft(null);
   };
   // список выгружает карточки, ушедшие далеко с экрана, — набранное не пропадает
   useEffect(() => {
     const box = pending.current;
     return () => {
-      if (box.text !== null) onCommit(id, box.text);
+      if (box.text !== null) onCommit(store, box.text);
     };
-  }, [id, onCommit]);
+  }, [store, onCommit]);
   return (
     <TextInput value={draft ?? value} onChangeText={change} onBlur={commit} onSubmitEditing={commit}
       maxLength={NOTE_MAX} placeholder={T.sheet.note} placeholderTextColor={theme.textDim} accessibilityLabel={T.sheet.noteLabel(title)}
@@ -103,9 +103,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
     setColl(c);
     setStay(new Set());
   };
-  const mark = (id: string, v: Pick | null) => {
-    setPick(id, v);
-    if (filter === 'unmarked') setStay((s) => new Set(s).add(id));
+  const mark = (pic: PackPicture, v: Pick | null) => {
+    setPick(pickKey(pic), v);
+    if (filter === 'unmarked') setStay((s) => new Set(s).add(pic.id));
   };
   const [copied, setCopied] = useState<{ ok: boolean; text: string } | null>(null);
   const [works, setWorks] = useState<WorkEntry[]>([]);
@@ -122,15 +122,16 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
 
   const rows = useMemo(() => pictures().filter((p) => !p.hidden), []);
 
-  const count = (v: Pick) => rows.filter((pic) => picks[pic.id] === v).length;
-  const marked = rows.filter((pic) => picks[pic.id]).length;
-  const noted = rows.filter((pic) => notes[pic.id]).length;
+  // отметка и комментарий — у версии картинки (pickKey): новая версия узора — без прежней отметки
+  const count = (v: Pick) => rows.filter((pic) => picks[pickKey(pic)] === v).length;
+  const marked = rows.filter((pic) => picks[pickKey(pic)]).length;
+  const noted = rows.filter((pic) => notes[pickKey(pic)]).length;
   const inColl = coll === 'all' ? rows : rows.filter((pic) => pic.collection === coll);
   // «Без «да»» — картинки не для выпуска: без «да» владельца или музейные без лицензии (`trial`)
-  const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pic.id] || stay.has(pic.id))
+  const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pickKey(pic)] || stay.has(pic.id))
     : filter === 'trial' ? inColl.filter((pic) => pic.trial) : inColl;
   const colls = COLLECTIONS.map((c) => ({ id: c, n: rows.filter((pic) => pic.collection === c).length })).filter((c) => c.n > 0);
-  // «Название (id) — «комментарий»»: владельцу — узнать картинку, ассистенту — найти карточку и что поправить
+  // «Название (id@v) — «комментарий»»: владельцу — узнать картинку, ассистенту — найти карточку, версию и что поправить
   const copy = async () => {
     const text = T.sheet.picksText(APP_VERSION, today, decisionGroups(rows, picks, notes, T.sheet));
     setCopied({ ok: await copyText(text), text });
@@ -195,10 +196,10 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
               {/* отметка и комментарий — вне нажимаемой части: нажатие на них картинку не открывает */}
               <View style={styles.decide}>
                 {/* та же отметка ещё раз — снять */}
-                <Segmented<Pick | 'none'> value={picks[pic.id] ?? 'none'} testID={`pick-${pic.id}`}
-                  onChange={(v) => mark(pic.id, v === 'none' || v === picks[pic.id] ? null : v)}
+                <Segmented<Pick | 'none'> value={picks[pickKey(pic)] ?? 'none'} testID={`pick-${pic.id}`}
+                  onChange={(v) => mark(pic, v === 'none' || v === picks[pickKey(pic)] ? null : v)}
                   options={PICKS.map((v) => ({ id: v, label: T.sheet.picks[v] }))} />
-                <NoteField id={pic.id} title={pic.title} value={notes[pic.id] ?? ''} onCommit={setNote} />
+                <NoteField id={pic.id} store={pickKey(pic)} title={pic.title} value={notes[pickKey(pic)] ?? ''} onCommit={setNote} />
               </View>
             </Card>
           );

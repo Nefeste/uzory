@@ -17,7 +17,7 @@ import { addDays, daysBetween } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../../src/engine/pattern';
-import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, ROOT, type Season, SEASONS } from './cards';
+import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid } from './image';
@@ -288,8 +288,29 @@ interface PackMeta { id: string; created: string; calendar_from?: string }
  * Почему карточка не идёт во встроенный набор выпуска; null — идёт. Картинка «в запас» (`stock`) с
  * «да» идёт только в наборы недели после выхода — с `stock` (решение владельца 17.10.2026, issue 86).
  */
-export function notInRelease(card: Card, stock = false): string | null {
-  return releasable(card) ?? (card.stock && !stock ? 'в запас: в наборы недели после выхода, не в 1.0' : null);
+export function notInRelease(card: Card, stock = false, v = card.v): string | null {
+  return releasableAt(card, v) ?? (card.stock && !stock ? 'в запас: в наборы недели после выхода, не в 1.0' : null);
+}
+
+/**
+ * Какие версии карточки идут в набор: нынешняя (`out` — почему нет, null — идёт) и прежние из `was`. В
+ * выпуск — только с «да»: при повторном отборе (`approved_v`) нынешняя версия ждёт своего «да», а прежние
+ * с «да» идут скрытыми — начатые на них работы открываются (ADR 0010).
+ */
+export function packVersions(card: Card, opts: { release?: boolean; stock?: boolean } = {}): { out: string | null; olds: number[] } {
+  const out = opts.release ? notInRelease(card, opts.stock) : null;
+  const olds = Object.keys(card.was ?? {}).map(Number).sort((a, b) => a - b).filter((old) => !opts.release || !notInRelease(card, opts.stock, old));
+  return { out, olds };
+}
+
+/**
+ * Картинки для календаря: нынешние версии и картинки, которые в наборе только прежней версией (повторный
+ * отбор: в выпуске нынешняя ждёт «да»). Они скрытые и в очередь дней не идут, но их закреплённый день —
+ * как был: телефон даст ему запасную картинку, как дню скрытой (src/engine/calendar.ts).
+ */
+export function calendarPictures(built: readonly { picture: Picture }[], previous: readonly { picture: Picture }[]): Picture[] {
+  const current = new Set(built.map((b) => b.picture.id));
+  return [...built.map((b) => b.picture), ...previous.map((p) => p.picture).filter((p) => !current.has(p.id))];
 }
 
 /**
@@ -316,22 +337,22 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
     }
     ids.add(card.id);
     const trial = releasable(card);
-    const out = opts.release ? notInRelease(card, opts.stock) : null;
-    if (out) {
-      skipped.push({ path: card.path, why: out });
-      continue;
-    }
+    const { out, olds } = packVersions(card, opts);
+    if (out) skipped.push({ path: card.path, why: out });
+    if (out && !olds.length) continue;
     const t0 = performance.now();
     try {
-      const { pattern, log, focus } = await buildCard(card);
-      const ms = performance.now() - t0;
-      const checked = checkPattern(pattern, card, focus);
-      if (checked.errors.length) {
-        failed.push({ path: card.path, errors: checked.errors });
-        continue;
+      if (!out) {
+        const { pattern, log, focus } = await buildCard(card);
+        const ms = performance.now() - t0;
+        const checked = checkPattern(pattern, card, focus);
+        if (checked.errors.length) {
+          failed.push({ path: card.path, errors: checked.errors });
+          continue;
+        }
+        built.push({ card, pattern, picture: toPicture(card, checked.size, meta.created, trial), checked, log, ms, trial });
       }
-      built.push({ card, pattern, picture: toPicture(card, checked.size, meta.created, trial), checked, log, ms, trial });
-      for (const old of Object.keys(card.was ?? {}).map(Number).sort((a, b) => a - b)) {
+      for (const old of olds) {
         const t1 = performance.now();
         const was = await buildCard(card, old);
         const wasChecked = checkPattern(was.pattern, card, was.focus, old);
@@ -339,7 +360,8 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
           failed.push({ path: card.path, errors: wasChecked.errors.map((e) => `v${old}: ${e}`) });
           continue;
         }
-        previous.push({ card, pattern: was.pattern, picture: toPicture(card, wasChecked.size, meta.created, trial, old), checked: wasChecked, log: was.log, ms: performance.now() - t1, trial });
+        const wasTrial = releasableAt(card, old);
+        previous.push({ card, pattern: was.pattern, picture: toPicture(card, wasChecked.size, meta.created, wasTrial, old), checked: wasChecked, log: was.log, ms: performance.now() - t1, trial: wasTrial });
       }
     } catch (e) {
       failed.push({ path: card.path, errors: [(e as Error).message] });
@@ -350,7 +372,7 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
   const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
   const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
   const from = meta.calendar_from ?? meta.created;
-  const calendar = autoCalendar(built.map((b) => b.picture), from, { season, day, fixed: readFixedDays(from) });
+  const calendar = autoCalendar(calendarPictures(built, previous), from, { season, day, fixed: readFixedDays(from) });
   // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
   return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0) };

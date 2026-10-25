@@ -119,6 +119,13 @@ export interface Card {
     params?: Record<string, number | number[]>;
   };
   approved?: string;
+  /**
+   * повторный отбор (с 24.10.2026, issue 121): «да» — у прежней версии approved_v, а нынешняя `v` ещё на
+   * отборе. Сборка выпуска кладёт прежние версии до approved_v скрытыми — начатые на них работы
+   * открываются (ADR 0010), — а нынешнюю не кладёт, пока у неё нет своего «да»: тогда поле снимают
+   * (tools/content/decisions.ts). Без поля «да» — у нынешней версии
+   */
+  approved_v?: number;
   added?: string;
   free?: boolean;
   hidden?: boolean;
@@ -282,6 +289,9 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
     if (new Set(urls).size < 2) errors.push('у рассказа — два открытых источника (about_sources: два разных адреса)');
   }
   if (card.approved !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(card.approved))) errors.push(`approved «${String(card.approved)}» — дата`);
+  if (card.approved_v !== undefined && (!card.approved || !Number.isInteger(card.approved_v) || card.approved_v < 1 || card.approved_v >= card.v || !card.was?.[String(card.approved_v)])) {
+    errors.push(`approved_v ${String(card.approved_v)}: версия с «да» — прежняя, из was, и только вместе с approved`);
+  }
   if (card.stock !== undefined && card.stock !== true) errors.push(`stock: ${String(card.stock)} — только true («в запас»), иначе поля нет`);
   if (card.season !== undefined && !SEASONS.includes(card.season)) errors.push(`season «${String(card.season)}» — одно из: ${SEASONS.join(', ')}`);
   if (card.day !== undefined && !(typeof card.day === 'string' && /^\d{2}-\d{2}$/.test(card.day) && isDate(`2028-${card.day}`))) {
@@ -295,7 +305,16 @@ export function readCard(file: string): { card: Card | null; errors: string[] } 
  * (docs/09-content.md, §2, «Музейные предметы»). Иначе — только в сборки для проверки.
  */
 export function releasable(c: Card): string | null {
+  return releasableAt(c, c.v);
+}
+
+/**
+ * То же для версии `v` — нынешней или прежней из `was`: права — как у карточки, «да» — у версий не
+ * новее approved_v (повторный отбор: нынешняя версия на отборе, прежние с «да» — в выпуске скрытыми).
+ */
+export function releasableAt(c: Card, v: number): string | null {
   if (!c.approved) return 'нет «да» владельца (approved)';
   if (c.museum === 'ru' && !c.license) return 'оригинал в российском музее, лицензии нет (решение В12)';
+  if (c.approved_v !== undefined && v > c.approved_v) return `версия ${v} — на отборе: «да» у версии ${c.approved_v}`;
   return null;
 }
