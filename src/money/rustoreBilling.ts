@@ -1,4 +1,4 @@
-// из nardy: src/money/billing.ts @ 63e8ee9 (порт «Узоров» — src/state/billingApi.ts, права — PlusState)
+// из nardy: src/money/billing.ts @ 63e8ee9, «Ответ RuStore» — @ af8b683 (порт «Узоров» — src/state/billingApi.ts, права — PlusState)
 // Магазин подписки «Узоры+» на телефоне — RuStore Pay (docs/specs/2026-09-plus.md, «Протокол»).
 // Фабрика, а не модуль: нативный модуль и номер приложения приходят аргументами, поэтому
 // tools/test/rustore.test.ts проверяет её под Bun с поддельным модулем. Собирает её
