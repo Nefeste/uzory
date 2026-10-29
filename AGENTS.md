@@ -91,16 +91,16 @@ assets of a **draft release** (drafts are visible to maintainers only): list rel
 API, download assets with `Accept: application/octet-stream`. Only selected photos enter git
 (card + 800 px source) — never commit the rest, never post them in logs or comments.
 
-**CI and merging** (studio ADR 0018, 0019; `docs/05-process.md`, «Ветки»): `pr.yml` runs
-typecheck, lint and tests on every PR to `main` — a required check. A PR that touches no owner
-path from `.github/CODEOWNERS` merges by itself (`automerge.yml`) after green checks and the
-label `ревью: ок` from a reviewer in another session — never put that label on your own PR;
-a new commit removes it. Owner paths are merged by the owner. Run typecheck, lint, tests and
-the web scenario locally (both builds — from the root and for `/uzory/test`) before every push
-anyway. The APK (no AAB until Google Play — owner's decision, 03.10.2026) is built only on a version tag `vX.Y.Z` and released on that tag — no manual
-dispatch (owner's decision, 03.10.2026) — with `--release` content only: approved pictures and
-music. Trial pictures live only in the closed web version. Playwright screenshots are uploaded as
-artifacts only when the repository is private.
+**CI and merging**: who merges what, the `ревью: ок` label, owner paths and CI on PRs follow the
+charter's [`docs/04-process.md`](https://github.com/Nefeste/gornitsa/blob/main/docs/04-process.md#ветки-и-ci)
+(studio ADR [0018](https://github.com/Nefeste/gornitsa/blob/main/adr/0018-change-classes-automerge.md),
+[0019](https://github.com/Nefeste/gornitsa/blob/main/adr/0019-ci-on-pr.md)); how it is wired here —
+`docs/05-process.md`, «Ветки» (`pr.yml` is the required check, `automerge.yml`, `.github/CODEOWNERS`).
+Run typecheck, lint, tests and the web scenario locally (both builds — from the root and for
+`/uzory/test`) before every push anyway. Project specifics: the APK (no AAB until Google Play —
+owner's decision, 03.10.2026) is built only on a version tag `vX.Y.Z` and released on that tag, with
+`--release` content only: approved pictures and music. Trial pictures live only in the closed web
+version. Playwright screenshots are uploaded as artifacts only when the repository is private.
 
 **The closed web version** (`docs/specs/2026-09-web.md`) is the same app at
 `gornitsa.games/uzory/test/` behind a password the owner sets on the server
