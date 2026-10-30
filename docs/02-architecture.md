@@ -295,7 +295,7 @@ CI этого репозитория и выкладывает по SSH (`rsync`
 | «Вотчина»: `src/state/storage.ts`, `settings.tsx` | хранилище, настройки | ключи |
 | «Вотчина»: `plugins/with-release-signing.js` | подпись постоянным ключом | — |
 | «Вотчина» и «Анамнез»: `.github/workflows/android.yml` | prebuild, Gradle, проверки APK: подпись, белый список разрешений, выравнивание под 16 КБ, Releases | **резервная копия включена** (`allowBackup="true"`, у «Вотчины» наоборот); свой белый список |
-| «Вотчина»: `tools/store/rustore.mjs`, `rustore.yml` | загрузка сборки в RuStore | ключ приложения |
+| «Вотчина»: `tools/store/rustore.mjs`, `rustore.yml` | загрузка сборки в RuStore | с 30.10.2026 — не копия: workflow набора студии `gornitsa-kit` (ADR студии 0022), как и автослияние и шаги ключа, подписи и содержимого APK |
 | «Вотчина»: `tools/test/version.test.ts`, `ui.test.ts` | сверка номеров версии, крупный шрифт | — |
 | «Анамнез»: подключение Skia, `index.web.ts` (CanvasKit грузится раньше всех модулей Skia) | основа канвы | архитектуры процессора — свои (ниже, «Сборка приложения») |
 | «Нарды»: плагин и обёртка RuStore Pay, RuStore Review | подписка, оценка | товары |

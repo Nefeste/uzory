@@ -1,0 +1,14 @@
+# Разрешения, которые может просить релизный APK «Узоров» (шаг «Содержимое» в android.yml —
+# действие android-contents набора gornitsa-kit). Строка — полное имя; «*» в конце — любая
+# концовка. Всё прочее — ошибка сборки: нужное добавить сюда, в docs/05-process.md («Белый
+# список разрешений APK») и в политику конфиденциальности; ненужное — в blockedPermissions
+# в app.json.
+# каталог и наборы по сети
+android.permission.INTERNET
+android.permission.ACCESS_NETWORK_STATE
+# вибрация стежка
+android.permission.VIBRATE
+# настройки звука (expo-audio с 0.2)
+android.permission.MODIFY_AUDIO_SETTINGS
+# служебное разрешение самого приложения
+games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
