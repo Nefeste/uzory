@@ -262,7 +262,18 @@ async function farAway(page: Page, p: Pattern, t: number, done: number) {
   await page.waitForTimeout(300);
   const l5 = await left();
   await page.getByTestId('where').click();
-  await page.waitForTimeout(800);
+  // группа нити пульсирует полторы секунды после полёта камеры, потом канва в покое (разбор оформления
+  // 31.10.2026, Б1: пульсация снималась в первый же кадр, и снимки через 0,6 и 3 с были одинаковы)
+  const t0 = Date.now();
+  const spot = way ? { x: box.x + way.cell.x - 16, y: box.y + way.cell.y - 16, width: 32, height: 32 } : null;
+  const early: Buffer[] = [];
+  for (const at of spot ? [600, 850, 1100] : []) {
+    await page.waitForTimeout(Math.max(0, at - (Date.now() - t0)));
+    early.push(await page.screenshot({ clip: spot! }));
+  }
+  await page.waitForTimeout(Math.max(0, 2800 - (Date.now() - t0)));
+  const rest = spot ? await page.screenshot({ clip: spot }) : null;
+  check(!!rest && early.some((b) => !b.equals(rest)), '«Где ещё?»: группа нити пульсирует, потом канва в покое');
   if (way) await page.mouse.click(box.x + way.cell.x, box.y + way.cell.y);
   await leftTo(l5 - 1);
   const l6 = await left();

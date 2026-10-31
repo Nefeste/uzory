@@ -1,7 +1,7 @@
 // из votchina: src/ui/components.tsx @ 1242776
 // Общие элементы интерфейса (перенос из «Вотчины», вид — по сайту студии).
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, Text, View, type StyleProp, type SwitchProps, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from '../i18n';
 import { useSettings } from '../state/settings';
@@ -50,9 +50,12 @@ export function Txt({ children, style, dim, title, bold, numberOfLines, selectab
   );
 }
 
-export function Button({ label, onPress, kind = 'primary', disabled, style, small, testID }: {
+export function Button({ label, onPress, kind = 'primary', disabled, style, small, lines = 1, testID }: {
   label: string; onPress: () => void; kind?: 'primary' | 'secondary' | 'ghost'; disabled?: boolean;
-  style?: StyleProp<ViewStyle>; small?: boolean; testID?: string;
+  style?: StyleProp<ViewStyle>; small?: boolean;
+  /** строк подписи: длинная подпись с числом в конце не обрезается (разбор оформления 31.10.2026, Б7) */
+  lines?: number;
+  testID?: string;
 }) {
   const { theme } = useSettings();
   const bg = kind === 'primary' ? theme.accent : kind === 'secondary' ? theme.surface : 'transparent';
@@ -61,10 +64,18 @@ export function Button({ label, onPress, kind = 'primary', disabled, style, smal
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" testID={testID}
       style={({ pressed }) => [styles.btn, small && styles.btnSmall,
         { backgroundColor: bg, borderColor: kind === 'secondary' ? theme.border : 'transparent', opacity: disabled ? 0.4 : pressed ? 0.8 : 1 }, style]}>
-      <Text maxFontSizeMultiplier={FONT_MAX} numberOfLines={1}
+      <Text maxFontSizeMultiplier={FONT_MAX} numberOfLines={lines}
         style={[styles.btnText, small && styles.btnTextSmall, { color: fg, fontFamily: FONTS.bold }]}>{label}</Text>
     </Pressable>
   );
+}
+
+/**
+ * Ползунок включённого переключателя в вебе: у react-native-web он свой (`activeThumbColor`, по
+ * умолчанию бирюзовый), а в типах React Native такого свойства нет (разбор оформления 31.10.2026, Б8).
+ */
+function webThumb(color: string): Partial<SwitchProps> {
+  return Platform.OS === 'web' ? ({ activeThumbColor: color } as unknown as Partial<SwitchProps>) : {};
 }
 
 /** Переключатель на несколько вариантов; ширина варианта растёт с длиной подписи. */
@@ -99,7 +110,8 @@ export function ToggleRow({ label, note, value, onChange, testID }: {
         <Txt style={styles.toggleLabel}>{label}</Txt>
         {note ? <Txt dim style={styles.toggleNote}>{note}</Txt> : null}
       </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent, false: theme.border }} thumbColor={theme.surface} />
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent, false: theme.border }} thumbColor={theme.surface}
+        {...webThumb(theme.surface)} />
     </Pressable>
   );
 }
@@ -129,7 +141,7 @@ const styles = StyleSheet.create({
   right: { minWidth: 44, alignItems: 'flex-end' },
   btn: { minHeight: 50, borderRadius: 6, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   btnSmall: { minHeight: 42, paddingHorizontal: 14 },
-  btnText: { fontSize: 17 },
+  btnText: { fontSize: 17, textAlign: 'center' },
   btnTextSmall: { fontSize: 15 },
   seg: { flexDirection: 'row', borderWidth: 1, borderRadius: 6, padding: 3 },
   segItem: { paddingVertical: 9, paddingHorizontal: 4, borderRadius: 4, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },

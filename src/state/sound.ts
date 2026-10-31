@@ -33,16 +33,33 @@ export function audioMode() {
   }
 }
 
-function player(name: SoundName): AudioPlayer {
+function pool(name: SoundName): AudioPlayer[] {
   audioMode();
   let list = players[name];
   if (!list) {
     list = Array.from({ length: POOL[name] }, () => createAudioPlayer(SOURCES[name]));
     players[name] = list;
   }
+  return list;
+}
+
+function player(name: SoundName): AudioPlayer {
+  const list = pool(name);
   const p = list[next[name] % list.length];
   next[name]++;
   return p;
+}
+
+/**
+ * Проигрыватели — заранее, при входе на экран вышивания: звук грузится не сразу, и созданный на первом
+ * стежке проигрыватель мог промолчать (разбор оформления 31.10.2026, Б14).
+ */
+export function soundsReady() {
+  try {
+    for (const name of Object.keys(SOURCES) as SoundName[]) pool(name);
+  } catch (e) {
+    logError('sound', e, 'prepare');
+  }
 }
 
 /** Сыграть звук; ошибка звука не мешает вышивать — только запись в журнал. */

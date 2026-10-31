@@ -156,6 +156,9 @@ if (WEB && typeof window !== 'undefined') {
   window.addEventListener('pointerup', (e) => { input.up = e.timeStamp; }, { capture: true, passive: true });
 }
 
+/** Пульсация «Где ещё?» начнётся на ближайшем кадре — через 400 мс полёта камеры. */
+const PULSE_NEXT = -2;
+
 function stitchCell(b: Uint8Array, cell: number, thread: number, any: boolean): boolean {
   'worklet';
   const o = cell * 4;
@@ -395,6 +398,7 @@ export function StitchCanvas(props: Props) {
   const hatch = useSharedValue(props.hatch);
   const fillOn = useSharedValue(props.fill);
   const pulse = useSharedValue([0, 0, -1, -1]);
+  // начало пульсации «Где ещё?» по часам кадров; PULSE_NEXT — начать на ближайшем кадре
   const pulseStart = useSharedValue(-1);
   const clock = useSharedValue(0);
   const brush = useSharedValue<Brush>({
@@ -569,6 +573,9 @@ export function StitchCanvas(props: Props) {
     })
     .onBegin((e) => {
       'worklet';
+      // касание посреди полёта камеры останавливает и масштаб, а не только сдвиг: иначе масштаб
+      // доезжал отдельно, и камера вставала не туда (разбор оформления 31.10.2026, Б16)
+      cancelAnimation(s);
       cancelAnimation(tx);
       cancelAnimation(ty);
       const b = brush.get();
@@ -889,7 +896,13 @@ export function StitchCanvas(props: Props) {
   // пульсации: иначе кадр пересобирался бы каждый раз, а в покое канва не перерисовывается.
   useFrameCallback((info) => {
     'worklet';
-    const ps = pulseStart.get();
+    let ps = pulseStart.get();
+    // «Где ещё?»: часы в покое стоят, поэтому начало пульсации — от времени этого кадра, а не от часов
+    // (разбор оформления 31.10.2026, Б1: от застывших часов пульсация снималась в первый же кадр)
+    if (ps === PULSE_NEXT) {
+      ps = info.timestamp + 400;
+      pulseStart.set(ps);
+    }
     if (ps >= 0) {
       clock.set(info.timestamp);
       if (info.timestamp - ps > 1600) pulseStart.set(-1);
@@ -971,7 +984,7 @@ export function StitchCanvas(props: Props) {
         tx.set(withTiming(x, { duration: 400 }));
         ty.set(withTiming(y, { duration: 400 }));
         pulse.set([g.x0, g.y0, g.x1, g.y1]);
-        pulseStart.set(clock.get() + 400);
+        pulseStart.set(PULSE_NEXT);
         return { s: k, tx: x, ty: y };
       },
       camera() {

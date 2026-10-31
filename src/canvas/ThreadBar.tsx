@@ -1,7 +1,9 @@
 // Полоса нитей (docs/specs/2026-09-canvas.md, «Полоса нитей»): кружок цвета с номером,
-// под ним — сколько клеток осталось; выбранная — с кольцом; законченная — ✓ и в конец.
+// под ним — сколько клеток осталось; выбранная — с кольцом цвета текста (кольцо кумачом терялось
+// на красных нитях, разбор оформления 31.10.2026, Б6); законченная — ✓ и плавно в конец (Б15).
 import { useEffect, useRef } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import { digitOn } from '../engine/color';
 import { hex, type Thread } from '../engine/pattern';
 import { FONT_MAX } from '../ui/components';
@@ -50,15 +52,17 @@ export function ThreadBar({ threads, left, selected, stay, onSelect, onLong }: {
         const done = left[t] === 0;
         const on = t === selected;
         return (
-          <Pressable key={t} onPress={() => onSelect(t)} onLongPress={() => onLong(t)} style={styles.item}
+          <Animated.View key={t} layout={LinearTransition.duration(250)}>
+          <Pressable onPress={() => onSelect(t)} onLongPress={() => onLong(t)} style={styles.item}
             accessibilityRole="button" accessibilityLabel={`${t + 1} ${th.name}`} testID={`thread-${t + 1}`}>
-            <View style={[styles.ring, { borderColor: on ? theme.accent : 'transparent' }]}>
+            <View style={[styles.ring, { borderColor: on ? theme.text : 'transparent' }]}>
               <View style={[styles.dot, { backgroundColor: hex(th.rgb), borderColor: theme.border }]}>
                 <Text maxFontSizeMultiplier={FONT_MAX} style={[styles.num, { color: hex(digitOn(th.rgb)) }]}>{done ? '✓' : t + 1}</Text>
               </View>
             </View>
             <Text maxFontSizeMultiplier={FONT_MAX} style={[styles.left, { color: theme.textDim }]}>{done ? ' ' : left[t]}</Text>
           </Pressable>
+          </Animated.View>
         );
       })}
     </ScrollView>
@@ -71,5 +75,6 @@ const styles = StyleSheet.create({
   ring: { borderWidth: 3, borderRadius: 27, padding: 2 },
   dot: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
   num: { fontSize: 17, fontFamily: FONTS.bold },
-  left: { fontSize: 12, marginTop: 2, fontFamily: FONTS.body },
+  // остаток — не мельче 13 sp, как номера (docs/08-game-design.md, «Для старшей аудитории»; Б13)
+  left: { fontSize: 13, marginTop: 2, fontFamily: FONTS.body },
 });

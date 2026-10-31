@@ -19,7 +19,7 @@ import { T } from '../i18n';
 import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
-import { play } from '../state/sound';
+import { play, soundsReady } from '../state/sound';
 import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
@@ -108,7 +108,10 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   // музыка — только на этом экране: ждёт первого стежка, уходит вместе с экраном (src/state/music.ts)
   useEffect(() => {
     musicEnter();
+    if (settings.sound) soundsReady();
     return musicLeave;
+    // звуки готовятся один раз при входе; включённый потом звук создаст их на первом стежке
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => musicEnabled(settings.music), [settings.music]);
 
@@ -180,10 +183,11 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
     setLine({ text: T.stitch.foreign(t + 1, pattern.threads[t].name), pick: t });
   };
 
+  // пипетка — короткая вибрация, без шороха стежка: стежка нет (docs/specs/2026-09-canvas.md; Б12)
   const onPick = (cell: number) => {
     setSelected(pattern.cells[cell]);
     setLine(null);
-    tick();
+    if (settings.haptics && Platform.OS !== 'web') void Haptics.selectionAsync();
   };
 
   const onFill = (cell: number) => {
@@ -308,7 +312,8 @@ const styles = StyleSheet.create({
   off: { pointerEvents: 'none' },
   backdrop: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 20, 24, 0.25)' },
   panel: { position: 'absolute', top: 8, right: 8, width: 260, maxWidth: '92%', borderWidth: 1, borderRadius: 8, padding: 12, gap: 8 },
-  aboutPanel: { left: 8, width: undefined, maxWidth: 520, bottom: 8 },
+  // «О картине» — по высоте текста, не больше 85 % канвы (разбор оформления 31.10.2026, Б3: была во всю высоту)
+  aboutPanel: { left: 8, width: undefined, maxWidth: 520, maxHeight: '85%' },
   panelLabel: { fontSize: 13, marginTop: 4 },
   aboutBody: { gap: 8 },
   bar: { paddingTop: 6 },

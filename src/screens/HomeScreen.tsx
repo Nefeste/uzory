@@ -123,7 +123,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
         ) : null}
         {netLine ? <Txt dim style={styles.note} testID="home-net">{netLine}</Txt> : null}
         {last && lastPic ? (
-          <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))}
+          <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))} lines={2}
             onPress={() => onStitch(lastPic, last.id)} testID="continue" />
         ) : null}
         <View style={styles.nav}>
