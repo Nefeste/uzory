@@ -44,8 +44,12 @@ jobs:
           else
             echo "docs=no" >> "$GITHUB_OUTPUT"
           fi
+      # глубина 2: у слияния PR с main первый родитель — main, по нему шаг «Код сборки узоров менялся?»
+      # сверяет зависимости в package-lock.json
       - uses: actions/checkout@v5
         if: steps.scope.outputs.docs != 'yes'
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v5
         if: steps.scope.outputs.docs != 'yes'
         with:
@@ -61,14 +65,15 @@ jobs:
       - name: Картинки — сборка и проверки
         if: steps.scope.outputs.docs != 'yes'
         run: bun tools/content/build.ts
-      # код сборки узоров — файлы, которые tools/content/build.ts импортирует, и package-lock.json: PR его
-      # меняет — тесты собирают весь набор заново без кэша, иначе — выборку по всем веткам сборщика.
-      # Не смог ответить — шаг падает (присваивание под bash -e), а не уходит молча в выборку
+      # код сборки узоров — файлы, которые tools/content/build.ts импортирует, и зависимости в
+      # package-lock.json (поднятая версия приложения — не в счёт): PR его меняет — тесты собирают весь
+      # набор заново без кэша, иначе — выборку по всем веткам сборщика. Не смог ответить — шаг падает
+      # (присваивание под bash -e), а не уходит молча в выборку
       - name: Код сборки узоров менялся?
         id: builder
         if: steps.scope.outputs.docs != 'yes'
         run: |
-          FULL="$(bun tools/content/cache.ts --touches < "$RUNNER_TEMP/changed.txt")"
+          FULL="$(bun tools/content/cache.ts --touches --base HEAD^1 < "$RUNNER_TEMP/changed.txt")"
           echo "код сборки узоров менялся: $FULL"
           echo "full=$FULL" >> "$GITHUB_OUTPUT"
       - name: Типы приложения

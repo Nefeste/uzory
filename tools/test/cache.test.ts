@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import type { Pattern } from '../../src/engine/pattern';
-import { builderFiles, CACHE_DAYS, type CardBuild, cardKey, pruneCache, readCached, touchesBuilder, writeCached } from '../content/cache';
+import { builderFiles, CACHE_DAYS, type CardBuild, cardKey, LOCK, lockPrint, pruneCache, readCached, touchesBuilder, writeCached } from '../content/cache';
 import { type Card, ROOT } from '../content/cards';
 
 const tmp = mkdtempSync(join(tmpdir(), 'uzory-cache-'));
@@ -114,7 +114,32 @@ describe('код сборки', () => {
 
   test('PR меняет код сборки — да; экраны, тесты, карточки и документы — нет', () => {
     expect(touchesBuilder(['docs/06-testing.md', 'src/engine/build/palette.ts'])).toBe(true);
-    expect(touchesBuilder(['package-lock.json'])).toBe(true);
     expect(touchesBuilder(['src/screens/HomeScreen.tsx', 'tools/test/content.test.ts', 'content/painting/shishkin-rozh.yaml', 'docs/06-testing.md', ''])).toBe(false);
+  });
+
+  // почти каждый PR поднимает версию приложения, а она записана и в package-lock.json
+  const lock = readFileSync(join(ROOT, LOCK), 'utf8');
+  /** lock-файл с другой версией приложения: оба поля — в корне и у пакета "" — первые два "version" файла */
+  const bumped = (() => {
+    let n = 0;
+    return lock.replace(/"version": "[^"]+"/g, (m) => (n++ < 2 ? '"version": "9.9.9"' : m));
+  })();
+  /** lock-файл с другой версией первой зависимости */
+  const upgraded = (() => {
+    let n = 0;
+    return lock.replace(/"version": "[^"]+"/g, (m) => (n++ === 2 ? '"version": "0.0.1"' : m));
+  })();
+
+  test('поднятая версия приложения — те же зависимости; другая версия пакета — другие', () => {
+    expect(bumped).not.toBe(lock);
+    expect(lockPrint(bumped)).toBe(lockPrint(lock));
+    expect(lockPrint(upgraded)).not.toBe(lockPrint(lock));
+  });
+
+  test('package-lock.json в PR: только версия приложения — нет; зависимости — да; прежнего нет — да', () => {
+    expect(touchesBuilder([LOCK, 'app.json', 'package.json', 'src/version.ts'], bumped)).toBe(false);
+    expect(touchesBuilder([LOCK], upgraded)).toBe(true);
+    expect(touchesBuilder([LOCK], null)).toBe(true);
+    expect(touchesBuilder([LOCK, 'src/engine/build/palette.ts'], bumped)).toBe(true);
   });
 });
