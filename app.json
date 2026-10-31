@@ -3,7 +3,7 @@
     "name": "Узоры",
     "slug": "uzory",
     "scheme": "uzory",
-    "version": "0.16.6",
+    "version": "0.16.12",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -46,6 +46,18 @@
     },
     "plugins": [
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ECEDE6",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 288,
+          "dark": {
+            "backgroundColor": "#111816",
+            "image": "./assets/splash-icon-dark.png"
+          }
+        }
+      ],
       [
         "expo-audio",
         {

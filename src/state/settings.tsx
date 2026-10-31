@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { DARK, LIGHT, type Theme } from '../ui/theme';
+import type { Ambience } from './ambience';
 import { KEYS, loadJson, saveJson } from './storage';
 
 export type StitchStyle = 'cross' | 'mosaic';
@@ -23,13 +24,15 @@ export interface Settings {
   haptics: boolean;
   sound: boolean;
   music: boolean;
+  /** фон вышивания — дождь за окном или печь (src/state/ambience.ts); сразу после установки выключен */
+  ambience: Ambience;
   /** сборка 0.x для проверки: запирать картинки «Узоры+», как в 1.0 (образец экрана подписки) */
   previewLock: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true, shareStitches: false,
-  hints: true, haptics: true, sound: true, music: true, previewLock: false,
+  hints: true, haptics: true, sound: true, music: true, ambience: 'off', previewLock: false,
 };
 
 interface Ctx {

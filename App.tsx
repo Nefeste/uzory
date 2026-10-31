@@ -3,9 +3,11 @@
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, View } from 'react-native';
+import { BackHandler, Image, Platform, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { warmCanvas } from './src/canvas/effect';
 import type { CollectionId } from './src/engine/library';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
@@ -16,6 +18,7 @@ import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
 import { PlusProvider } from './src/state/plus';
 import { installSessions } from './src/state/sessions';
+import { keepSplash } from './src/state/splash';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
@@ -40,10 +43,12 @@ import { whoMade } from './src/ui/PicAbout';
 
 installCrashHandlers();
 installSessions();
+// заставка держится, пока главная не готова целиком (src/state/splash.ts)
+keepSplash();
 
 type Route =
   | { name: 'home' }
-  | { name: 'stitch'; pic: PackPicture; workId?: string }
+  | { name: 'stitch'; pic: PackPicture; workId?: string; mystery?: boolean }
   | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
   | { name: 'mine' }
   /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
@@ -67,6 +72,14 @@ type Entry = Route & { k: number };
 
 let nextKey = 1;
 const entry = (r: Route): Entry => ({ ...r, k: nextKey++ });
+/**
+ * В вебе — без анимации появления: Reanimated там прячет элемент (`visibility: hidden`) до начала анимации,
+ * и сценарий Playwright, читая текст сразу после перехода, получал пустую строку. Веб — стенд и закрытая
+ * проверка, а не игра.
+ */
+const NO_ENTERING = Platform.OS === 'web';
+/** Экраны с канвой и замеры — без перехода: их первые кадры — работе и числам замера. */
+const CANVAS_ROUTES = new Set<Route['name']>(['stitch', 'stitchMine', 'bench', 'scrollBench']);
 
 const caption = (pic: PackPicture) => whoMade(pic) || undefined;
 
@@ -82,6 +95,13 @@ function Root() {
   const plus = () => go({ name: 'plus', sample: !billing.available });
   /** Поменять данные экрана на вершине, не пересоздавая его. */
   const patch = (k: number, p: Partial<Route>) => setStack((s) => s.map((e) => (e.k === k ? ({ ...e, ...p } as Entry) : e)));
+
+  // шейдер канвы прогревается невидимым кадром вскоре после первого экрана, а не на открытии работы
+  // (docs/02-architecture.md, «Канва»; src/canvas/effect.ts)
+  useEffect(() => {
+    const t = setTimeout(warmCanvas, 300);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -133,7 +153,7 @@ function Root() {
       screen = (
         <StitchScreen
           pattern={pattern} title={pic.title} workId={route.workId} onBack={back}
-          pic={pic}
+          pic={pic} mystery={route.mystery}
           onStarted={(workId) => patch(route.k, { workId })}
           onSettings={() => go({ name: 'settings' })}
           onDone={(workId) => {
@@ -178,7 +198,8 @@ function Root() {
       screen = <AboutScreen onBack={back} />;
       break;
     case 'library':
-      screen = <LibraryScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} onCollection={(id) => go({ name: 'collection', id })} />;
+      screen = <LibraryScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} onCollection={(id) => go({ name: 'collection', id })}
+        onMystery={(pic, workId) => go({ name: 'stitch', pic, workId, mystery: true })} />;
       break;
     case 'collection':
       screen = <CollectionScreen id={route.id} onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
@@ -215,7 +236,8 @@ function Root() {
           player.update({ hints: [] });
           home();
         }}>
-        <View key={route.k} style={{ flex: 1 }}>{screen}</View>
+        {/* экран проявляется, а не сменяется рывком (3.8); канва — без перехода: её первые кадры — работе */}
+        <Animated.View key={route.k} entering={NO_ENTERING || CANVAS_ROUTES.has(route.name) ? undefined : FadeIn.duration(160)} style={{ flex: 1 }}>{screen}</Animated.View>
       </ErrorBoundary>
     </View>
   );
@@ -226,9 +248,21 @@ function Gate() {
   return useNetReady() ? <Root /> : <Splash />;
 }
 
+/**
+ * Пока грузятся шрифты и наборы — та же картинка, что на нативной заставке (в вебе нативной нет): «Узоры» и
+ * кайма рушника на поле темы.
+ */
 function Splash() {
-  return <View style={{ flex: 1, backgroundColor: '#ECEDE6', justifyContent: 'center' }}><ActivityIndicator color="#B3162F" /></View>;
+  const { theme } = useSettings();
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }} testID="splash">
+      <Image source={theme.dark ? SPLASH_DARK : SPLASH_LIGHT} style={{ width: 288, height: 288 }} accessibilityIgnoresInvertColors />
+    </View>
+  );
 }
+
+const SPLASH_LIGHT = require('./assets/splash-icon.png');
+const SPLASH_DARK = require('./assets/splash-icon-dark.png');
 
 export default function App() {
   const [fonts] = useFonts(FONT_FILES);

@@ -5,7 +5,7 @@ import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { type Camera, openCamera } from '../canvas/camera';
 import { FIELD } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
@@ -19,11 +19,13 @@ import { T } from '../i18n';
 import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
-import { play } from '../state/sound';
+import { play, soundsReady } from '../state/sound';
+import { type Ambience, ambienceEnter, ambienceLeave, ambienceSet } from '../state/ambience';
 import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
 import { DIGIT_FONT } from '../ui/fonts';
+import { Icon } from '../ui/Icon';
 
 /** Уход с экрана: где вышивали — работа откроется там же (docs/specs/2026-09-canvas.md, «Камера»). */
 function leave(session: WorkSession, api: { current: CanvasApi | null }, size: { current: { w: number; h: number } | null }) {
@@ -34,11 +36,13 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onStarted, onSettings }: {
+export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, onBack, onDone, onStarted, onSettings }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
   workId?: string;
+  /** новая работа — «Тайна» (src/engine/mystery.ts); у открытой работы это знает её запись */
+  mystery?: boolean;
   /** картинка библиотеки — для «О картине»; у своего узора её нет */
   pic?: PackPicture;
   onBack: () => void;
@@ -74,7 +78,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   useEffect(() => {
     let alive = true;
     (async () => {
-      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now());
+      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now(), !!newMystery);
       if (!alive) return;
       if (!s) {
         setBroken(true);
@@ -108,9 +112,20 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   // музыка — только на этом экране: ждёт первого стежка, уходит вместе с экраном (src/state/music.ts)
   useEffect(() => {
     musicEnter();
+    if (settings.sound) soundsReady();
     return musicLeave;
+    // звуки готовятся один раз при входе; включённый потом звук создаст их на первом стежке
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => musicEnabled(settings.music), [settings.music]);
+  // фон — тоже только здесь, но сразу, без первого стежка: он не мелодия, а комната вокруг
+  // (src/state/ambience.ts); выбранный потом — ambienceSet ниже
+  useEffect(() => {
+    ambienceEnter(settings.ambience);
+    return ambienceLeave;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => ambienceSet(settings.ambience), [settings.ambience]);
 
   // подсказки: одной строкой, пока их не выключили и пока на канве нет другой строки
   const percent = session ? session.state.percent : 0;
@@ -180,10 +195,11 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
     setLine({ text: T.stitch.foreign(t + 1, pattern.threads[t].name), pick: t });
   };
 
+  // пипетка — короткая вибрация, без шороха стежка: стежка нет (docs/specs/2026-09-canvas.md; Б12)
   const onPick = (cell: number) => {
     setSelected(pattern.cells[cell]);
     setLine(null);
-    tick();
+    if (settings.haptics && Platform.OS !== 'web') void Haptics.selectionAsync();
   };
 
   const onFill = (cell: number) => {
@@ -215,20 +231,22 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
 
   const hintText = hint ? (Platform.OS === 'web' ? T.stitch.hintsMouse : T.stitch.hints)[hint] : null;
   const shown = line ?? (hintText ? { text: hintText } : null);
-  const about = !!pic && hasAbout(pic);
+  // «Тайна»: до последнего стежка ни названия, ни «О картине», ни мини-карты, ни силуэта издалека
+  const mystery = !!newMystery || !!session?.mystery;
+  const about = !mystery && !!pic && hasAbout(pic);
 
   const right = (
     <View style={styles.right}>
       <Txt dim testID="percent">{T.common.percent(percent)}</Txt>
       <Pressable onPress={() => setPanel(panel ? null : 'menu')} hitSlop={10} accessibilityRole="button"
         accessibilityLabel={T.stitch.menu} style={styles.menuBtn} testID="menu">
-        <Txt bold style={styles.menuIcon}>⋮</Txt>
+        <Icon name="more" color={theme.text} />
       </Pressable>
     </View>
   );
 
   return (
-    <Screen title={title} onBack={onBack} wide right={right}>
+    <Screen title={mystery ? T.mystery.title : title} onBack={onBack} wide right={right}>
       <View style={[styles.canvas, { backgroundColor: theme.dark ? FIELD.dark : FIELD.light }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;
@@ -240,21 +258,27 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
               pattern={pattern} stitched={session.state.stitched} selected={selected}
               mosaic={settings.style === 'mosaic'} hatch={settings.highlight === 'hatch'}
               bigNumbers={settings.bigNumbers} fill={settings.fill} font={font}
-              width={size.w} height={size.h} apiRef={api} dark={theme.dark}
+              width={size.w} height={size.h} apiRef={api} dark={theme.dark} mystery={mystery}
               initial={openCamera(pattern.w, pattern.h, size.w, size.h, settings.bigNumbers, session.at)}
               onStroke={onStroke} onForeign={onForeign} onPick={onPick} onFill={onFill} onTick={tick}
               onCamera={() => act('camera')}
             />
           ) : <ActivityIndicator style={styles.msg} color={theme.accent} />}
+        {/* доля вышитого — тонкой линией кумачом по верху канвы: прогресс виден краем глаза (3.5) */}
+        <View style={[styles.progress, { width: `${percent}%`, backgroundColor: theme.accent }]} testID="progress-line" />
         {shown && !finishing ? (
-          <View style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
+          // строка поверх канвы приходит снизу и уходит вниз, а не появляется рывком (3.7); новый текст —
+          // в той же строке: две строки разом, уходящая и новая, путали бы и глаз, и сценарий
+          <Animated.View entering={Platform.OS === 'web' ? undefined : FadeInDown.duration(180)}
+            exiting={Platform.OS === 'web' ? undefined : FadeOutDown.duration(180)}
+            style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
             testID={line ? 'hint' : `hint-${hint}`}>
             <Txt style={styles.lineText}>{shown.text}</Txt>
             {shown.pick !== undefined ? (
               <Button small kind="secondary" label={T.stitch.pick} testID="pick"
                 onPress={() => { setSelected(shown.pick!); setLine(null); }} />
             ) : null}
-          </View>
+          </Animated.View>
         ) : null}
         {panel ? (
           <Pressable style={styles.backdrop} onPress={() => setPanel(null)} accessibilityLabel={T.stitch.close} testID="panel-close">
@@ -270,6 +294,12 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
                     <ToggleRow label={T.stitch.music} value={settings.music} testID="menu-music"
                       onChange={(v) => { update({ music: v }); if (v) musicStart(); else musicEnabled(false); }} />
                   ) : null}
+                  <Txt dim style={styles.panelLabel}>{T.stitch.ambience}</Txt>
+                  <Segmented<Ambience> value={settings.ambience} onChange={(v) => update({ ambience: v })} testID="menu-ambience"
+                    options={[
+                      { id: 'off', label: T.settings.ambiences.off }, { id: 'rain', label: T.settings.ambiences.rain },
+                      { id: 'fire', label: T.settings.ambiences.fire },
+                    ]} />
                   {onSettings ? <Button kind="ghost" label={T.stitch.settings} onPress={() => { setPanel(null); onSettings(); }} testID="menu-settings" /> : null}
                 </>
               ) : (
@@ -283,7 +313,12 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
         ) : null}
       </View>
       <Animated.View style={[styles.bar, hudStyle, finishing && styles.off]}>
-        <Button small kind="secondary" label={`${T.stitch.where} ${left}`} onPress={where} testID="where" style={styles.where} />
+        {/* «Где ещё?» — лупа и остаток нити в «пилюле» (разбор оформления 31.10.2026, 3.6) */}
+        <Pressable onPress={where} accessibilityRole="button" testID="where"
+          style={({ pressed }) => [styles.where, { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.8 : 1 }]}>
+          <Icon name="search" color={theme.text} size={20} />
+          <Txt bold style={styles.whereText}>{`${T.stitch.where} ${left}`}</Txt>
+        </Pressable>
         {session ? (
           <ThreadBar threads={pattern.threads} left={session.state.left} selected={selected} stay={justDone}
             onSelect={(t) => { setSelected(t); setLine(null); }}
@@ -299,18 +334,23 @@ const styles = StyleSheet.create({
   msg: { margin: 24 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   menuBtn: { width: 30, height: 40, alignItems: 'center', justifyContent: 'center' },
-  menuIcon: { fontSize: 24, lineHeight: 28 },
   // строка — поверх канвы: её появление не меняет размер канвы и не сдвигает клетки
   line: { position: 'absolute', left: 8, right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: 6 },
   lineText: { flex: 1, fontSize: 15 },
+  progress: { position: 'absolute', left: 0, top: 0, height: 2, pointerEvents: 'none' },
   // строка без кнопки не мешает вышивать клетки под ней
   through: { pointerEvents: 'none' },
   off: { pointerEvents: 'none' },
   backdrop: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 20, 24, 0.25)' },
   panel: { position: 'absolute', top: 8, right: 8, width: 260, maxWidth: '92%', borderWidth: 1, borderRadius: 8, padding: 12, gap: 8 },
-  aboutPanel: { left: 8, width: undefined, maxWidth: 520, bottom: 8 },
+  // «О картине» — по высоте текста, не больше 85 % канвы (разбор оформления 31.10.2026, Б3: была во всю высоту)
+  aboutPanel: { left: 8, width: undefined, maxWidth: 520, maxHeight: '85%' },
   panelLabel: { fontSize: 13, marginTop: 4 },
   aboutBody: { gap: 8 },
   bar: { paddingTop: 6 },
-  where: { alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4 },
+  where: {
+    alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 42, paddingHorizontal: 14, borderRadius: 21, borderWidth: 1,
+  },
+  whereText: { fontSize: 15 },
 });

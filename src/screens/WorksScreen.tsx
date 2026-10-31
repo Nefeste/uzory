@@ -54,7 +54,9 @@ function WorkRow({ work, onOpen, onDone, onRemoved }: Open & { work: WorkEntry; 
     if (!found) logError('work', new Error(`no picture for ${work.pattern}`), work.id);
   }, [found, work]);
 
-  const title = found ? found.pic.title : T.works.gone;
+  // «Тайна» лежит здесь со знаком вопроса, пока не вышита (issue 117)
+  const secret = !!work.mystery && !work.finished;
+  const title = secret ? T.mystery.title : found ? found.pic.title : T.works.gone;
   const state = shown?.broken ? T.works.broken
     : work.finished ? T.works.finishedOn(new Date(work.finished)) : T.common.percent(percentOf(work));
   return (
@@ -66,7 +68,8 @@ function WorkRow({ work, onOpen, onDone, onRemoved }: Open & { work: WorkEntry; 
       onLongPress={() => setSure(true)} delayLongPress={450} testID={`work-${work.id}`}
       style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.img, { backgroundColor: theme.surfaceAlt }]}>
-        {shown?.uri ? <Image source={{ uri: shown.uri }} style={styles.fill} resizeMode="contain" /> : null}
+        {secret ? <Txt title style={styles.secret}>?</Txt>
+          : shown?.uri ? <Image source={{ uri: shown.uri }} style={styles.fill} resizeMode="contain" /> : null}
       </View>
       <View style={styles.text}>
         <Txt bold numberOfLines={2}>{title}</Txt>
@@ -116,6 +119,7 @@ export function WorksScreen({ tab, onTab, onBack, onOpen, onDone }: Open & {
 }
 
 const styles = StyleSheet.create({
+  secret: { fontSize: 40, lineHeight: 96, width: '100%', textAlign: 'center' },
   wait: { margin: 24 },
   list: { padding: 16, gap: 10 },
   head: { gap: 8, marginBottom: 4 },

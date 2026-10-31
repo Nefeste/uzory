@@ -16,6 +16,9 @@ export const MUSIC_VOLUME = 0.5;
 const FADE_IN_MS = 5000;
 const FADE_OUT_MS = 800;
 const STEP_MS = 100;
+/** Между пьесами — тишина, следующая входит плавно, а не сразу на полной громкости (разбор оформления, Б11). */
+const GAP_MS = 1500;
+const NEXT_FADE_MS = 2000;
 
 export const hasMusic = TRACKS.length > 0;
 /** пьесы с подписями — для «О программе» */
@@ -32,6 +35,7 @@ let order: number[] = [];
 let pos = -1;
 let level = 0;
 let fade: ReturnType<typeof setInterval> | null = null;
+let gap: ReturnType<typeof setTimeout> | null = null;
 /** когда сменилась пьеса: веб сообщает о конце пьесы не одним событием */
 let switched = 0;
 
@@ -96,8 +100,19 @@ function next() {
   pos++;
   try {
     player.replace(TRACKS[current()].source);
-    player.volume = level;
-    if (wanted()) player.play();
+    stopFade();
+    setLevel(0);
+    if (gap) clearTimeout(gap);
+    gap = setTimeout(() => {
+      gap = null;
+      if (!player || !wanted()) return;
+      try {
+        player.play();
+        fadeTo(MUSIC_VOLUME, NEXT_FADE_MS);
+      } catch (e) {
+        logError('sound', e, 'music next');
+      }
+    }, GAP_MS);
   } catch (e) {
     logError('sound', e, 'music next');
   }
@@ -114,6 +129,8 @@ function resume() {
 }
 
 function quiet() {
+  if (gap) clearTimeout(gap);
+  gap = null;
   if (!player) return;
   fadeTo(0, FADE_OUT_MS, () => {
     try {

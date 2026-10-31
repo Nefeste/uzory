@@ -42,18 +42,20 @@ export interface Uniforms {
   dark: number;
   /** 1 — невышитое без номеров, бледным следом нити по канве: повтор «Как вышивалось» на «Готово» */
   ghost: number;
+  /** 1 — «Тайна»: издалека невышитое — чистая канва, без бледного силуэта картинки */
+  mystery: number;
 }
 
 export function uniformList(u: Uniforms): number[] {
   'worklet';
   return [
     u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT,
-    u.vx, u.vy, u.vhx, u.vhy, u.dark, u.ghost,
+    u.vx, u.vy, u.vhx, u.vhy, u.dark, u.ghost, u.mystery,
   ];
 }
 
 /** Без виньетки и в светлой теме: мини-карта, картинка «Поделиться», кадры тестов. */
-export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0 } as const;
+export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0, mystery: 0 } as const;
 
 /**
  * Поле за краем узора вдали от него — ровным цветом: фон контейнера канвы до первого кадра и путь
@@ -90,6 +92,9 @@ export const FIELD = { light: '#e2dfd6', dark: '#494845' } as const;
  *
  * Повтор «Как вышивалось» (`ghost`): невышитое — без номеров, бледным серым следом нити по канве, как
  * издалека: повтор — ускоренная вышивка, а не схема (разбор оформления 31.10.2026, Б4).
+ *
+ * «Тайна» (`mystery`, issue 117): издалека невышитое — чистая канва, а не бледный тон своей нити: силуэт
+ * картинки не виден, она проявляется вышитыми клетками.
  */
 export const SKSL = `
 uniform shader cells;
@@ -108,6 +113,7 @@ uniform float pulseT;
 uniform float4 view;
 uniform float dark;
 uniform float ghost;
+uniform float mystery;
 
 const half3 CLOTH = half3(0.953, 0.941, 0.902);
 const half3 HOLE = half3(0.600, 0.576, 0.518);
@@ -277,7 +283,8 @@ half4 main(float2 p) {
   half3 o;
   if (near < 0.5) {
     half g = pow(luma(col), 0.4545);
-    o = done ? col : mix(GHOST, half3(g), 0.35);
+    // mystery: from afar the cell to come is plain canva, otherwise its pale tone would show the picture
+    o = done ? col : (mystery > 0.5 ? CLOTH : mix(GHOST, half3(g), 0.35));
     if (!done && sel) o = mix(o, col, 0.3);
     // texture from afar only on the working canvas (the scene): the finished work on "Done" and
     // the shared picture stay flat cells

@@ -4,7 +4,8 @@
 // «Вышито в „Узорах“». Сторона — до 2000 точек.
 // Где что лежит и каких цветов — src/engine/share.ts: по нему же сценарий проверяет картинку.
 import { ImageFormat, Skia, type SkFont, TileMode, FilterMode, MipmapMode } from '@shopify/react-native-skia';
-import { NO_SCENE, SKSL, uniformList } from '../canvas/shader';
+import { canvasEffect } from '../canvas/effect';
+import { NO_SCENE, uniformList } from '../canvas/shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from '../canvas/textures';
 import type { Pattern } from '../engine/pattern';
 import { SHARE_COLORS, shareLayout, type ShareRect, shareStitches } from '../engine/share';
@@ -29,7 +30,7 @@ export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
   const L = shareLayout(p.w, p.h);
   const { cell, work: wr } = L;
   const surface = Skia.Surface.Make(L.width, L.height);
-  const effect = Skia.RuntimeEffect.Make(SKSL);
+  const effect = canvasEffect();
   const pal = paletteImage(p);
   const dig = digitAtlas(fonts.digits);
   const cells = rgbaImage(cellBytes(p, stitched), p.w, p.h);

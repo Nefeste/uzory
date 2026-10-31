@@ -8,19 +8,29 @@ import { logError } from './crashlog';
 
 export type SoundName = 'stitch' | 'thread' | 'done';
 
-const SOURCES: Record<SoundName, number> = {
-  stitch: require('../../assets/audio/stitch.wav'),
-  thread: require('../../assets/audio/thread.wav'),
-  done: require('../../assets/audio/done.wav'),
+/**
+ * Стежков несколько (tools/audio/gen.ts, STITCHES): вперемешку, не один и тот же два раза подряд, и чуть
+ * громче или тише — кисть не звучит одним щелчком (разбор оформления 31.10.2026, 4.1). У каждого — свой
+ * проигрыватель: новый стежок не обрывает прежний.
+ */
+const SOURCES: Record<SoundName, number[]> = {
+  stitch: [
+    require('../../assets/audio/stitch.wav'),
+    require('../../assets/audio/stitch-2.wav'),
+    require('../../assets/audio/stitch-3.wav'),
+    require('../../assets/audio/stitch-4.wav'),
+  ],
+  thread: [require('../../assets/audio/thread.wav')],
+  done: [require('../../assets/audio/done.wav')],
 };
 
 /** Стежок тише всего: он частый и ничего не сообщает. */
 const VOLUME: Record<SoundName, number> = { stitch: 0.35, thread: 0.5, done: 0.6 };
-/** Стежки кистью идут чаще, чем длится шорох: проигрыватели по кругу, новый не обрывает прежний. */
-const POOL: Record<SoundName, number> = { stitch: 3, thread: 1, done: 1 };
+/** Громкость стежка гуляет на ±15 %. */
+const STITCH_SPREAD = 0.15;
 
 const players: Partial<Record<SoundName, AudioPlayer[]>> = {};
-const next: Record<SoundName, number> = { stitch: 0, thread: 0, done: 0 };
+let last = -1;
 let moded = false;
 
 /** Режим звука игры — один на звуки и музыку (src/state/music.ts): молчать в беззвучном режиме, не забирать чужую музыку, не играть свёрнутой. */
@@ -33,23 +43,43 @@ export function audioMode() {
   }
 }
 
-function player(name: SoundName): AudioPlayer {
+function pool(name: SoundName): AudioPlayer[] {
   audioMode();
   let list = players[name];
   if (!list) {
-    list = Array.from({ length: POOL[name] }, () => createAudioPlayer(SOURCES[name]));
+    list = SOURCES[name].map((s) => createAudioPlayer(s));
     players[name] = list;
   }
-  const p = list[next[name] % list.length];
-  next[name]++;
-  return p;
+  return list;
+}
+
+function player(name: SoundName): AudioPlayer {
+  const list = pool(name);
+  if (list.length === 1) return list[0];
+  // стежок: любой, кроме прежнего
+  let i = Math.floor(Math.random() * (last < 0 ? list.length : list.length - 1));
+  if (last >= 0 && i >= last) i++;
+  last = i;
+  return list[i];
+}
+
+/**
+ * Проигрыватели — заранее, при входе на экран вышивания: звук грузится не сразу, и созданный на первом
+ * стежке проигрыватель мог промолчать (разбор оформления 31.10.2026, Б14).
+ */
+export function soundsReady() {
+  try {
+    for (const name of Object.keys(SOURCES) as SoundName[]) pool(name);
+  } catch (e) {
+    logError('sound', e, 'prepare');
+  }
 }
 
 /** Сыграть звук; ошибка звука не мешает вышивать — только запись в журнал. */
 export function play(name: SoundName) {
   try {
     const p = player(name);
-    p.volume = VOLUME[name];
+    p.volume = name === 'stitch' ? VOLUME.stitch * (1 - STITCH_SPREAD + 2 * STITCH_SPREAD * Math.random()) : VOLUME[name];
     p.seekTo(0).catch(() => undefined);
     p.play();
   } catch (e) {

@@ -262,12 +262,39 @@ async function farAway(page: Page, p: Pattern, t: number, done: number) {
   await page.waitForTimeout(300);
   const l5 = await left();
   await page.getByTestId('where').click();
-  await page.waitForTimeout(800);
+  // группа нити пульсирует полторы секунды после полёта камеры, потом канва в покое (разбор оформления
+  // 31.10.2026, Б1: пульсация снималась в первый же кадр, и снимки через 0,6 и 3 с были одинаковы)
+  const t0 = Date.now();
+  const spot = way ? { x: box.x + way.cell.x - 16, y: box.y + way.cell.y - 16, width: 32, height: 32 } : null;
+  const early: Buffer[] = [];
+  for (const at of spot ? [600, 850, 1100] : []) {
+    await page.waitForTimeout(Math.max(0, at - (Date.now() - t0)));
+    early.push(await page.screenshot({ clip: spot! }));
+  }
+  await page.waitForTimeout(Math.max(0, 2800 - (Date.now() - t0)));
+  const rest = spot ? await page.screenshot({ clip: spot }) : null;
+  check(!!rest && early.some((b) => !b.equals(rest)), '«Где ещё?»: группа нити пульсирует, потом канва в покое');
   if (way) await page.mouse.click(box.x + way.cell.x, box.y + way.cell.y);
   await leftTo(l5 - 1);
   const l6 = await left();
   check(whole.s < NUMBERS_DP && !!way && l6 === l5 - 1,
     `«Где ещё?»: со всего узора — к ближайшей группе нити ${way ? way.th + 1 : '—'} (${way?.g.cells.length ?? 0} кл.) в масштабе открытия, щелчок по ней вышил (осталось ${l5} → ${l6})`);
+}
+
+/** Чем отличаются два снимка: размер или сколько точек и насколько — для строки упавшей проверки. */
+async function frameDiff(a: Buffer, b: Buffer): Promise<string> {
+  const [x, y] = await Promise.all([a, b].map((png) => sharp(png).raw().toBuffer({ resolveWithObject: true })));
+  if (x.info.width !== y.info.width || x.info.height !== y.info.height) return `размер ${x.info.width} × ${x.info.height} → ${y.info.width} × ${y.info.height}`;
+  const ch = x.info.channels;
+  let n = 0;
+  let max = 0;
+  for (let i = 0; i < x.data.length; i += ch) {
+    let d = 0;
+    for (let c = 0; c < 3; c++) d = Math.max(d, Math.abs(x.data[i + c] - y.data[i + c]));
+    if (d > 0) n++;
+    max = Math.max(max, d);
+  }
+  return `отличаются ${n} из ${x.data.length / ch} точек, до ${max} по каналу`;
 }
 
 const { built } = await buildAll();
@@ -1239,18 +1266,34 @@ try {
     `узкий экран: «Как вышивалось» и «Поделиться» одна под другой, рамка в экране (${Math.round(fb.width)} × ${Math.round(fb.height)})`);
   // «Как вышивалось» большой картины (docs/specs/2026-09-library.md, критерий 3): от 8 до 12 секунд —
   // от появления «Пропустить» до возвращения «Как вышивалось», по кадрам страницы; в конце на канве —
-  // все стежки, как до показа
-  const frameBefore = await page2.getByTestId('done-frame').screenshot();
+  // все стежки, как до показа. Рамка «до» — когда она перестала меняться: только что законченная работа
+  // появляется затуханием (FadeIn 450 мс), и на медленной машине снимок сразу после кнопки ловит его
+  // середину. «После» — как только совпадёт с «до», но не дольше 5 с: последний кадр повтора на медленной
+  // машине может прийти позже. Тег v0.16.6 упал здесь на раннере GitHub (31.10.2026) при длительности
+  // 12,0 с; у ассистента рамка совпадала через 300 мс. Не совпала — в строке, чем именно отличается
+  const frameShot = () => page2.getByTestId('done-frame').screenshot();
+  let frameBefore = await frameShot();
+  for (let i = 0; i < 20; i++) {
+    await page2.waitForTimeout(250);
+    const next = await frameShot();
+    if (next.equals(frameBefore)) break;
+    frameBefore = next;
+  }
   const shown = (id: string) => page2.waitForFunction((t) => !!document.querySelector(`[data-testid="${t}"]`), id, { polling: 'raf', timeout: 20_000 })
     .then(() => Date.now(), () => NaN);
   await page2.getByTestId('replay').click();
   const playFrom = await shown('skip');
   const playMs = (await shown('replay')) - playFrom;
   const playing = !Number.isNaN(playMs);
-  await page2.waitForTimeout(300);
-  const frameAfter = await page2.getByTestId('done-frame').screenshot();
-  check(playing && playMs >= 8000 && playMs <= 12_500 && frameBefore.equals(frameAfter),
-    `«Как вышивалось» большой картины (${girls.w} × ${girls.h}) — ${(playMs / 1000).toFixed(1)} с, в конце все стежки на месте`);
+  let frameAfter = await frameShot();
+  for (let i = 0; i < 20 && !frameAfter.equals(frameBefore); i++) {
+    await page2.waitForTimeout(250);
+    frameAfter = await frameShot();
+  }
+  const sameFrame = frameAfter.equals(frameBefore);
+  check(playing && playMs >= 8000 && playMs <= 12_500 && sameFrame,
+    `«Как вышивалось» большой картины (${girls.w} × ${girls.h}) — ${(playMs / 1000).toFixed(1)} с, в конце все стежки на месте`
+    + (sameFrame ? '' : ` (рамка после повтора другая: ${await frameDiff(frameBefore, frameAfter)})`));
   await page2.getByTestId('done-about').click();
   const aboutText = await page2.getByTestId('done-about-panel').innerText().catch(() => '');
   check(aboutText.includes('Прокудин-Горский (1863–1944), 1909') && aboutText.includes('Источник: www.loc.gov')
@@ -1812,6 +1855,20 @@ try {
       `замер прокрутки: на полпути ${Math.round(mid)} точек вниз, в конце — снова наверху; ${res.split('\n').slice(1).join(' · ') || 'чисел нет'}`);
     await ctx.close();
   }
+
+  // «Тайна» (issue 117, А): в библиотеке — размер, и канва открывается без названия картинки; пока «тайна»
+  // не закончена, в библиотеке — «Продолжить тайну», на главной — «Тайна» вместо названия
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('mystery-S').click({ timeout: 10_000 });
+  await page.getByTestId('canvas').waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(800);
+  const secretTitle = await page.getByText('Тайна', { exact: true }).first().isVisible().catch(() => false);
+  await page.getByTestId('back').click();
+  const goOn = await page.getByTestId('mystery-continue').innerText({ timeout: 10_000 }).catch(() => '');
+  await page.getByTestId('back').click();
+  const homeGoOn = await page.getByTestId('continue').innerText({ timeout: 10_000 }).catch(() => '');
+  check(secretTitle && goOn.startsWith('Продолжить тайну') && homeGoOn.includes('Тайна'),
+    `«Тайна»: канва — без названия картинки, в библиотеке «${goOn}», на главной «${homeGoOn}»`);
 
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
