@@ -136,8 +136,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   const framed = !!session && !!font && !!area;
   useEffect(() => {
     if (!fresh || !framed || celebrated.has(workId)) return;
-    celebrated.add(workId);
     const t = setTimeout(() => {
+      celebrated.add(workId);
       if (settings.sound) play('done');
       if (settings.haptics && Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, 250);
