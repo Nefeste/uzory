@@ -1016,17 +1016,20 @@ try {
   check(!/Не подходит/.test(zontiki) && !(await page.getByTestId('mine-stitch').isDisabled()),
     `«Зонтики в парке» без упрощения: ${zontiki.split('\n')[0]} — по преобладающему цвету клетки лес не рассыпается`);
   // пёстрая листва — пятна пяти зелёных чуть крупнее клетки (как в tools/test/mine.test.ts): без
-  // упрощения рассыпается на мелкие пятна — «не подходит»; «сильно» выравнивает пятна — подходит
+  // упрощения рассыпается на мелкие пятна — «не подходит»; «сильно» выравнивает пятна — подходит.
+  // Четыре точки на клетку средней: с 0.18.2 кадр до сетки усредняется до 4 × 4 точек на клетку, и
+  // на снимке крупнее пятна листвы сглаживались бы ещё до упрощения
   const leavesFile = join(OUT, 'mine-leaves.png');
   const greens = [0x2e5e3a, 0x4f8a3c, 0x7fb35a, 0x1d3b24, 0xa8c46a];
-  const leaves = Buffer.alloc(700 * 525 * 3);
-  for (let y = 0; y < 525; y++) {
-    for (let x = 0; x < 700; x++) {
-      const c = greens[hash32(`${Math.floor((x / 700) * 40)},${Math.floor((y / 525) * 30)}`) % 5];
-      leaves.set([c >> 16, (c >> 8) & 255, c & 255], (y * 700 + x) * 3);
+  const LW = 280, LH = 210;
+  const leaves = Buffer.alloc(LW * LH * 3);
+  for (let y = 0; y < LH; y++) {
+    for (let x = 0; x < LW; x++) {
+      const c = greens[hash32(`${Math.floor((x / LW) * 40)},${Math.floor((y / LH) * 30)}`) % 5];
+      leaves.set([c >> 16, (c >> 8) & 255, c & 255], (y * LW + x) * 3);
     }
   }
-  await sharp(leaves, { raw: { width: 700, height: 525, channels: 3 } }).png().toFile(leavesFile);
+  await sharp(leaves, { raw: { width: LW, height: LH, channels: 3 } }).png().toFile(leavesFile);
   const chooser2 = page.waitForEvent('filechooser');
   await page.getByTestId('mine-other').click();
   await (await chooser2).setFiles(leavesFile);

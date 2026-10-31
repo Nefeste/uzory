@@ -325,6 +325,7 @@ export const ru = {
     simplifyLevels: ['Нет', 'Немного', 'Сильно'],
     simplifyNote: 'Выравнивает цвет внутри пятен, границы оставляет: одиночных клеток и мелких пятен меньше, вышивать проще.',
     building: 'Собираю узор…',
+    opening: 'Открываю снимок…',
     meta: (w: number, h: number, n: number, min: number) => `${w} × ${h} клеток · ${threads(n)} · ≈ ${minutes(min)}`,
     verdict: { ok: 'Подходит', warn: 'Подходит, но…', bad: 'Не подходит' },
     issues: {

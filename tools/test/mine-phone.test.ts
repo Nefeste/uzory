@@ -2,6 +2,8 @@
 // первый свой узор — бесплатно, дальше новые — по «Узорам+»; день первого — в записи игрока; рамка кадра —
 // сдвиг, колёсико и щипок двумя пальцами (src/engine/build/crop.ts).
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { CROP_MIN, pinchCrop, shiftCrop, zoomCrop } from '../../src/engine/build/crop';
 import type { Crop } from '../../src/engine/build/mine';
 import { normalizePlayer } from '../../src/engine/player';
@@ -64,5 +66,25 @@ describe('рамка кадра', () => {
     const z = zoomCrop([0, 0, 1, 1], 0.25, 0.5, 0.5);
     near(z, [0.125, 0.25, 0.625, 0.75]);
     near(shiftCrop([0.5, 0.5, 0.9, 0.9], 0.3, -0.7), [0.6, 0, 1, 0.4]);
+  });
+});
+
+describe('рамка кадра на телефоне (0.18.2)', () => {
+  // на Android прокрутка экрана забирала палец, едва он сдвигался: обработчик захвата не отвечал true
+  // (blockNativeResponder системы касаний React Native), и рамка стояла, а экран ехал — 0.18.1 у владельца
+  const src = readFileSync(join(import.meta.dir, '../../src/ui/CropBox.tsx'), 'utf8');
+
+  test('захват касания отвечает true — прокрутка экрана палец не забирает', () => {
+    const grant = src.slice(src.indexOf('const grant = '), src.indexOf('\n  };', src.indexOf('const grant = ')));
+    expect(grant).toContain('return true;');
+    // три обработчика: снимок (два пальца мимо рамки), рамка и угол — все через grant
+    expect(src.match(/onResponderGrant=\{\(e\) => grant\('(move|resize)', e\)\}/g)?.length).toBe(3);
+  });
+
+  test('касание отняли — рамку отпускают, и экран снова прокручивается', () => {
+    expect(src.match(/onResponderTerminate=\{onRelease\}/g)?.length).toBe(3);
+    expect(src.match(/onResponderRelease=\{onRelease\}/g)?.length).toBe(3);
+    const release = src.slice(src.indexOf('const onRelease = '), src.indexOf('\n  };', src.indexOf('const onRelease = ')));
+    expect(release).toContain('onActive?.(false)');
   });
 });

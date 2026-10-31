@@ -1,17 +1,19 @@
-// Звуки вышивания (docs/08-game-design.md, «Звук и музыка»): стежок — мягкий шорох (канва зовёт
-// его не чаще 20 раз в секунду), нить закончена — тихий звон, картинка готова. Свои, синтезированы
-// кодом (tools/audio/gen.ts, assets/audio/LICENSES.md). Звучат поверх чужой музыки и не
-// забирают её, а в беззвучном режиме телефона молчат: игру можно открыть и в транспорте.
+// Звуки вышивания (docs/08-game-design.md, «Звук и музыка»): стежок — мягкий «тук» иглы по канве
+// (канва зовёт его не чаще 20 раз в секунду, звучит реже — src/engine/tick.ts), нить закончена — тихий
+// звон, картинка готова. Свои, синтезированы кодом (tools/audio/gen.ts, assets/audio/LICENSES.md).
+// Звучат поверх чужой музыки и не забирают её, а в беззвучном режиме телефона молчат: игру можно
+// открыть и в транспорте.
 import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Platform } from 'react-native';
+import { newTicks, stitchTick } from '../engine/tick';
 import { logError } from './crashlog';
 
 export type SoundName = 'stitch' | 'thread' | 'done';
 
 /**
- * Стежков несколько (tools/audio/gen.ts, STITCHES): вперемешку, не один и тот же два раза подряд, и чуть
- * громче или тише — кисть не звучит одним щелчком (разбор оформления 31.10.2026, 4.1). У каждого — свой
- * проигрыватель: новый стежок не обрывает прежний.
+ * Стежков шесть (tools/audio/gen.ts, STITCHES) — шесть нот пентатоники: вперемешку, не один и тот же два
+ * раза подряд, и громче или тише — кисть не звучит одним щелчком (разбор оформления 31.10.2026, 4.1). У
+ * каждого — свой проигрыватель: новый стежок не обрывает прежний.
  */
 const SOURCES: Record<SoundName, number[]> = {
   stitch: [
@@ -19,19 +21,23 @@ const SOURCES: Record<SoundName, number[]> = {
     require('../../assets/audio/stitch-2.wav'),
     require('../../assets/audio/stitch-3.wav'),
     require('../../assets/audio/stitch-4.wav'),
+    require('../../assets/audio/stitch-5.wav'),
+    require('../../assets/audio/stitch-6.wav'),
   ],
   thread: [require('../../assets/audio/thread.wav')],
   done: [require('../../assets/audio/done.wav')],
 };
 
-/** Стежок тише всего: он частый и ничего не сообщает. */
-const VOLUME: Record<SoundName, number> = { stitch: 0.35, thread: 0.5, done: 0.6 };
-/** Громкость стежка гуляет на ±15 %. */
-const STITCH_SPREAD = 0.15;
+/**
+ * Стежок тише всего: он частый и ничего не сообщает. С 0.18.2 он ниже и короче прежнего шороха, а динамик
+ * телефона низы играет тише — громкость стежка 0,45 вместо 0,35; ритм кисти — src/engine/tick.ts.
+ */
+const VOLUME: Record<SoundName, number> = { stitch: 0.45, thread: 0.5, done: 0.6 };
 
 const players: Partial<Record<SoundName, AudioPlayer[]>> = {};
 let last = -1;
 let moded = false;
+const ticks = newTicks();
 
 /** Режим звука игры — один на звуки и музыку (src/state/music.ts): молчать в беззвучном режиме, не забирать чужую музыку, не играть свёрнутой. */
 export function audioMode() {
@@ -78,8 +84,10 @@ export function soundsReady() {
 /** Сыграть звук; ошибка звука не мешает вышивать — только запись в журнал. */
 export function play(name: SoundName) {
   try {
+    const k = name === 'stitch' ? stitchTick(ticks, Date.now(), Math.random) : 1;
+    if (!k) return;
     const p = player(name);
-    p.volume = name === 'stitch' ? VOLUME.stitch * (1 - STITCH_SPREAD + 2 * STITCH_SPREAD * Math.random()) : VOLUME[name];
+    p.volume = VOLUME[name] * k;
     p.seekTo(0).catch(() => undefined);
     p.play();
   } catch (e) {

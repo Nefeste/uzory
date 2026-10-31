@@ -2,6 +2,10 @@
 // пальцем, тянут за угол справа внизу; колёсиком у курсора и щипком двумя пальцами — ближе и
 // дальше. Это и есть «лупа»: рядом сразу узор этого кадра. Сама математика рамки —
 // src/engine/build/crop.ts.
+//
+// Рамка стоит в прокрутке экрана. Взявший касание обработчик отвечает `true` — «касание моё»: иначе
+// на Android прокрутка забирает палец, едва он сдвинется на несколько точек, и рамка стоит, а экран
+// едет (0.18.1 на телефоне владельца). Пока рамку держат, экран и прокрутку не включает (`onActive`).
 import { useEffect, useRef } from 'react';
 import { type GestureResponderEvent, Image, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 import { CROP_ASPECT, CROP_MIN, pinchCrop, shiftCrop, zoomCrop } from '../engine/build/crop';
@@ -23,7 +27,7 @@ function span(e: GestureResponderEvent): number {
   return t && t.length >= 2 ? Math.hypot(t[0].pageX - t[1].pageX, t[0].pageY - t[1].pageY) : 0;
 }
 
-export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
+export function CropBox({ uri, width, height, maxW, maxH, crop, onChange, onActive }: {
   uri: string;
   /** размер снимка, точек */
   width: number;
@@ -33,15 +37,26 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   maxH: number;
   crop: Crop;
   onChange: (c: Crop) => void;
+  /** рамку взяли пальцем или мышью (true) и отпустили (false) */
+  onActive?: (active: boolean) => void;
 }) {
   const k = Math.min(maxW / width, maxH / height);
   const dw = Math.max(1, Math.round(width * k));
   const dh = Math.max(1, Math.round(height * k));
   // перетаскивание: откуда начали и какой была рамка — только в обработчиках событий
   const drag = useRef<Drag | null>(null);
-  const grant = (mode: 'move' | 'resize', e: GestureResponderEvent) => {
+  // рамку убрали посреди касания (другой снимок) — экран снова прокручивается
+  const active = useRef(onActive);
+  useEffect(() => {
+    active.current = onActive;
+  }, [onActive]);
+  useEffect(() => () => active.current?.(false), []);
+  // true — касание не отдать прокрутке экрана (blockNativeResponder в системе касаний React Native)
+  const grant = (mode: 'move' | 'resize', e: GestureResponderEvent): boolean => {
     const two = span(e);
     drag.current = two > 0 ? { mode: 'pinch', span: two, crop } : { mode, x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, crop };
+    onActive?.(true);
+    return true;
   };
   const onMove = (e: GestureResponderEvent) => {
     const d = drag.current;
@@ -74,8 +89,10 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
     if (hpx > CROP_ASPECT * wpx) nb = t + (CROP_ASPECT * wpx) / height;
     onChange([l, t, nr, nb]);
   };
+  // отпустили — или касание отняли (входящий звонок, системный жест): рамка остаётся, где была
   const onRelease = () => {
     drag.current = null;
+    onActive?.(false);
   };
   const yes = () => true;
   const no = () => false;
@@ -106,17 +123,17 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   return (
     <View ref={box} style={{ width: dw, height: dh }} testID="mine-photo"
       onStartShouldSetResponder={twoFingers} onMoveShouldSetResponder={twoFingers} onResponderTerminationRequest={no}
-      onResponderGrant={(e) => grant('move', e)} onResponderMove={onMove} onResponderRelease={onRelease}>
+      onResponderGrant={(e) => grant('move', e)} onResponderMove={onMove} onResponderRelease={onRelease} onResponderTerminate={onRelease}>
       <Image source={{ uri }} style={{ width: dw, height: dh }} />
       <View pointerEvents="none" style={[styles.shade, { left: 0, top: 0, width: dw, height: fy }]} />
       <View pointerEvents="none" style={[styles.shade, { left: 0, top: fy + fh, width: dw, height: Math.max(0, dh - fy - fh) }]} />
       <View pointerEvents="none" style={[styles.shade, { left: 0, top: fy, width: fx, height: fh }]} />
       <View pointerEvents="none" style={[styles.shade, { left: fx + fw, top: fy, width: Math.max(0, dw - fx - fw), height: fh }]} />
       <View onStartShouldSetResponder={yes} onMoveShouldSetResponder={yes} onResponderTerminationRequest={no}
-        onResponderGrant={(e) => grant('move', e)} onResponderMove={onMove} onResponderRelease={onRelease}
+        onResponderGrant={(e) => grant('move', e)} onResponderMove={onMove} onResponderRelease={onRelease} onResponderTerminate={onRelease}
         style={[styles.frame, MOVE, { left: fx, top: fy, width: fw, height: fh }]} testID="mine-frame">
         <View onStartShouldSetResponder={yes} onMoveShouldSetResponder={yes} onResponderTerminationRequest={no}
-          onResponderGrant={(e) => grant('resize', e)} onResponderMove={onMove} onResponderRelease={onRelease}
+          onResponderGrant={(e) => grant('resize', e)} onResponderMove={onMove} onResponderRelease={onRelease} onResponderTerminate={onRelease}
           hitSlop={HANDLE_SLOP} style={[styles.handle, RESIZE]} testID="mine-handle" />
       </View>
     </View>

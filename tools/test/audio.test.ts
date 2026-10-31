@@ -4,7 +4,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RATE, SOUNDS, wav } from '../audio/gen';
+import { BRUSH_SOFT, BRUSH_SOFT_MS, newTicks, STITCH_GAP, STITCH_SPREAD, stitchTick } from '../../src/engine/tick';
+import { RATE, SOUNDS, STITCHES, wav } from '../audio/gen';
 
 const DIR = join(import.meta.dir, '..', '..', 'assets', 'audio');
 
@@ -21,6 +22,31 @@ function read(name: string) {
 }
 
 const peak = (x: Float32Array) => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+
+/** Центр спектра, Гц: по частотам до 6 кГц через 25 Гц. */
+function centroid(x: Float32Array): number {
+  let sum = 0, weighted = 0;
+  for (let f = 25; f <= 6000; f += 25) {
+    let a = 0, b = 0;
+    for (let i = 0; i < x.length; i++) {
+      const w = (2 * Math.PI * f * i) / RATE;
+      a += x[i] * Math.cos(w);
+      b -= x[i] * Math.sin(w);
+    }
+    sum += a * a + b * b;
+    weighted += f * (a * a + b * b);
+  }
+  return weighted / sum;
+}
+
+/** Простое случайное 0…1 с зерном — проверка ритма не зависит от Math.random. */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (Math.imul(a, 1664525) + 1013904223) >>> 0;
+    return a / 4294967296;
+  };
+}
 
 describe('звуки', () => {
   const files = readdirSync(DIR).filter((f) => f.endsWith('.wav')).sort();
@@ -52,6 +78,52 @@ describe('звуки', () => {
       const all = x.reduce((s, v) => s + v * v, 0);
       expect(early / all, f).toBeGreaterThan(0.9);
     }
+  });
+
+  test('стежок — «тук», а не «тсс»: центр спектра ниже 2 кГц, и варианты различимы по высоте (0.18.2)', () => {
+    // до 0.18.2 все четыре стежка были шумом с центром спектра 2,5–2,9 кГц — одно «тсс» на четыре файла
+    const centers = files.filter((f) => f.startsWith('stitch')).map((f) => centroid(read(f).x));
+    for (const c of centers) expect(c).toBeLessThan(2000);
+    expect(Math.max(...centers) / Math.min(...centers)).toBeGreaterThan(1.4);
+    // основные тона — пентатоника на октаву: ре, ми, соль, ля, си, ре
+    expect(STITCHES.map((v) => v.hz)).toEqual([587, 659, 784, 880, 988, 1175]);
+  });
+
+  test('кисть — неровная россыпь, а не машинка: 7–12 стежков в секунду через разные промежутки', () => {
+    for (const seed of [1, 2, 3]) {
+      const s = newTicks();
+      const rnd = seeded(seed);
+      const at: number[] = [];
+      const loud: number[] = [];
+      // канва зовёт стежок каждые 50 мс три секунды подряд
+      for (let t = 1000; t < 4000; t += 50) {
+        const k = stitchTick(s, t, rnd);
+        if (k) {
+          at.push(t);
+          loud.push(k);
+        }
+      }
+      expect(at.length).toBeGreaterThanOrEqual(21);
+      expect(at.length).toBeLessThanOrEqual(36);
+      const gaps = at.slice(1).map((t, i) => t - at[i]);
+      expect(Math.min(...gaps)).toBeGreaterThanOrEqual(STITCH_GAP[0]);
+      // промежутки разные: 100 и 150 мс вперемешку, а не ровный шаг
+      expect(new Set(gaps).size).toBeGreaterThan(1);
+      // первые стежки штриха — полной громкости (±20 %), долгая кисть — тише
+      expect(loud[0]).toBeGreaterThanOrEqual(1 - STITCH_SPREAD);
+      at.forEach((t, i) => {
+        if (t - 1000 > BRUSH_SOFT_MS) expect(loud[i]).toBeLessThanOrEqual(BRUSH_SOFT * (1 + STITCH_SPREAD));
+      });
+    }
+  });
+
+  test('касание за касанием звучит каждое; после перерыва штрих снова громкий', () => {
+    const s = newTicks();
+    const rnd = seeded(7);
+    for (let t = 0; t < 3000; t += 300) expect(stitchTick(s, t, rnd)).toBeGreaterThanOrEqual(1 - STITCH_SPREAD);
+    // долгая кисть, перерыв полсекунды — и новый штрих начинается полной громкостью
+    for (let t = 5000; t < 6000; t += 50) stitchTick(s, t, rnd);
+    expect(stitchTick(s, 6500, rnd)).toBeGreaterThanOrEqual(1 - STITCH_SPREAD);
   });
 
   test('игра берёт все звуки из assets/audio', () => {
