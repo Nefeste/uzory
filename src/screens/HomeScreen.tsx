@@ -73,7 +73,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   const last = works?.find((w) => !w.finished && (!pic || w.pattern !== keyOf(pic)) && patternByKey(w.pattern));
   const lastPic = last ? patternByKey(last.pattern)?.pic : undefined;
 
-  // превью — схемой, пока не начата; начатая — цветом там, где вышито; готовая — целиком
+  // превью — приглушённым цветом, пока не начата; начатая — полным цветом там, где вышито; готовая — целиком
   const previewKey = pic ? `${keyOf(pic)} ${work?.id ?? ''} ${work?.done ?? 0} ${work?.finished ? 1 : 0}` : '';
   const [preview, setPreview] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {
@@ -81,7 +81,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
     let alive = true;
     void (async () => {
       const stitched = work && !work.finished && work.done > 0 ? await workStitched(pattern, work.id) : null;
-      const uri = previewUri(pattern, work?.finished ? 'done' : 'scheme', 480, stitched ?? undefined);
+      const uri = previewUri(pattern, work?.finished ? 'done' : 'muted', 480, stitched ?? undefined);
       if (alive) setPreview({ key: previewKey, uri });
     })();
     return () => {

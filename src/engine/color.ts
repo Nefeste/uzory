@@ -89,6 +89,19 @@ export function contrast(a: number, b: number): number {
 /** Цифра на кружке нити: чёрная или белая — что контрастнее (docs/specs/2026-09-canvas.md). */
 export const digitOn = (rgb: number) => (contrast(rgb, 0x000000) >= contrast(rgb, 0xffffff) ? 0x000000 : 0xffffff);
 
+/** Приглушение превью не начатой картинки: доля насыщенности и доля пути светлоты к белому. */
+export const MUTED = { chroma: 0.6, light: 0.25 } as const;
+
+/**
+ * Приглушённый цвет — превью картинки, которую ещё не начинали (решение владельца 31.10.2026,
+ * issue 130, вариант Б): насыщенность −40 %, светлее, оттенок тот же. Витрина в цвете, но не «готовая
+ * картинка», и вышитое ярче.
+ */
+export function muted(rgb: number): number {
+  const [L, a, b] = rgbToLab(rgb);
+  return labToRgb([L + (1 - L) * MUTED.light, a * MUTED.chroma, b * MUTED.chroma]);
+}
+
 /** Смешать два цвета в sRGB: t = 0 — `a`, t = 1 — `b`. */
 export function mix(a: number, b: number, t: number): number {
   const ch = (s: number) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t);

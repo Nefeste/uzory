@@ -443,13 +443,19 @@ try {
   await page.waitForTimeout(300); // следующее касание — уже не третье подряд
   check((await page.getByTestId('hint-start').count()) === 0, 'подсказка про клетку ушла после стежка');
 
-  // музыка начинается с первого стежка — тихо, и нарастает (docs/08-game-design.md, «Звук и музыка»)
+  // музыка начинается с первого стежка — тихо, и нарастает (docs/08-game-design.md, «Звук и музыка»).
+  // Громкость — по времени от начала пьесы, а не на момент проверки: на медленной машине (раннер GitHub)
+  // до проверки проходит больше, и пьеса успевала нарасти до полной (31.10.2026)
   {
     const m = await music();
-    const vols = m.filter((e) => e.what === 'volume').map((e) => e.v);
     const plays = m.filter((e) => e.what === 'play');
-    check(plays.length === 1 && vols.length > 0 && vols[0] <= 0.01 && Math.max(...vols) < 0.3,
-      `музыка: первый стежок — пьеса началась тихо (${decodeURIComponent(plays[0]?.src.split('/').pop() ?? '—').replace(/\.[0-9a-f]+\.webm$/, '')}, громкость до ${Math.max(0, ...vols).toFixed(2)})`);
+    const t0 = plays[0]?.t ?? 0;
+    const vols = m.filter((e) => e.what === 'volume');
+    const early = vols.filter((e) => e.t - t0 <= 2500).map((e) => e.v);
+    const rising = vols.every((e, i) => i === 0 || e.v >= vols[i - 1].v - 1e-6);
+    check(plays.length === 1 && vols.length > 0 && vols[0].v <= 0.01 && early.length > 0 && Math.max(...early) < 0.3 && rising,
+      `музыка: первый стежок — пьеса началась тихо и нарастает (${decodeURIComponent(plays[0]?.src.split('/').pop() ?? '—').replace(/\.[0-9a-f]+\.webm$/, '')}, `
+      + `за 2,5 с — до ${Math.max(0, ...early).toFixed(2)}, ${rising ? 'только растёт' : 'не только растёт'})`);
     check(await musicPlays(), 'музыка звучит в браузере: WebM с Opus');
     // меню ⋮: выключили — затихла и встала на паузу; включили — сразу снова
     await page.getByTestId('menu').click();
