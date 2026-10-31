@@ -1,15 +1,24 @@
 // «Оформление» (решение владельца 31.10.2026, issue 116, вариант Б; docs/08-game-design.md, «Оформления»): цвет
 // канвы — на всех работах, рамка — на «Готово» и на картинке «Поделиться». Образец канвы — тем же шейдером
-// (src/render/swatch.ts), рамка — макетом. Своё оформление выбирается касанием; чужое — с ценой, покупка
-// навсегда — со следующей версии (0.18.1). Кремовая канва и тёмное дерево — у всех.
-import { type ReactNode, useMemo } from 'react';
+// (src/render/swatch.ts), рамка — макетом. Своё оформление выбирается касанием; чужое — с ценой магазина,
+// касание покупает его навсегда (0.18.1, RuStore Pay), «Все оформления» — все сразу. Кремовая канва и тёмное
+// дерево — у всех. В сборке без магазина (APK из Releases, веб) — строка, где купить.
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CANVASES, type CanvasLook, FRAMES, type FrameLook, isFree, type LookId, lookOwned } from '../engine/looks';
+import { ALL_LOOKS, CANVASES, type CanvasLook, FRAMES, type FrameLook, isFree, type LookId, lookOwned, productOf } from '../engine/looks';
 import { T } from '../i18n';
 import { canvasSwatch } from '../render/swatch';
-import { useLooks } from '../state/looks';
+import { billing, type BillingFail, type LookPrice } from '../state/billing';
+import { ownedLooksNow, refreshLooks, setOwnedLooks, useLooks } from '../state/looks';
 import { useSettings } from '../state/settings';
-import { Screen, SectionTitle, Txt } from '../ui/components';
+import { Button, Screen, SectionTitle, Txt } from '../ui/components';
+
+/** Что сказать, если покупка не прошла; отказ игрока — тихо. */
+const FAIL: Readonly<Record<Exclude<BillingFail, 'cancelled'>, string>> = {
+  'no-store': T.looks.noStore,
+  offline: T.looks.offline,
+  failed: T.looks.failed,
+};
 
 /** Макет рамки на экране, dp. */
 const MOCK_W = 96;
@@ -38,16 +47,68 @@ export function LooksScreen({ onBack }: { onBack: () => void }) {
   const swatches = useMemo(() => new Map(CANVASES.map((c) => [c.id, canvasSwatch(c)])), []);
   const clothHex = (c: CanvasLook) => `#${c.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
   const locked = CANVASES.some((c) => !own(c.id)) || FRAMES.some((f) => !own(f.id));
+  /** покупать есть где: сборка запирает, и магазин есть */
+  const shop = locked && billing.available;
+  const [prices, setPrices] = useState<LookPrice[] | null>(null);
+  const [asked, setAsked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  // подпись под образцом: сейчас, есть, бесплатно или цена
+  useEffect(() => {
+    if (!shop) return;
+    let alive = true;
+    void billing.lookPrices().then((p) => {
+      if (!alive) return;
+      setPrices(p);
+      setAsked(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [shop]);
+
+  const priceOf = (product: string) => prices?.find((p) => p.id === product)?.price;
+
+  /** Купить товар; удалась — выбрать купленное (`pick`) и сказать, что оно теперь навсегда. */
+  const purchase = async (product: string, done: string, pick?: () => void) => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const r = await billing.buyLook(product);
+      if (r.ok) {
+        setOwnedLooks(r.owned);
+        pick?.();
+        setNote(done);
+      } else if (r.fail !== 'cancelled') setNote(r.detail ? `${FAIL[r.fail]}\n${T.plus.rustoreSaid(r.detail)}` : FAIL[r.fail]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const r = await refreshLooks();
+      setNote(r ? (ownedLooksNow().length ? T.looks.restored : T.looks.nothingToRestore) : T.looks.restoreFailed);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // подпись под образцом: сейчас, есть, бесплатно или цена магазина
   const state = (id: LookId, chosen: boolean) => {
     if (chosen) return T.looks.chosen;
     if (isFree(id)) return T.looks.free;
-    return own(id) ? T.looks.owned : T.looks.locked;
+    if (own(id)) return T.looks.owned;
+    return busy ? T.looks.buying : T.looks.locked(priceOf(productOf(id)));
   };
 
   const tile = (id: LookId, name: string, chosen: boolean, body: ReactNode, onPick: () => void) => (
-    <Pressable key={id} onPress={() => own(id) && onPick()} accessibilityRole="button" accessibilityState={{ selected: chosen, disabled: !own(id) }}
+    <Pressable key={id} onPress={() => (own(id) ? onPick() : shop ? void purchase(productOf(id), T.looks.bought(name), onPick) : undefined)}
+      accessibilityRole="button" accessibilityState={{ selected: chosen, disabled: !own(id) && !shop }}
       testID={`look-${id}`}
       style={[styles.tile, { backgroundColor: theme.surface, borderColor: chosen ? theme.accent : theme.border }, chosen && styles.chosen]}>
       {body}
@@ -74,7 +135,14 @@ export function LooksScreen({ onBack }: { onBack: () => void }) {
             <View style={styles.mockBox}><FrameMock frame={f} cloth={clothHex(looks.canvas)} /></View>,
             () => update({ frame: f.id })))}
         </View>
-        {locked ? <Txt dim style={styles.small} testID="looks-soon">{T.looks.soon}</Txt> : null}
+        {shop ? (
+          <View style={styles.shop}>
+            <Button label={T.looks.all(priceOf(ALL_LOOKS))} onPress={() => void purchase(ALL_LOOKS, T.looks.boughtAll)} disabled={busy} testID="looks-all" />
+            <Button kind="secondary" label={T.looks.restore} onPress={() => void restore()} disabled={busy} testID="looks-restore" />
+            {asked && !prices ? <Txt dim style={styles.small} testID="looks-no-price">{T.looks.noPrice}</Txt> : null}
+          </View>
+        ) : locked ? <Txt dim style={styles.small} testID="looks-soon">{T.looks.soon}</Txt> : null}
+        {note ? <Txt style={styles.small} testID="looks-note">{note}</Txt> : null}
       </ScrollView>
     </Screen>
   );
@@ -82,6 +150,7 @@ export function LooksScreen({ onBack }: { onBack: () => void }) {
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 10 },
+  shop: { gap: 8, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: 150, borderWidth: 1, borderRadius: 8, padding: 8, gap: 4 },
   chosen: { borderWidth: 2, padding: 7 },

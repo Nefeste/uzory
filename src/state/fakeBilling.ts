@@ -2,8 +2,9 @@
 // docs/specs/2026-09-plus.md, критерий 3): без сети и без денег. Режим и купленное — запись
 // `uzory.billing.fake.v1` в хранилище браузера; кладёт её сценарий, читает ./billing.web.ts.
 // Цены — не те, что на образце экрана: по ним видно, что экран взял их у магазина.
+import { ALL_LOOKS, LOOK_PRODUCTS } from '../engine/looks';
 import type { PlusState } from '../engine/plus';
-import type { Billing, BillingFail, Product } from './billingApi';
+import type { Billing, BillingFail, LookPrice, Product } from './billingApi';
 
 export const FAKE_KEY = 'uzory.billing.fake.v1';
 
@@ -21,10 +22,15 @@ export const FAKE_PRODUCTS: Product[] = [
   { id: 'uzory_plus_year', period: 'year', price: '1490 ₽', kopecks: 149000 },
 ];
 
+/** Цены оформлений заглушки — не 99 и 299 ₽ из описания: по ним видно, что экран взял их у магазина. */
+export const FAKE_LOOK_PRICES: LookPrice[] = LOOK_PRODUCTS.map((id) => ({ id, price: id === ALL_LOOKS ? '349 ₽' : '119 ₽' }));
+
 interface FakeRecord {
   mode: FakeMode;
   /** что «купили»: магазин отдаёт это и после перезагрузки — как покупку из RuStore */
   bought?: { product: 'month' | 'year'; at: number };
+  /** оформления навсегда, «купленные» в заглушке */
+  looks?: string[];
 }
 
 /** Чужое и испорченное — как «покупка проходит, ничего не куплено». */
@@ -34,7 +40,8 @@ function parse(raw: string | null): FakeRecord {
     const mode = MODES.includes(r.mode as FakeMode) ? (r.mode as FakeMode) : 'ok';
     const b = r.bought;
     const bought = b && (b.product === 'month' || b.product === 'year') && Number.isFinite(b.at) ? b : undefined;
-    return bought ? { mode, bought } : { mode };
+    const looks = Array.isArray(r.looks) ? r.looks.filter((id): id is string => typeof id === 'string' && LOOK_PRODUCTS.includes(id)) : [];
+    return { mode, ...(bought ? { bought } : {}), ...(looks.length ? { looks } : {}) };
   } catch {
     return { mode: 'ok' };
   }
@@ -66,6 +73,19 @@ export function fakeBilling(read: () => string | null, write: (raw: string) => v
     availability: async () => {
       const mode = parse(read()).mode;
       return { fail: mode === 'no-store' || mode === 'offline' ? mode : null };
+    },
+    lookPrices: async () => (silent(parse(read()).mode) ? null : FAKE_LOOK_PRICES.map((p) => ({ ...p }))),
+    buyLook: async (id) => {
+      const r = parse(read());
+      if (r.mode === 'failed') return { ok: false, fail: r.mode, detail: FAKE_DETAIL };
+      if (r.mode !== 'ok') return { ok: false, fail: r.mode };
+      const looks = LOOK_PRODUCTS.filter((x) => x === id || r.looks?.includes(x));
+      write(JSON.stringify({ ...r, looks }));
+      return { ok: true, owned: looks };
+    },
+    looks: async () => {
+      const r = parse(read());
+      return silent(r.mode) ? null : r.looks ?? [];
     },
   };
 }

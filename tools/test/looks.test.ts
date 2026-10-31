@@ -3,9 +3,10 @@
 import { describe, expect, test } from 'bun:test';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import {
-  ALL_LOOKS, CANVASES, canvasLook, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, isFree, LOOK_PRODUCTS, lookOwned, luminance, productOf,
+  ALL_LOOKS, CANVASES, canvasLook, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, isFree, LOOK_PRODUCTS, lookOwned, luminance, ownedOf, productOf,
   shownLooks,
 } from '../../src/engine/looks';
+import { FAKE_DETAIL, FAKE_LOOK_PRICES, fakeBilling } from '../../src/state/fakeBilling';
 import { renderFrame } from '../canvas/ck';
 
 describe('каталог оформлений', () => {
@@ -89,4 +90,41 @@ describe('канва оформления в шейдере', () => {
       at(even, width, 2, 2).forEach((v, k) => expect(Math.abs(v - want[k]), `${c.id}, пяльцы`).toBeLessThanOrEqual(1));
     }
   }, 60_000);
+});
+
+describe('покупка навсегда (0.18.1)', () => {
+  test('купленное из хранилища и от магазина — только наши товары, без повторов, в порядке каталога', () => {
+    expect(ownedOf([ALL_LOOKS, 'uzory_look_black', 'uzory_look_black', 'coins_100', 7])).toEqual(['uzory_look_black', ALL_LOOKS]);
+    expect(ownedOf('uzory_look_black')).toEqual([]);
+    expect(ownedOf(null)).toEqual([]);
+  });
+
+  /** заглушка сценария с записью в памяти — как ./billing.web.ts с хранилищем браузера */
+  const stub = (mode: string) => {
+    let raw: string | null = JSON.stringify({ mode });
+    return { b: fakeBilling(() => raw, (r) => { raw = r; }, () => 0), set: (m: string) => { raw = JSON.stringify({ ...JSON.parse(raw ?? '{}'), mode: m }); } };
+  };
+
+  test('заглушка: цены — не 99 и 299 ₽ из описания; купленное остаётся и после «перезагрузки»', async () => {
+    const { b } = stub('ok');
+    expect(await b.lookPrices()).toEqual(FAKE_LOOK_PRICES);
+    expect(FAKE_LOOK_PRICES.map((p) => p.price)).not.toContain('99 ₽');
+    expect(await b.looks()).toEqual([]);
+    expect(await b.buyLook(productOf('black'))).toEqual({ ok: true, owned: [productOf('black')] });
+    expect(await b.buyLook(ALL_LOOKS)).toEqual({ ok: true, owned: [productOf('black'), ALL_LOOKS] });
+    expect(await b.looks()).toEqual([productOf('black'), ALL_LOOKS]);
+  });
+
+  test('заглушка: отказ, сбой с ответом RuStore, нет сети и нет RuStore — так магазин и отвечает', async () => {
+    const { b, set } = stub('cancelled');
+    expect(await b.buyLook(productOf('hoop'))).toEqual({ ok: false, fail: 'cancelled' });
+    set('failed');
+    expect(await b.buyLook(productOf('hoop'))).toEqual({ ok: false, fail: 'failed', detail: FAKE_DETAIL });
+    set('offline');
+    expect(await b.buyLook(productOf('hoop'))).toEqual({ ok: false, fail: 'offline' });
+    expect(await b.lookPrices()).toBeNull();
+    expect(await b.looks()).toBeNull();
+    set('no-store');
+    expect(await b.buyLook(productOf('hoop'))).toEqual({ ok: false, fail: 'no-store' });
+  });
 });

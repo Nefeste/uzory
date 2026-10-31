@@ -1133,6 +1133,50 @@ try {
     await ctxLooks.close();
   }
 
+  // оформления как в 1.0 — покупка навсегда (0.18.1) в заглушке RuStore Pay: цены — у магазина (не 99 ₽
+  // описания), касание чужого покупает и выбирает его; сбой — с ответом RuStore; «Все оформления» — все;
+  // после перезагрузки купленное на месте
+  {
+    const FAKE = 'uzory.billing.fake.v1';
+    const ctxBuy = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const pb = await ctxBuy.newPage();
+    pb.on('pageerror', (e) => errors.push(e.message));
+    await pb.goto(base);
+    await seedWorks(pb, [], { [FAKE]: JSON.stringify({ mode: 'ok' }), 'uzory.settings.v1': JSON.stringify({ previewLock: true }) });
+    const openLooks = async () => {
+      await pb.getByTestId('home-settings').click();
+      await pb.getByTestId('set-looks').click();
+      await pb.getByTestId('looks').waitFor({ timeout: 5000 });
+    };
+    const tileText = (id: string) => pb.getByTestId(`look-${id}`).innerText();
+    const noteText = () => pb.getByTestId('looks-note').innerText({ timeout: 5000 }).catch(() => '');
+    await openLooks();
+    await pb.waitForFunction(() => /119/.test(document.querySelector('[data-testid="look-black"]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+    const priced = (await tileText('black')).includes('Навсегда · 119 ₽');
+    await pb.getByTestId('look-black').click();
+    const boughtNote = await noteText();
+    const blackChosen = (await tileText('black')).includes('Сейчас');
+    await pb.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), mode: 'failed' })), FAKE);
+    await pb.getByTestId('look-hoop').click();
+    const failNote = await noteText();
+    const hoopStillLocked = (await tileText('hoop')).includes('Навсегда');
+    await pb.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), mode: 'ok' })), FAKE);
+    const allLabel = await pb.getByTestId('looks-all').innerText();
+    await pb.getByTestId('looks-all').click();
+    const allNote = await noteText();
+    const hoopOwned = (await tileText('hoop')).includes('Есть');
+    await pb.reload();
+    await pb.getByTestId('home-library').waitFor({ timeout: 30_000 });
+    await openLooks();
+    const kept = (await tileText('black')).includes('Сейчас') && (await tileText('baguette')).includes('Есть') && (await pb.getByTestId('looks-all').count()) === 0;
+    check(priced && /навсегда/.test(boughtNote) && blackChosen && /Платёж не прошёл/.test(failNote) && /Ответ RuStore/.test(failNote) && hoopStillLocked
+      && allLabel.includes('349 ₽') && /все оформления/.test(allNote) && hoopOwned && kept,
+      `оформления как в 1.0: цена у магазина — ${priced ? '«Навсегда · 119 ₽»' : 'нет'}; чёрная куплена и выбрана — ${blackChosen ? 'да' : 'нет'}; `
+      + `сбой — «${failNote.split('\n')[0]}»${/Ответ RuStore/.test(failNote) ? ' с ответом RuStore' : ''}; «${allLabel}» — ${hoopOwned ? 'все есть' : 'не все'}; `
+      + `после перезагрузки — ${kept ? 'купленное на месте' : 'купленного нет'}`);
+    await ctxBuy.close();
+  }
+
   // «Сообщить об ошибке» (0.14.0): для закрытого теста — сколько раз открывали (перезагрузка выше —
   // второй запуск), сколько раз игра оборвалась и сколько картинок закончено
   await page.getByTestId('home-settings').click();

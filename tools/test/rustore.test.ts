@@ -4,10 +4,11 @@
 // сборки из общего набора `@gornitsa/kit` подключён с настройками «Узоров» и без номера ничего не
 // вписывает. Вставки плагина в шаблоны Expo и типы обёртки проверяют тесты набора.
 import { describe, expect, test } from 'bun:test';
+import { LOOK_PRODUCTS } from '../../src/engine/looks';
 import { PLUS_OFFLINE_MS, plusOpen } from '../../src/engine/plus';
 import type { PayNative, RsProduct, RsPurchase } from '../../src/money/rustore';
 import { rustoreBilling } from '../../src/money/rustoreBilling';
-import { causeOf, failOf, kopecksOf, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from '../../src/money/rustoreRules';
+import { causeOf, failOf, kopecksOf, lookPricesOf, looksOf, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from '../../src/money/rustoreRules';
 import { buy } from '@gornitsa/kit/rustore-pay/rules';
 
 const DAY = 86400000;
@@ -249,6 +250,73 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
     expect(await thrown('RuStoreOutdatedException')).toEqual({ fail: 'no-store', detail: 'RuStoreOutdatedException: RuStoreOutdatedException' });
     expect(await thrown('RuStorePaymentNetworkException')).toEqual({ fail: 'offline', detail: 'RuStorePaymentNetworkException: RuStorePaymentNetworkException' });
     expect(await thrown('RuStorePaymentCommonException')).toEqual({ fail: null, detail: 'RuStorePaymentCommonException: RuStorePaymentCommonException' });
+  });
+});
+
+// оформления навсегда (0.18.1; docs/specs/2026-10-looks.md, «Покупка»): статусы — по документации Pay SDK
+// для React Native 11.1.0, 31.10.2026
+const look = (productId: string, status: string, productType: 'NON_CONSUMABLE_PRODUCT' | 'CONSUMABLE_PRODUCT' = 'NON_CONSUMABLE_PRODUCT'): RsPurchase =>
+  ({ productPurchase: { purchaseId: `p-${productId}-${status}`, productId, status, productType, sandbox: true } });
+
+describe('оформления навсегда: ответы RuStore Pay → купленное', () => {
+  test('куплено — CONFIRMED («покупка успешно оплачена»); PAID, REVERSED — двухстадийной, REFUNDED — возврат: нет', () => {
+    expect(looksOf([look('uzory_look_black', 'CONFIRMED'), look('uzory_look_hoop', 'PAID'), look('uzory_look_blue', 'REFUNDED'), look('uzory_look_linen', 'REVERSED')]))
+      .toEqual(['uzory_look_black']);
+  });
+
+  test('чужие товары и подписки — не оформления; порядок — как в каталоге, без повторов', () => {
+    expect(looksOf([
+      look('uzory_looks_all', 'CONFIRMED'), look('coins_100', 'CONFIRMED', 'CONSUMABLE_PRODUCT'), sub('uzory_plus_year', 'ACTIVE', '2027-01-01T00:00:00Z'),
+      look('uzory_look_white', 'CONFIRMED'), look('uzory_look_white', 'CONFIRMED'),
+    ])).toEqual(['uzory_look_white', 'uzory_looks_all']);
+  });
+
+  test('цены — только наших товаров и только с ценой, порядок — как в каталоге', () => {
+    expect(lookPricesOf([product('uzory_looks_all', '299 ₽'), product('uzory_look_black', '99 ₽'), product('uzory_plus_year', '990 ₽'), product('uzory_look_hoop', ' ')]))
+      .toEqual([{ id: 'uzory_look_black', price: '99 ₽' }, { id: 'uzory_looks_all', price: '299 ₽' }]);
+  });
+});
+
+describe('магазин RuStore Pay: оформления навсегда (src/money/rustoreBilling.ts)', () => {
+  test('без номера приложения — ни цен, ни покупок, ни купленного, и RuStore не спрашивают', async () => {
+    const f = fakePay();
+    const b = rustoreBilling(f.pay, '');
+    expect(await b.lookPrices()).toBeNull();
+    expect(await b.buyLook('uzory_look_black')).toEqual({ ok: false, fail: 'no-store' });
+    expect(await b.looks()).toBeNull();
+    expect(f.calls).toEqual([]);
+  });
+
+  test('цены — у магазина, по всем товарам каталога; ничего не пришло — null', async () => {
+    const f = fakePay({ products: [product('uzory_look_black', '99 ₽')] });
+    expect(await rustoreBilling(f.pay, APP_ID).lookPrices()).toEqual([{ id: 'uzory_look_black', price: '99 ₽' }]);
+    expect(f.calls.find((c) => c.name === 'getProducts')?.args).toEqual([[...LOOK_PRODUCTS]]);
+    expect(await rustoreBilling(fakePay().pay, APP_ID).lookPrices()).toBeNull();
+  });
+
+  test('покупка: одна стадия, без почты и идентификатора игрока и без отметки «выдано»; в списке её ещё нет — уже куплено', async () => {
+    const f = fakePay({ purchases: () => [look('uzory_look_white', 'CONFIRMED')] });
+    expect(await rustoreBilling(f.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: true, owned: ['uzory_look_white', 'uzory_look_black'] });
+    expect(f.calls.find((c) => c.name === 'purchase')?.args.slice(0, 8)).toEqual(['uzory_look_black', null, null, null, null, null, 'ONE_STEP', 'LIGHT']);
+    expect(f.calls.some((c) => c.name === 'updateAcknowledgementState')).toBe(false);
+  });
+
+  test('отказ игрока — тихо; сбой — с ответом RuStore; но если RuStore говорит, что куплено, — куплено', async () => {
+    const cancelled = fakePay({ buy: () => { throw err('ProductPurchaseCancelled'); } });
+    expect(await rustoreBilling(cancelled.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: false, fail: 'cancelled' });
+    const failed = fakePay({ buy: () => { throw err('RuStorePaymentCommonException'); } });
+    expect(await rustoreBilling(failed.pay, APP_ID).buyLook('uzory_look_black'))
+      .toEqual({ ok: false, fail: 'failed', detail: 'RuStorePaymentCommonException: RuStorePaymentCommonException' });
+    const paid = fakePay({ buy: () => { throw err('RuStorePaymentNetworkException'); }, purchases: () => [look('uzory_look_black', 'CONFIRMED')] });
+    expect(await rustoreBilling(paid.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: true, owned: ['uzory_look_black'] });
+  });
+
+  test('купленное — из списка покупок без фильтров; RuStore не ответил — null, прежний ответ остаётся', async () => {
+    const f = fakePay({ purchases: () => [look('uzory_looks_all', 'CONFIRMED'), look('uzory_look_hoop', 'REFUNDED')] });
+    expect(await rustoreBilling(f.pay, APP_ID).looks()).toEqual(['uzory_looks_all']);
+    expect(f.calls.find((c) => c.name === 'getPurchases')?.args).toEqual([null, null, null]);
+    const down = fakePay({ purchases: () => { throw err('RuStorePaymentNetworkException'); } });
+    expect(await rustoreBilling(down.pay, APP_ID).looks()).toBeNull();
   });
 });
 

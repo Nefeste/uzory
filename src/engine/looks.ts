@@ -86,6 +86,12 @@ export const LOOK_PRODUCTS: readonly string[] = [
 
 export const isFree = (id: LookId) => FREE.includes(id);
 
+/** Сохранённое и ответ магазина → купленные товары: только наши, без повторов, в порядке каталога; чужое — пусто. */
+export function ownedOf(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return LOOK_PRODUCTS.filter((id) => raw.includes(id));
+}
+
 /**
  * Есть ли у игрока оформление: бесплатное — у всех; `open` — сборка не запирает (0.x для проверки);
  * иначе — купленное отдельно или «Все оформления». `owned` — товары из последнего ответа магазина.

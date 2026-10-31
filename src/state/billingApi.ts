@@ -15,6 +15,12 @@ export interface Product {
   kopecks?: number;
 }
 
+/** Оформление навсегда (src/engine/looks.ts, LOOK_PRODUCTS): товар и цена, как её пишет магазин. */
+export interface LookPrice {
+  id: string;
+  price: string;
+}
+
 /** Почему не вышло: нет RuStore, нет сети, платёж не прошёл; отказ игрока — тихо назад. */
 export type BillingFail = 'no-store' | 'offline' | 'failed' | 'cancelled';
 
@@ -38,6 +44,12 @@ export interface Billing {
   status(): Promise<PlusState | null>;
   /** Почему магазин не ответил — когда цен нет или права не узнать: нет или устарел RuStore, нет сети, что сказал RuStore. */
   availability(): Promise<Availability>;
+  /** цены оформлений навсегда; null — магазин не ответил */
+  lookPrices(): Promise<LookPrice[] | null>;
+  /** купить оформление навсегда; удалась — купленные теперь */
+  buyLook(id: string): Promise<{ ok: true; owned: string[] } | { ok: false; fail: BillingFail; detail?: string }>;
+  /** купленные оформления — при запуске, при возвращении в игру и по «Восстановить покупки»; null — не узнали */
+  looks(): Promise<string[] | null>;
 }
 
 /** Магазина нет: ни цен, ни покупок, ни прав — прежний ответ остаётся как есть. */
@@ -47,4 +59,7 @@ export const noBilling: Billing = {
   purchase: async () => ({ ok: false, fail: 'no-store' }),
   status: async () => null,
   availability: async () => ({ fail: 'no-store' }),
+  lookPrices: async () => null,
+  buyLook: async () => ({ ok: false, fail: 'no-store' }),
+  looks: async () => null,
 };

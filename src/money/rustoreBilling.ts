@@ -13,7 +13,8 @@ import { plusOpen, type PlusState } from '../engine/plus';
 import type { Availability, Billing } from '../state/billingApi';
 import { buy } from '@gornitsa/kit/rustore-pay/rules';
 import type { PayNative } from './rustore';
-import { causeOf, failOf, PLUS_PRODUCTS, PRODUCT_IDS, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from './rustoreRules';
+import { LOOK_PRODUCTS } from '../engine/looks';
+import { causeOf, failOf, lookPricesOf, looksOf, PLUS_PRODUCTS, PRODUCT_IDS, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from './rustoreRules';
 
 export function rustoreBilling(pay: PayNative | null, appId: string, now: () => number = Date.now): Billing {
   if (!pay || !appId.trim()) {
@@ -23,8 +24,20 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
       purchase: async () => ({ ok: false, fail: 'no-store' }),
       status: async () => null,
       availability: async () => ({ fail: 'no-store' }),
+      lookPrices: async () => null,
+      buyLook: async () => ({ ok: false, fail: 'no-store' }),
+      looks: async () => null,
     };
   }
+
+  /** Купленные оформления — из того же списка покупок, что и подписка; не узнали — null. */
+  const looks = async (): Promise<string[] | null> => {
+    try {
+      return looksOf(await pay.getPurchases(null, null, null));
+    } catch {
+      return null;
+    }
+  };
 
   const status = async (): Promise<PlusState | null> => {
     try {
@@ -84,5 +97,30 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
         return { fail: unavailableOf(e), detail: rsDetail(e) };
       }
     },
+    async lookPrices() {
+      try {
+        const list = lookPricesOf(await pay.getProducts([...LOOK_PRODUCTS]));
+        return list.length ? list : null;
+      } catch {
+        return null;
+      }
+    },
+    async buyLook(id) {
+      // как подписка: одна стадия, без почты и идентификатора игрока, без отметки «выдано»
+      const r = await buy(pay, id, 'LIGHT');
+      if (r.ok) {
+        // оплачено, а в списке покупок её ещё нет — она уже есть: RuStore просто не успел
+        const owned = (await looks()) ?? [];
+        return { ok: true, owned: owned.includes(id) ? owned : [...owned, id] };
+      }
+      const fail = failOf(r);
+      // игрок мог заплатить и закрыть окно, или ответ потерялся: права — у RuStore
+      if (fail !== 'no-store') {
+        const owned = await looks();
+        if (owned?.includes(id)) return { ok: true, owned };
+      }
+      return fail === 'cancelled' ? { ok: false, fail } : { ok: false, fail, detail: r.detail };
+    },
+    looks,
   };
 }

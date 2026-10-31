@@ -16,6 +16,7 @@ import { FIRST_PICTURE, patternOf, pictureById } from './src/state/library';
 import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
+import { useLooksRefresh } from './src/state/looks';
 import { PlusProvider } from './src/state/plus';
 import { installSessions } from './src/state/sessions';
 import { keepSplash } from './src/state/splash';
@@ -97,6 +98,9 @@ function Root() {
   const plus = () => go({ name: 'plus', sample: !billing.available });
   /** Поменять данные экрана на вершине, не пересоздавая его. */
   const patch = (k: number, p: Partial<Route>) => setStack((s) => s.map((e) => (e.k === k ? ({ ...e, ...p } as Entry) : e)));
+
+  // купленные оформления — при запуске и при возвращении в игру (src/state/looks.ts)
+  useLooksRefresh();
 
   // шейдер канвы прогревается невидимым кадром вскоре после первого экрана, а не на открытии работы
   // (docs/02-architecture.md, «Канва»; src/canvas/effect.ts)
