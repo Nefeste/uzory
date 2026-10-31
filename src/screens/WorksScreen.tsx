@@ -36,7 +36,7 @@ function WorkRow({ work, onOpen, onDone, onRemoved }: Open & { work: WorkEntry; 
     let alive = true;
     void (async () => {
       const stitched = await workStitched(found.pattern, work.id);
-      const uri = stitched ? previewUri(found.pattern, work.finished ? 'done' : 'scheme', 240, work.finished ? undefined : stitched) : null;
+      const uri = stitched ? previewUri(found.pattern, work.finished ? 'done' : 'muted', 240, work.finished ? undefined : stitched) : null;
       if (alive) setShown({ uri, broken: !stitched });
     })();
     return () => {

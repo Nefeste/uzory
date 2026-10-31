@@ -1,5 +1,5 @@
 // Превью картинки в библиотеке, коллекции и календаре (docs/08-game-design.md, «Превью»): не
-// начатая — схемой, бледно; вышитая — целиком, с ✓; начатая — процент. Метки «Новое» и «Узоры+»
+// начатая — приглушённым цветом; вышитая — целиком, с ✓; начатая — процент. Метки «Новое» и «Узоры+»
 // (без замка и затемнения: смотреть можно всё). Превью считается после первой отрисовки, а
 // до того — бледная заглушка тех же размеров: сетка не прыгает (docs/specs/2026-09-library.md).
 // Превью считаются по очереди, по одному за раз (0.10.3): большая картина — сотни тысяч клеток,
@@ -50,7 +50,7 @@ export function PicTile({ pic, size, done, percent, isNew, plus, title = true, o
   testID?: string;
 }) {
   const { theme } = useSettings();
-  const mode = done ? 'done' : 'scheme';
+  const mode = done ? 'done' : 'muted';
   const key = `${pic.id}@${pic.v}|${mode}`;
   const [shown, setShown] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {

@@ -3,7 +3,7 @@
 // клетками; большой уменьшается усреднением клеток, как видит его глаз издалека.
 import { ImageFormat } from '@shopify/react-native-skia';
 import { rgbaImage } from '../canvas/textures';
-import { mix } from '../engine/color';
+import { mix, muted } from '../engine/color';
 import { CANVAS, type Pattern } from '../engine/pattern';
 
 const CLOTH = 0xf3f0e6;
@@ -17,11 +17,15 @@ export function clearPreviews(): void {
   cache.clear();
 }
 
+/** Сетка по невышитым клеткам превью — с клетки в столько точек: мельче она рябит. */
+const GRID_FROM = 4;
+
 /**
- * «done» — готовая работа; «scheme» — ещё не начатая: бледные тона без цвета
- * (docs/08-game-design.md, «Превью»); со `stitched` — начатая: цветом там, где вышито.
+ * «done» — готовая работа; «muted» — ещё не начатая: приглушённым цветом, с лёгкой сеткой на крупных
+ * клетках (решение владельца 31.10.2026, issue 130, вариант Б; docs/08-game-design.md, «Превью»); со
+ * `stitched` — начатая: вышитое полным цветом, остальное — приглушённым.
  */
-export function previewUri(p: Pattern, mode: 'done' | 'scheme', side = 360, stitched?: Uint8Array): string | null {
+export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitched?: Uint8Array): string | null {
   const key = stitched ? null : `${p.key}|${mode}|${side}`;
   if (key && cache.has(key)) return cache.get(key)!;
   const uri = render(p, mode, side, stitched);
@@ -32,19 +36,14 @@ export function previewUri(p: Pattern, mode: 'done' | 'scheme', side = 360, stit
   return uri;
 }
 
-function render(p: Pattern, mode: 'done' | 'scheme', side: number, stitched?: Uint8Array): string | null {
-  const colors = p.threads.map((t) => {
-    if (mode === 'done') return t.rgb;
-    const r = (t.rgb >> 16) & 255;
-    const g = (t.rgb >> 8) & 255;
-    const b = t.rgb & 255;
-    const l = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
-    return mix(0xf6f6f2, (l << 16) | (l << 8) | l, 0.35);
-  });
+function render(p: Pattern, mode: 'done' | 'muted', side: number, stitched?: Uint8Array): string | null {
+  const colors = p.threads.map((t) => (mode === 'done' ? t.rgb : muted(t.rgb)));
   const color = (i: number) => {
     const t = p.cells[i];
     return t === CANVAS ? CLOTH : stitched?.[i] ? p.threads[t].rgb : colors[t];
   };
+  // ещё не вышитая клетка — с линией сетки по правому и нижнему краю
+  const open = (i: number) => mode !== 'done' && p.cells[i] !== CANVAS && !stitched?.[i];
   const big = Math.max(p.w, p.h);
   let W: number;
   let H: number;
@@ -56,13 +55,16 @@ function render(p: Pattern, mode: 'done' | 'scheme', side: number, stitched?: Ui
     out = new Uint8Array(W * H * 4);
     for (let y = 0; y < p.h; y++) {
       for (let x = 0; x < p.w; x++) {
-        const c = color(y * p.w + x);
+        const i = y * p.w + x;
+        const c = color(i);
+        const line = k >= GRID_FROM && open(i) ? mix(c, 0x3b3e3c, 0.12) : c;
         for (let dy = 0; dy < k; dy++) {
           let o = ((y * k + dy) * W + x * k) * 4;
           for (let dx = 0; dx < k; dx++) {
-            out[o] = (c >> 16) & 255;
-            out[o + 1] = (c >> 8) & 255;
-            out[o + 2] = c & 255;
+            const v = dx === k - 1 || dy === k - 1 ? line : c;
+            out[o] = (v >> 16) & 255;
+            out[o + 1] = (v >> 8) & 255;
+            out[o + 2] = v & 255;
             out[o + 3] = 255;
             o += 4;
           }

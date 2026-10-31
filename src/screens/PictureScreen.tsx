@@ -31,7 +31,7 @@ export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
   const started = work && !work.finished ? work : undefined;
   const done = !!cat?.done(pic);
 
-  // превью: начатая — цветом там, где вышито; вышитая — целиком; иначе схемой
+  // превью: начатая — полным цветом там, где вышито; вышитая — целиком; иначе приглушённым цветом
   const key = `${pic.id}@${pic.v} ${started?.id ?? ''} ${started?.done ?? 0} ${done ? 1 : 0}`;
   const [shown, setShown] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {
@@ -39,7 +39,7 @@ export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
     let alive = true;
     void (async () => {
       const stitched = started && started.done > 0 ? await workStitched(pattern, started.id) : null;
-      const uri = previewUri(pattern, done && !started ? 'done' : 'scheme', 600, stitched ?? undefined);
+      const uri = previewUri(pattern, done && !started ? 'done' : 'muted', 600, stitched ?? undefined);
       if (alive) setShown({ key, uri });
     })();
     return () => {
