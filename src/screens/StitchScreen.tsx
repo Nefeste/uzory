@@ -110,17 +110,19 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   // музыка — только на этом экране: ждёт первого стежка, уходит вместе с экраном (src/state/music.ts)
   useEffect(() => {
     musicEnter();
-    ambienceEnter(settings.ambience);
     if (settings.sound) soundsReady();
-    return () => {
-      musicLeave();
-      ambienceLeave();
-    };
+    return musicLeave;
     // звуки готовятся один раз при входе; включённый потом звук создаст их на первом стежке
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => musicEnabled(settings.music), [settings.music]);
-  // фон — сразу, без первого стежка: он не мелодия, а комната вокруг
+  // фон — тоже только здесь, но сразу, без первого стежка: он не мелодия, а комната вокруг
+  // (src/state/ambience.ts); выбранный потом — ambienceSet ниже
+  useEffect(() => {
+    ambienceEnter(settings.ambience);
+    return ambienceLeave;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => ambienceSet(settings.ambience), [settings.ambience]);
 
   // подсказки: одной строкой, пока их не выключили и пока на канве нет другой строки
