@@ -3,7 +3,7 @@
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { BackHandler, Image, View } from 'react-native';
+import { BackHandler, Image, Platform, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -72,6 +72,12 @@ type Entry = Route & { k: number };
 
 let nextKey = 1;
 const entry = (r: Route): Entry => ({ ...r, k: nextKey++ });
+/**
+ * В вебе — без анимации появления: Reanimated там прячет элемент (`visibility: hidden`) до начала анимации,
+ * и сценарий Playwright, читая текст сразу после перехода, получал пустую строку. Веб — стенд и закрытая
+ * проверка, а не игра.
+ */
+const NO_ENTERING = Platform.OS === 'web';
 /** Экраны с канвой и замеры — без перехода: их первые кадры — работе и числам замера. */
 const CANVAS_ROUTES = new Set<Route['name']>(['stitch', 'stitchMine', 'bench', 'scrollBench']);
 
@@ -230,7 +236,7 @@ function Root() {
           home();
         }}>
         {/* экран проявляется, а не сменяется рывком (3.8); канва — без перехода: её первые кадры — работе */}
-        <Animated.View key={route.k} entering={CANVAS_ROUTES.has(route.name) ? undefined : FadeIn.duration(160)} style={{ flex: 1 }}>{screen}</Animated.View>
+        <Animated.View key={route.k} entering={NO_ENTERING || CANVAS_ROUTES.has(route.name) ? undefined : FadeIn.duration(160)} style={{ flex: 1 }}>{screen}</Animated.View>
       </ErrorBoundary>
     </View>
   );

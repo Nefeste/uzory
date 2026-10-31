@@ -256,7 +256,8 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
         {shown && !finishing ? (
           // строка поверх канвы приходит снизу и уходит вниз, а не появляется рывком (3.7); новый текст —
           // в той же строке: две строки разом, уходящая и новая, путали бы и глаз, и сценарий
-          <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutDown.duration(180)}
+          <Animated.View entering={Platform.OS === 'web' ? undefined : FadeInDown.duration(180)}
+            exiting={Platform.OS === 'web' ? undefined : FadeOutDown.duration(180)}
             style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
             testID={line ? 'hint' : `hint-${hint}`}>
             <Txt style={styles.lineText}>{shown.text}</Txt>
