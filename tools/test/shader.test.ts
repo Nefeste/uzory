@@ -46,6 +46,31 @@ describe('шейдер канвы', () => {
   test('«Мозаика» близко: в центре клетки — цвет нити', () => check({ s: 30, near: true, mosaic: true }));
 });
 
+describe('законченная работа без стежков — ровными клетками', () => {
+  // картинка «Поделиться» без «Стежков на картинке» и «Готово» рисуются веткой «далеко» без сцены:
+  // клетка ровного цвета и у края, и в середине (решение владельца 15.10.2026; фактура издалека — только
+  // у канвы с кистью)
+  test('у края и в середине клетки — цвет нити', async () => {
+    const all = Uint8Array.from(p.cells, () => 1);
+    const s = 12;
+    const f = await renderFrame(p, all, { width: p.w * s, height: p.h * s, tx: 0, ty: 0, s, near: false });
+    const bad: string[] = [];
+    for (let i = 0; i < p.cells.length; i++) {
+      if (p.cells[i] === CANVAS) continue;
+      const rgb = p.threads[p.cells[i]].rgb;
+      const want = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+      const x = i % p.w;
+      const y = (i - x) / p.w;
+      for (const [dx, dy] of [[0.5, 0.5], [0.5, 1.5], [1.5, 6.5]]) {
+        const o = (Math.floor(y * s + dy) * p.w * s + Math.floor(x * s + dx)) * 4;
+        const got = [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
+        if (!want.every((v, k) => Math.abs(v - got[k]) <= 1)) bad.push(`(${x},${y}) ${want} ≠ ${got}`);
+      }
+    }
+    expect(bad.slice(0, 5)).toEqual([]);
+  });
+});
+
 describe('картинка «Поделиться» на самой мелкой клетке со стежками', () => {
   // законченная работа тем же шейдером, клетка SHARE_STITCHES_FROM точек: стиль ещё различим —
   // тот же разбор клеток, что у сценария (tools/e2e/share.ts)
