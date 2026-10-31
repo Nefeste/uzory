@@ -1,13 +1,17 @@
 // «Готово» и «Как вышивалось» (docs/08-game-design.md, «Готово»): работа целиком в рамке на
 // льняном фоне, повтор всех стежков по порядку за 8–12 секунд, «О картине», «Поделиться» —
 // картинкой PNG, «Дальше» — сегодняшняя картинка дня, если не вышита, иначе следующая в коллекции.
+// Только что вышитая работа встаёт в рамку: рамка проявляется, подпись с кнопками поднимается снизу,
+// в этот момент — звук «готово» и вибрация (разбор оформления 31.10.2026, 6.1 и 4.4).
 // Готовая работа из «Моих работ» или «Моих узоров» — тот же экран: «назад» к списку и «Вышить ещё
 // раз» вместо «Дальше». «Настройки» в шапке — стежки на картинке «Поделиться» и обратно сюда.
 import { Kurale_400Regular } from '@expo-google-fonts/kurale/400Regular';
 import { Onest_500Medium } from '@expo-google-fonts/onest/500Medium';
 import { useFont } from '@shopify/react-native-skia';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { MARGIN_DP, MAX_DP } from '../canvas/camera';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
@@ -27,6 +31,7 @@ import { usePlayer } from '../state/player';
 import { useGate, usePlus } from '../state/plus';
 import { useSettings } from '../state/settings';
 import { shareFile } from '../state/share';
+import { play } from '../state/sound';
 import { openWork, type WorkSession } from '../state/works';
 import { Button, Screen, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
@@ -34,23 +39,36 @@ import { hasAbout, PicAbout } from '../ui/PicAbout';
 
 /** Рамка вокруг работы на экране, dp. */
 const FRAME_DP = 8;
+/** Рамка — дерево со скосом: свет сверху слева, как на канве (разбор оформления 31.10.2026, 6.4). */
+const FRAME = { light: '#8b6d52', dark: '#4e3b2b' };
+/** Рамка с работой — не больше этой доли сцены: вокруг неё лён, а не край экрана. */
+const STAGE_FILL = 0.86;
+/** Звук и вибрация «готово» — один раз на работу, когда она встаёт в рамку: не снова после «Настроек». */
+const celebrated = new Set<string>();
 /**
  * «Как вышивалось» и «Поделиться» рядом — только если обе подписи влезают целиком: на экране
  * уже этого (с поправкой на крупный шрифт телефона) кнопки встают одна под другой.
  */
 const ROW_MIN_DP = 390;
 
-/** «Как вышивалось»: все стежки по порядку за replayMs — по кадрам, пачками. */
-function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd: () => void): ReturnType<typeof setInterval> {
+/** «Как вышивалось»: все стежки по порядку за replayMs — по кадрам, пачками; счётчик — не чаще 10 раз в секунду. */
+function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd: () => void, onCount: (k: number) => void): ReturnType<typeof setInterval> {
   api.current?.clear();
   const total = replayMs(cells.length);
   const t0 = Date.now();
   let shown = 0;
+  let counted = 0;
+  onCount(0);
   const timer = setInterval(() => {
-    const k = Math.min(cells.length, Math.floor((cells.length * (Date.now() - t0)) / total));
+    const now = Date.now();
+    const k = Math.min(cells.length, Math.floor((cells.length * (now - t0)) / total));
     if (k > shown) {
       api.current?.stitch(cells.slice(shown, k));
       shown = k;
+    }
+    if (now - counted >= 100 || k >= cells.length) {
+      counted = now;
+      onCount(k);
     }
     if (k >= cells.length) {
       clearInterval(timer);
@@ -91,6 +109,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   const [session, setSession] = useState<WorkSession | null>(null);
   const [area, setArea] = useState<{ w: number; h: number } | null>(null);
   const [playing, setPlaying] = useState(false);
+  /** стежков на повторе — для счётчика и полосы под рамкой */
+  const [count, setCount] = useState(0);
   const [about, setAbout] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -110,6 +130,19 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   useEffect(() => () => {
     if (timer.current) clearInterval(timer.current);
   }, []);
+
+  // только что вышитая — «Дальше» есть: звук «готово» и вибрация, когда работа встаёт в рамку
+  const fresh = !!onNext;
+  const framed = !!session && !!font && !!area;
+  useEffect(() => {
+    if (!fresh || !framed || celebrated.has(workId)) return;
+    celebrated.add(workId);
+    const t = setTimeout(() => {
+      if (settings.sound) play('done');
+      if (settings.haptics && Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [fresh, framed, workId, settings.sound, settings.haptics]);
 
   // строка «Узоры+» (docs/08-game-design.md, «„Узоры+“ глазами игрока»): только где подписку
   // можно оформить, у игрока без неё, сразу после бесплатной картинки, не в первые три дня после
@@ -132,7 +165,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     timer.current = playStitches(api, order.map((o) => o.cell), () => {
       timer.current = null;
       setPlaying(false);
-    });
+    }, setCount);
   };
 
   const skip = () => {
@@ -175,7 +208,9 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   let cw = 0;
   let ch = 0;
   if (area) {
-    const s = Math.min(MAX_DP, (area.w - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.w, (area.h - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.h);
+    const aw = area.w * STAGE_FILL;
+    const ah = area.h * STAGE_FILL;
+    const s = Math.min(MAX_DP, (aw - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.w, (ah - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.h);
     cw = Math.max(1, Math.floor(pattern.w * s + 2 * MARGIN_DP));
     ch = Math.max(1, Math.floor(pattern.h * s + 2 * MARGIN_DP));
   }
@@ -186,17 +221,29 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
       <View style={styles.body}>
         <View style={[styles.stage, { backgroundColor: theme.bg }]} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
           {area && font && session && cw > 0 ? (
-            <View style={[styles.frame, { width: cw + 2 * FRAME_DP, height: ch + 2 * FRAME_DP }]} testID="done-frame">
+            <Animated.View entering={fresh ? FadeIn.duration(450) : undefined}
+              style={[styles.frame, { width: cw + 2 * FRAME_DP, height: ch + 2 * FRAME_DP }]} testID="done-frame">
               <StitchCanvas pattern={pattern} stitched={session.state.stitched} selected={-1}
                 mosaic={settings.style === 'mosaic'} hatch={false} bigNumbers={false} fill={false} font={font}
-                width={cw} height={ch} apiRef={api} viewOnly initial="fit" />
-            </View>
+                width={cw} height={ch} apiRef={api} viewOnly ghost initial="fit" />
+              {/* рамка бросает тень на паспарту */}
+              <View style={styles.inset} />
+            </Animated.View>
           ) : <ActivityIndicator style={styles.wait} color={theme.accent} />}
+          {playing && order.length ? (
+            <View style={[styles.track, { backgroundColor: theme.border }]} testID="replay-bar">
+              <View style={[styles.fill, { backgroundColor: theme.accent, width: `${(100 * count) / order.length}%` }]} />
+            </View>
+          ) : null}
         </View>
-        <View style={styles.info}>
+        <Animated.View entering={fresh ? FadeInDown.duration(350).delay(200) : undefined} style={styles.info}>
           <Txt title style={styles.title}>{title}</Txt>
           {caption ? <Txt dim style={styles.caption}>{caption}</Txt> : null}
-          {session ? <Txt dim testID="done-stats">{T.done.stats(order.length, session.minutes)}</Txt> : null}
+          {session ? (
+            playing
+              ? <Txt dim testID="replay-count">{T.done.replayCount(count, order.length)}</Txt>
+              : <Txt dim testID="done-stats">{T.done.stats(order.length, session.minutes)}</Txt>
+          ) : null}
           {note ? <Txt style={{ color: theme.danger }}>{note}</Txt> : null}
           <View style={[styles.row, stacked && styles.stacked]}>
             {playing
@@ -209,7 +256,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
           {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
           {onAgain ? <Button label={T.done.again} onPress={onAgain} testID="done-again" /> : null}
           {offer ? <Button kind="ghost" small label={T.plus.offer} onPress={onPlus} testID="done-plus" /> : null}
-        </View>
+        </Animated.View>
         {/* «О картине» — поверх всего экрана, а не только работы: на узком телефоне ей там тесно */}
         {about && pic ? (
           <Pressable style={styles.backdrop} onPress={() => setAbout(false)} accessibilityLabel={T.stitch.close}>
@@ -229,7 +276,15 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
 const styles = StyleSheet.create({
   body: { flex: 1 },
   stage: { flex: 1, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  frame: { borderWidth: FRAME_DP, borderColor: '#6f5641', borderRadius: 2 },
+  frame: {
+    borderWidth: FRAME_DP, borderRadius: 2,
+    borderTopColor: FRAME.light, borderLeftColor: FRAME.light, borderBottomColor: FRAME.dark, borderRightColor: FRAME.dark,
+    boxShadow: '0px 6px 16px rgba(28, 20, 12, 0.35)',
+  },
+  inset: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, pointerEvents: 'none', boxShadow: 'inset 1px 2px 4px rgba(20, 14, 8, 0.45)' },
+  // полоса повтора — у нижнего края сцены, поверх льна: её появление ничего не сдвигает
+  track: { position: 'absolute', left: 24, right: 24, bottom: 6, height: 3, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: 3 },
   wait: { margin: 24 },
   backdrop: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 20, 24, 0.25)', padding: 12, justifyContent: 'center' },
   panel: { borderWidth: 1, borderRadius: 8, padding: 14, maxHeight: '100%' },

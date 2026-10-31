@@ -71,6 +71,33 @@ describe('законченная работа без стежков — ровн
   });
 });
 
+describe('повтор «Как вышивалось» — без номеров', () => {
+  // разбор оформления 31.10.2026, Б4: у малых и средних работ повтор шёл схемой с номерами;
+  // теперь невышитое — бледным следом нити, как издалека
+  test('в середине невышитой клетки нет тёмных точек номера; без ghost — есть', async () => {
+    const none = new Uint8Array(p.cells.length);
+    const s = 30;
+    const dark = async (ghost: boolean) => {
+      const f = await renderFrame(p, none, { width: p.w * s, height: p.h * s, tx: 0, ty: 0, s, near: true, font: true, ghost });
+      let n = 0;
+      for (let i = 0; i < p.cells.length; i++) {
+        if (p.cells[i] === CANVAS) continue;
+        const x0 = (i % p.w) * s;
+        const y0 = Math.floor(i / p.w) * s;
+        for (let y = y0 + 0.3 * s; y < y0 + 0.7 * s; y++) {
+          for (let x = x0 + 0.3 * s; x < x0 + 0.7 * s; x++) {
+            const o = (Math.floor(y) * p.w * s + Math.floor(x)) * 4;
+            if (Math.max(f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]) < 90) n++;
+          }
+        }
+      }
+      return n;
+    };
+    expect(await dark(true)).toBe(0);
+    expect(await dark(false)).toBeGreaterThan(1000);
+  }, 60_000);
+});
+
 describe('картинка «Поделиться» на самой мелкой клетке со стежками', () => {
   // законченная работа тем же шейдером, клетка SHARE_STITCHES_FROM точек: стиль ещё различим —
   // тот же разбор клеток, что у сценария (tools/e2e/share.ts)

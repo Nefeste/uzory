@@ -5,6 +5,7 @@ import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { type Camera, openCamera } from '../canvas/camera';
 import { FIELD } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
@@ -59,6 +60,10 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   const [taps, setTaps] = useState(0);
   // законченная нить секунду стоит на месте с ✓ (docs/specs/2026-09-canvas.md, «Полоса нитей»)
   const [justDone, setJustDone] = useState<number | null>(null);
+  // последний стежок: полоса нитей и «Где ещё?» гаснут, пока камера отходит ко всей работе
+  const [finishing, setFinishing] = useState(false);
+  const hud = useSharedValue(1);
+  const hudStyle = useAnimatedStyle(() => ({ opacity: hud.get() }));
   // работа экрана — та, с которой он открылся: новую корень запомнит (onStarted), а экран её не пересоздаст
   const [openId] = useState(workId);
   const sizeRef = useRef<{ w: number; h: number } | null>(null);
@@ -138,10 +143,13 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
     if (s.state.left[thread] === 0 && justDone !== thread) {
       setJustDone(thread);
       setTimeout(() => setJustDone((j) => (j === thread ? null : j)), 1000);
-      // нить готова — тихий звон; картинка готова — свой звук
-      if (settings.sound) play(s.state.finished ? 'done' : 'thread');
+      // нить готова — тихий звон, и у последней нити тоже: звук «готово» и вибрация — на «Готово»,
+      // когда работа встаёт в рамку (разбор оформления 31.10.2026, Б5)
+      if (settings.sound) play('thread');
     }
     if (s.state.finished) {
+      setFinishing(true);
+      hud.set(withTiming(0, { duration: 300 }));
       api.current?.fit(800);
       void s.flush(true).then(() => setTimeout(() => onDone(s.id), 1200));
       return;
@@ -238,7 +246,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
               onCamera={() => act('camera')}
             />
           ) : <ActivityIndicator style={styles.msg} color={theme.accent} />}
-        {shown ? (
+        {shown && !finishing ? (
           <View style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
             testID={line ? 'hint' : `hint-${hint}`}>
             <Txt style={styles.lineText}>{shown.text}</Txt>
@@ -274,14 +282,14 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.bar}>
+      <Animated.View style={[styles.bar, hudStyle, finishing && styles.off]}>
         <Button small kind="secondary" label={`${T.stitch.where} ${left}`} onPress={where} testID="where" style={styles.where} />
         {session ? (
           <ThreadBar threads={pattern.threads} left={session.state.left} selected={selected} stay={justDone}
             onSelect={(t) => { setSelected(t); setLine(null); }}
             onLong={(t) => setLine({ text: T.stitch.threadName(t + 1, pattern.threads[t].name) })} />
         ) : null}
-      </View>
+      </Animated.View>
     </Screen>
   );
 }
@@ -297,6 +305,7 @@ const styles = StyleSheet.create({
   lineText: { flex: 1, fontSize: 15 },
   // строка без кнопки не мешает вышивать клетки под ней
   through: { pointerEvents: 'none' },
+  off: { pointerEvents: 'none' },
   backdrop: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 20, 24, 0.25)' },
   panel: { position: 'absolute', top: 8, right: 8, width: 260, maxWidth: '92%', borderWidth: 1, borderRadius: 8, padding: 12, gap: 8 },
   aboutPanel: { left: 8, width: undefined, maxWidth: 520, bottom: 8 },

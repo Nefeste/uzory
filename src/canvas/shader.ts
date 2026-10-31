@@ -40,18 +40,20 @@ export interface Uniforms {
   vhy: number;
   /** 1 — тёмная тема: поле за краем узора уходит в тень, виньетка сильнее */
   dark: number;
+  /** 1 — невышитое без номеров, бледным следом нити по канве: повтор «Как вышивалось» на «Готово» */
+  ghost: number;
 }
 
 export function uniformList(u: Uniforms): number[] {
   'worklet';
   return [
     u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT,
-    u.vx, u.vy, u.vhx, u.vhy, u.dark,
+    u.vx, u.vy, u.vhx, u.vhy, u.dark, u.ghost,
   ];
 }
 
 /** Без виньетки и в светлой теме: мини-карта, картинка «Поделиться», кадры тестов. */
-export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0 } as const;
+export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0 } as const;
 
 /**
  * Поле за краем узора вдали от него — ровным цветом: фон контейнера канвы до первого кадра и путь
@@ -85,6 +87,9 @@ export const FIELD = { light: '#e2dfd6', dark: '#494845' } as const;
  * Сцена: за краем узора — та же канва, темнее (FIELD_LIGHT); в тёмной теме она за 160 точек от узора
  * уходит в тень (FIELD_DARK), и узор лежит как под лампой. Углы экрана темнее — виньетка, у канвы с
  * кистью (`view`); она темнит клетку до выбора цвета номера, поэтому контраст держится и в углах.
+ *
+ * Повтор «Как вышивалось» (`ghost`): невышитое — без номеров, бледным серым следом нити по канве, как
+ * издалека: повтор — ускоренная вышивка, а не схема (разбор оформления 31.10.2026, Б4).
  */
 export const SKSL = `
 uniform shader cells;
@@ -102,6 +107,7 @@ uniform float4 pulse;
 uniform float pulseT;
 uniform float4 view;
 uniform float dark;
+uniform float ghost;
 
 const half3 CLOTH = half3(0.953, 0.941, 0.902);
 const half3 HOLE = half3(0.600, 0.576, 0.518);
@@ -299,6 +305,10 @@ half4 main(float2 p) {
     }
   }
   o *= half(vig);
+  if (!done && ghost > 0.5) {
+    // replay: the cell to come is a faint grey print on the canva, as from afar, without its number
+    return half4(mix(o, half3(pow(luma(col), 0.4545)), 0.3), 1.0);
+  }
   if (!done) {
     half a = number(f, idx + 1.0, sel ? 1.0 : 0.0);
     half l = wcag(o);

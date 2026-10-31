@@ -688,6 +688,10 @@ try {
   await page.getByTestId('replay').click();
   await page.waitForTimeout(3000);
   await page.screenshot({ path: join(OUT, '04-replay.png') });
+  // повтор — ускоренная вышивка, а не схема (разбор оформления 31.10.2026): под рамкой полоса и счётчик
+  const counting = (await page.getByTestId('replay-count').innerText().catch(() => '')).replace(/\u00a0/g, '');
+  check(new RegExp(`^\\d+ из ${firstStitches}$`).test(counting) && await page.getByTestId('replay-bar').isVisible(),
+    `«Как вышивалось»: под рамкой полоса и счётчик стежков («${counting}»)`);
   await page.getByTestId('skip').click().catch(() => {});
   await page.getByTestId('next').click();
   await page.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});

@@ -86,6 +86,8 @@ interface Props {
   viewOnly?: boolean;
   /** тёмная тема: поле за краем узора уходит в тень, виньетка сильнее, мини-карта — цветами темы */
   dark?: boolean;
+  /** невышитое без номеров, бледным следом: повтор «Как вышивалось» */
+  ghost?: boolean;
   /** где открыть: камера из прошлого раза или «весь узор» */
   initial?: Camera | 'fit' | 'open';
   apiRef: { current: CanvasApi | null };
@@ -160,7 +162,7 @@ function shaderPicture(
   effect: SkRuntimeEffect, cells: SkImage, pal: SkShader, dig: SkShader, w: number, h: number,
   s: number, tx: number, ty: number, vw: number, vh: number, dpr: number,
   selected: number, mosaic: boolean, hatch: boolean, pulse: number[], pulseT: number, map: MapRect | null,
-  dark: boolean, scene: boolean,
+  dark: boolean, scene: boolean, ghost: boolean,
 ): SkPicture {
   'worklet';
   // сцена (разбор оформления 31.10.2026): виньетка по экрану — только у канвы с кистью, не на «Готово»
@@ -169,6 +171,7 @@ function shaderPicture(
     mosaic: mosaic ? 1 : 0, hatch: hatch ? 1 : 0, gap: 0.5 / s,
     px0: pulse[0], py0: pulse[1], px1: pulse[2], py1: pulse[3], pulseT,
     vx: (vw / 2 - tx) / s, vy: (vh / 2 - ty) / s, vhx: scene ? vw / 2 / s : 0, vhy: vh / 2 / s, dark: dark ? 1 : 0,
+    ghost: ghost ? 1 : 0,
   });
   const m = Skia.Matrix();
   m.translate(tx, ty);
@@ -193,7 +196,7 @@ function shaderPicture(
     mm.scale(map.k, map.k);
     const mapShader = effect.makeShaderWithChildren(uniformList({
       w, h, gw: GLYPH_W, gh: GLYPH_H, cellPx: map.k * dpr, near: 0, selected, mosaic: 0, hatch: 0, gap: 0,
-      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0,
+      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0,
     }), [cellShader, pal, dig], mm);
     const mp = Skia.Paint();
     mp.setShader(mapShader);
@@ -334,6 +337,7 @@ export function StitchCanvas(props: Props) {
   const path: RenderPath = props.path ?? 'shader';
   const viewOnly = !!props.viewOnly;
   const dark = !!props.dark;
+  const ghost = !!props.ghost;
 
   const res = useMemo(() => {
     const effect = Skia.RuntimeEffect.Make(SKSL);
@@ -467,7 +471,7 @@ export function StitchCanvas(props: Props) {
       const ps = pulseStart.get();
       const pt = ps < 0 ? -1 : (clock.get() - ps) / 1000;
       pic = shaderPicture(res.effect, cells!, res.pal, res.dig, w, h, cam.s, cam.tx, cam.ty, vw, vh, dpr,
-        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly);
+        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly, ghost);
     }
     if (phase.get() >= 0) probe.get().build.push(nowMs() - t0);
     return pic;
