@@ -3,7 +3,8 @@
 // «Библиотека», «Мои работы», «Календарь»; настройки в углу. В сборках 0.x внизу — проверки
 // для владельца: «Лист узоров», «Свой узор» (в вебе), «Замер», «Файл работы».
 import { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
@@ -13,6 +14,7 @@ import { useNet } from '../state/net';
 import { PHOTO_PICK } from '../state/photo';
 import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
+import { hideSplash } from '../state/splash';
 import { loadIndex, type WorkEntry, workStitched } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
 import { APP_BUILD, APP_VERSION, INTERNAL } from '../version';
@@ -92,6 +94,10 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   const label = work?.finished ? T.home.doneMark : work ? T.home.continue(percentOf(work)) : T.home.stitch;
   // пока не прочитаны игрок и работы, карточки нет: иначе мелькнула бы первая картинка у того, кто её вышил
   const ready = loaded && works !== null;
+  // главная готова целиком — заставка уходит, и всё появляется разом, а не собирается на глазах (Б2)
+  useEffect(() => {
+    if (ready) hideSplash();
+  }, [ready]);
 
   return (
     <Screen>
@@ -103,7 +109,9 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
         {ready && pic && pattern ? (
           <Card style={styles.daily} testID="home-daily">
             <View style={[styles.imgBox, { backgroundColor: theme.surfaceAlt }]}>
-              {preview?.key === previewKey && preview.uri ? <Image source={{ uri: preview.uri }} style={styles.img} resizeMode="contain" /> : null}
+              {preview?.key === previewKey && preview.uri
+                ? <Animated.Image entering={FadeIn.duration(200)} source={{ uri: preview.uri }} style={styles.img} resizeMode="contain" />
+                : null}
             </View>
             <View style={styles.dailyText}>
               {/* у первой картинки название и так «Первая картинка» */}
@@ -121,47 +129,51 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
             </View>
           </Card>
         ) : null}
-        {netLine ? <Txt dim style={styles.note} testID="home-net">{netLine}</Txt> : null}
-        {last && lastPic ? (
-          <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))} lines={2}
-            onPress={() => onStitch(lastPic, last.id)} testID="continue" />
-        ) : null}
-        <View style={styles.nav}>
-          <Button kind="secondary" label={T.home.library} onPress={onLibrary} testID="home-library" />
-          <Button kind="secondary" label={T.home.works} onPress={onWorks} testID="home-works" />
-          <Button kind="secondary" label={T.home.calendar} onPress={onCalendar} testID="home-calendar" />
-        </View>
-        {CHECKS ? (
-          <View style={styles.checks}>
-            <Txt dim bold style={styles.kicker}>{T.home.check}</Txt>
-            <Txt dim style={styles.note}>{T.home.checkNote}</Txt>
-            {PHOTO_PICK ? (
-              <Card onPress={onMine} testID="home-mine">
-                <Txt bold style={styles.h3}>{T.home.mine}</Txt>
-                <Txt dim>{T.home.mineNote}</Txt>
-              </Card>
+        {ready ? (
+          <>
+            {netLine ? <Txt dim style={styles.note} testID="home-net">{netLine}</Txt> : null}
+            {last && lastPic ? (
+              <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))} lines={2}
+                onPress={() => onStitch(lastPic, last.id)} testID="continue" />
             ) : null}
-            <Card onPress={onSheet} testID="home-sheet">
-              <Txt bold style={styles.h3}>{T.home.sheet}</Txt>
-              <Txt dim>{T.home.sheetNote}</Txt>
-            </Card>
-            <Card onPress={onBench} testID="home-bench">
-              <Txt bold style={styles.h3}>{T.home.bench}</Txt>
-              <Txt dim>{T.home.benchNote}</Txt>
-            </Card>
-            <Card onPress={onScrollBench} testID="home-scroll-bench">
-              <Txt bold style={styles.h3}>{T.home.scrollBench}</Txt>
-              <Txt dim>{T.home.scrollBenchNote}</Txt>
-            </Card>
-            <Card onPress={onFile} testID="home-file">
-              <Txt bold style={styles.h3}>{T.home.file}</Txt>
-              <Txt dim>{T.home.fileNote}</Txt>
-            </Card>
-            <Card onPress={onPlusSample} testID="home-plus">
-              <Txt bold style={styles.h3}>{T.home.plusSample}</Txt>
-              <Txt dim>{T.home.plusSampleNote}</Txt>
-            </Card>
-          </View>
+            <View style={styles.nav}>
+              <Button kind="secondary" label={T.home.library} onPress={onLibrary} testID="home-library" />
+              <Button kind="secondary" label={T.home.works} onPress={onWorks} testID="home-works" />
+              <Button kind="secondary" label={T.home.calendar} onPress={onCalendar} testID="home-calendar" />
+            </View>
+            {CHECKS ? (
+              <View style={styles.checks}>
+                <Txt dim bold style={styles.kicker}>{T.home.check}</Txt>
+                <Txt dim style={styles.note}>{T.home.checkNote}</Txt>
+                {PHOTO_PICK ? (
+                  <Card onPress={onMine} testID="home-mine">
+                    <Txt bold style={styles.h3}>{T.home.mine}</Txt>
+                    <Txt dim>{T.home.mineNote}</Txt>
+                  </Card>
+                ) : null}
+                <Card onPress={onSheet} testID="home-sheet">
+                  <Txt bold style={styles.h3}>{T.home.sheet}</Txt>
+                  <Txt dim>{T.home.sheetNote}</Txt>
+                </Card>
+                <Card onPress={onBench} testID="home-bench">
+                  <Txt bold style={styles.h3}>{T.home.bench}</Txt>
+                  <Txt dim>{T.home.benchNote}</Txt>
+                </Card>
+                <Card onPress={onScrollBench} testID="home-scroll-bench">
+                  <Txt bold style={styles.h3}>{T.home.scrollBench}</Txt>
+                  <Txt dim>{T.home.scrollBenchNote}</Txt>
+                </Card>
+                <Card onPress={onFile} testID="home-file">
+                  <Txt bold style={styles.h3}>{T.home.file}</Txt>
+                  <Txt dim>{T.home.fileNote}</Txt>
+                </Card>
+                <Card onPress={onPlusSample} testID="home-plus">
+                  <Txt bold style={styles.h3}>{T.home.plusSample}</Txt>
+                  <Txt dim>{T.home.plusSampleNote}</Txt>
+                </Card>
+              </View>
+            ) : null}
+          </>
         ) : null}
         <Txt dim style={styles.version}>{T.common.version(APP_VERSION, APP_BUILD)}</Txt>
       </ScrollView>

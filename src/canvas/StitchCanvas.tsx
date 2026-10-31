@@ -22,7 +22,8 @@ import {
   OPEN_BIG_DP, OPEN_DP, viewFit, wheelFactor, zoomAround,
 } from './camera';
 import { DARK, LIGHT } from '../ui/theme';
-import { FIELD, SKSL, uniformList } from './shader';
+import { canvasEffect } from './effect';
+import { FIELD, uniformList } from './shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from './textures';
 import { traverse } from './traverse';
 
@@ -357,7 +358,7 @@ export function StitchCanvas(props: Props) {
   const ghost = !!props.ghost;
 
   const res = useMemo(() => {
-    const effect = Skia.RuntimeEffect.Make(SKSL);
+    const effect = canvasEffect();
     const pal = paletteImage(p);
     const digits = digitAtlas(font);
     if (!effect || !pal || !digits) throw new Error('canvas: shader or textures failed');

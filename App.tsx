@@ -3,9 +3,10 @@
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, View } from 'react-native';
+import { BackHandler, Image, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { warmCanvas } from './src/canvas/effect';
 import type { CollectionId } from './src/engine/library';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
@@ -16,6 +17,7 @@ import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
 import { PlusProvider } from './src/state/plus';
 import { installSessions } from './src/state/sessions';
+import { keepSplash } from './src/state/splash';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
@@ -40,6 +42,8 @@ import { whoMade } from './src/ui/PicAbout';
 
 installCrashHandlers();
 installSessions();
+// заставка держится, пока главная не готова целиком (src/state/splash.ts)
+keepSplash();
 
 type Route =
   | { name: 'home' }
@@ -82,6 +86,13 @@ function Root() {
   const plus = () => go({ name: 'plus', sample: !billing.available });
   /** Поменять данные экрана на вершине, не пересоздавая его. */
   const patch = (k: number, p: Partial<Route>) => setStack((s) => s.map((e) => (e.k === k ? ({ ...e, ...p } as Entry) : e)));
+
+  // шейдер канвы прогревается невидимым кадром вскоре после первого экрана, а не на открытии работы
+  // (docs/02-architecture.md, «Канва»; src/canvas/effect.ts)
+  useEffect(() => {
+    const t = setTimeout(warmCanvas, 300);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -226,9 +237,21 @@ function Gate() {
   return useNetReady() ? <Root /> : <Splash />;
 }
 
+/**
+ * Пока грузятся шрифты и наборы — та же картинка, что на нативной заставке (в вебе нативной нет): «Узоры» и
+ * кайма рушника на поле темы.
+ */
 function Splash() {
-  return <View style={{ flex: 1, backgroundColor: '#ECEDE6', justifyContent: 'center' }}><ActivityIndicator color="#B3162F" /></View>;
+  const { theme } = useSettings();
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }} testID="splash">
+      <Image source={theme.dark ? SPLASH_DARK : SPLASH_LIGHT} style={{ width: 288, height: 288 }} accessibilityIgnoresInvertColors />
+    </View>
+  );
 }
+
+const SPLASH_LIGHT = require('./assets/splash-icon.png');
+const SPLASH_DARK = require('./assets/splash-icon-dark.png');
 
 export default function App() {
   const [fonts] = useFonts(FONT_FILES);
