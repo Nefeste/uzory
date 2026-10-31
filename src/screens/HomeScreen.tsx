@@ -70,9 +70,10 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   const pic = !firstDone || !dailyId ? first : pictureById(dailyId) ?? first;
   const isFirst = pic?.id === FIRST_PICTURE;
   const pattern = pic ? patternOf(pic) : null;
-  const work = pic && works ? works.find((w) => w.pattern === keyOf(pic)) : undefined;
+  // незаконченная «тайна» на карточке дня не показывается: иначе выдала бы себя (issue 117)
+  const work = pic && works ? works.find((w) => w.pattern === keyOf(pic) && (!w.mystery || !!w.finished)) : undefined;
   // последняя открытая работа, кроме той, что уже на карточке
-  const last = works?.find((w) => !w.finished && (!pic || w.pattern !== keyOf(pic)) && patternByKey(w.pattern));
+  const last = works?.find((w) => !w.finished && (!pic || w.pattern !== keyOf(pic) || w.mystery) && patternByKey(w.pattern));
   const lastPic = last ? patternByKey(last.pattern)?.pic : undefined;
 
   // превью — приглушённым цветом, пока не начата; начатая — полным цветом там, где вышито; готовая — целиком
@@ -133,7 +134,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
           <>
             {netLine ? <Txt dim style={styles.note} testID="home-net">{netLine}</Txt> : null}
             {last && lastPic ? (
-              <Button kind="secondary" label={T.home.last(lastPic.title, percentOf(last))} lines={2}
+              <Button kind="secondary" label={T.home.last(last.mystery ? T.mystery.title : lastPic.title, percentOf(last))} lines={2}
                 onPress={() => onStitch(lastPic, last.id)} testID="continue" />
             ) : null}
             <View style={styles.nav}>

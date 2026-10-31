@@ -36,11 +36,13 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onStarted, onSettings }: {
+export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, onBack, onDone, onStarted, onSettings }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
   workId?: string;
+  /** новая работа — «Тайна» (src/engine/mystery.ts); у открытой работы это знает её запись */
+  mystery?: boolean;
   /** картинка библиотеки — для «О картине»; у своего узора её нет */
   pic?: PackPicture;
   onBack: () => void;
@@ -76,7 +78,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   useEffect(() => {
     let alive = true;
     (async () => {
-      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now());
+      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now(), !!newMystery);
       if (!alive) return;
       if (!s) {
         setBroken(true);
@@ -229,7 +231,9 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
 
   const hintText = hint ? (Platform.OS === 'web' ? T.stitch.hintsMouse : T.stitch.hints)[hint] : null;
   const shown = line ?? (hintText ? { text: hintText } : null);
-  const about = !!pic && hasAbout(pic);
+  // «Тайна»: до последнего стежка ни названия, ни «О картине», ни мини-карты, ни силуэта издалека
+  const mystery = !!newMystery || !!session?.mystery;
+  const about = !mystery && !!pic && hasAbout(pic);
 
   const right = (
     <View style={styles.right}>
@@ -242,7 +246,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   );
 
   return (
-    <Screen title={title} onBack={onBack} wide right={right}>
+    <Screen title={mystery ? T.mystery.title : title} onBack={onBack} wide right={right}>
       <View style={[styles.canvas, { backgroundColor: theme.dark ? FIELD.dark : FIELD.light }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;
@@ -254,7 +258,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
               pattern={pattern} stitched={session.state.stitched} selected={selected}
               mosaic={settings.style === 'mosaic'} hatch={settings.highlight === 'hatch'}
               bigNumbers={settings.bigNumbers} fill={settings.fill} font={font}
-              width={size.w} height={size.h} apiRef={api} dark={theme.dark}
+              width={size.w} height={size.h} apiRef={api} dark={theme.dark} mystery={mystery}
               initial={openCamera(pattern.w, pattern.h, size.w, size.h, settings.bigNumbers, session.at)}
               onStroke={onStroke} onForeign={onForeign} onPick={onPick} onFill={onFill} onTick={tick}
               onCamera={() => act('camera')}

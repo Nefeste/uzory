@@ -24,7 +24,10 @@ export interface Catalog {
   /** коллекции по порядку 09-content.md, §1, — только непустые */
   collections: { id: CollectionId; pictures: PackPicture[] }[];
   works: WorkEntry[];
-  /** начатая работа картинки (последняя открытая), а если нет — последняя готовая */
+  /**
+   * начатая работа картинки (последняя открытая), а если нет — последняя готовая; незаконченной «тайны»
+   * здесь нет: процент на превью выдал бы, какая картинка ею выпала (issue 117)
+   */
   workOf: (p: PackPicture) => WorkEntry | undefined;
   /** вышита ли картинка хоть раз */
   done: (p: PackPicture) => boolean;
@@ -34,6 +37,8 @@ export interface Catalog {
   /** заперта ли картинка в этой сборке: без подписки её не вышить (src/state/plus.tsx, `useGate`) */
   locked: (p: PackPicture) => boolean;
   isNew: (p: PackPicture) => boolean;
+  /** сегодняшняя картинка дня */
+  dailyId: string | undefined;
   /** перечитать работы — после возврата с канвы или удаления */
   reload: () => void;
 }
@@ -74,7 +79,7 @@ export function useCatalog(): Catalog | null {
       hasWork: (id: string) => ids.has(id),
     };
     const workOf = (p: PackPicture) => {
-      const l = byKey.get(keyOf(p));
+      const l = byKey.get(keyOf(p))?.filter((w) => !w.mystery || w.finished);
       return l?.find((w) => !w.finished) ?? l?.[0];
     };
     const accessOf = (p: PackPicture) => access(p, ctx);
@@ -90,6 +95,7 @@ export function useCatalog(): Catalog | null {
       locked: (p) => gate && accessOf(p) === 'locked',
       // «Новое» — пришедшее после первого запуска: встроенный набор новым не бывает
       isNew: (p) => p.added > player.installed && daysBetween(p.added, today) < NEW_DAYS,
+      dailyId: calendar.on(today),
       reload: () => setTick((n) => n + 1),
     };
   }, [loaded, works, today, player.seen, player.installed, calendar, all, plus.open, gate]);

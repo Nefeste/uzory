@@ -1824,6 +1824,20 @@ try {
     await ctx.close();
   }
 
+  // «Тайна» (issue 117, А): в библиотеке — размер, и канва открывается без названия картинки; пока «тайна»
+  // не закончена, в библиотеке — «Продолжить тайну», на главной — «Тайна» вместо названия
+  await page.getByTestId('home-library').click();
+  await page.getByTestId('mystery-S').click({ timeout: 10_000 });
+  await page.getByTestId('canvas').waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(800);
+  const secretTitle = await page.getByText('Тайна', { exact: true }).first().isVisible().catch(() => false);
+  await page.getByTestId('back').click();
+  const goOn = await page.getByTestId('mystery-continue').innerText({ timeout: 10_000 }).catch(() => '');
+  await page.getByTestId('back').click();
+  const homeGoOn = await page.getByTestId('continue').innerText({ timeout: 10_000 }).catch(() => '');
+  check(secretTitle && goOn.startsWith('Продолжить тайну') && homeGoOn.includes('Тайна'),
+    `«Тайна»: канва — без названия картинки, в библиотеке «${goOn}», на главной «${homeGoOn}»`);
+
   // замер: канва рисуется, числа вживую
   await page.getByTestId('home-bench').click();
   await page.getByTestId('bench-canvas').waitFor();

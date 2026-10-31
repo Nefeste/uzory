@@ -23,6 +23,8 @@ export interface WorkEntry {
   minutes?: number;
   /** где вышивали в прошлый раз, в клетках */
   at?: { x: number; y: number };
+  /** «Тайна» (issue 117, А): до последнего стежка без названия, превью и силуэта (src/engine/mystery.ts) */
+  mystery?: true;
 }
 
 const INDEX = 'index.json';
@@ -60,6 +62,8 @@ export class WorkSession {
   private readonly log: WorkLog;
   finished: number | undefined;
   at: { x: number; y: number } | undefined;
+  /** «Тайна»: картинку не видно, пока она не вышита */
+  mystery = false;
   /** минуты со стежками; нет — работа начата до того, как их стали считать, и время на «Готово» не показывается */
   private time: StitchMinutes | undefined;
   /** не записано на диск */
@@ -123,6 +127,7 @@ export class WorkSession {
     const entry: WorkEntry = {
       id: this.id, pattern: this.pattern.key, started: this.started, finished: this.finished,
       done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at, minutes: this.time?.minutes,
+      ...(this.mystery ? { mystery: true as const } : {}),
     };
     this.writing = this.writing.then(async () => {
       try {
@@ -162,6 +167,7 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
       // файл без обрыва — начало нового: дальше к нему дописываются только новые штрихи
       const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished, entry?.minutes, f.truncated ? undefined : b);
       s.at = entry?.at;
+      s.mystery = !!entry?.mystery;
       return s;
     } catch (e) {
       logError('work', e, name);
@@ -176,8 +182,9 @@ export async function workStitched(pattern: Pattern, id: string): Promise<Uint8A
   return s ? s.state.stitched : null;
 }
 
-export async function startWork(pattern: Pattern, now: number): Promise<WorkSession> {
+export async function startWork(pattern: Pattern, now: number, mystery = false): Promise<WorkSession> {
   const s = new WorkSession(newWorkId(now), pattern, now, [], undefined, 0);
+  s.mystery = mystery;
   // пустая работа тоже записывается: «Продолжить» появляется сразу
   await s.flush(true);
   return s;

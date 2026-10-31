@@ -98,6 +98,30 @@ describe('повтор «Как вышивалось» — без номеров
   }, 60_000);
 });
 
+describe('«Тайна» издалека', () => {
+  // issue 117, А: бледный тон своей нити у невышитых клеток выдал бы силуэт картинки
+  test('невышитое — ровно цвет канвы, вышитое — цвет нити; без «тайны» невышитое — разными тонами', async () => {
+    const s = 6;
+    const look = (mystery: boolean) => renderFrame(p, stitched, { width: p.w * s, height: p.h * s, tx: 0, ty: 0, s, near: false, mystery });
+    const cloth = /const half3 CLOTH = half3\(([^)]*)\)/.exec(SKSL)![1].split(',').map((v) => Math.round(Number(v) * 255));
+    const tones = async (mystery: boolean) => {
+      const f = await look(mystery);
+      const seen = new Set<string>();
+      let off = 0;
+      for (let i = 0; i < p.cells.length; i++) {
+        if (stitched[i] || p.cells[i] === CANVAS) continue;
+        const o = ((Math.floor(i / p.w) * s + 3) * p.w * s + (i % p.w) * s + 3) * 4;
+        const got = [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
+        seen.add(got.join(','));
+        if (!got.every((v, k) => Math.abs(v - cloth[k]) <= 1)) off++;
+      }
+      return { tones: seen.size, off };
+    };
+    expect((await tones(true)).off).toBe(0);
+    expect((await tones(false)).tones).toBeGreaterThan(5);
+  });
+});
+
 describe('картинка «Поделиться» на самой мелкой клетке со стежками', () => {
   // законченная работа тем же шейдером, клетка SHARE_STITCHES_FROM точек: стиль ещё различим —
   // тот же разбор клеток, что у сценария (tools/e2e/share.ts)

@@ -48,7 +48,7 @@ keepSplash();
 
 type Route =
   | { name: 'home' }
-  | { name: 'stitch'; pic: PackPicture; workId?: string }
+  | { name: 'stitch'; pic: PackPicture; workId?: string; mystery?: boolean }
   | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
   | { name: 'mine' }
   /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
@@ -153,7 +153,7 @@ function Root() {
       screen = (
         <StitchScreen
           pattern={pattern} title={pic.title} workId={route.workId} onBack={back}
-          pic={pic}
+          pic={pic} mystery={route.mystery}
           onStarted={(workId) => patch(route.k, { workId })}
           onSettings={() => go({ name: 'settings' })}
           onDone={(workId) => {
@@ -198,7 +198,8 @@ function Root() {
       screen = <AboutScreen onBack={back} />;
       break;
     case 'library':
-      screen = <LibraryScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} onCollection={(id) => go({ name: 'collection', id })} />;
+      screen = <LibraryScreen onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} onCollection={(id) => go({ name: 'collection', id })}
+        onMystery={(pic, workId) => go({ name: 'stitch', pic, workId, mystery: true })} />;
       break;
     case 'collection':
       screen = <CollectionScreen id={route.id} onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;

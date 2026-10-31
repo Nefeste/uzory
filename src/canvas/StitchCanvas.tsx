@@ -89,6 +89,8 @@ interface Props {
   dark?: boolean;
   /** невышитое без номеров, бледным следом: повтор «Как вышивалось» */
   ghost?: boolean;
+  /** «Тайна»: без мини-карты, издалека невышитое — чистая канва */
+  mystery?: boolean;
   /** где открыть: камера из прошлого раза или «весь узор» */
   initial?: Camera | 'fit' | 'open';
   apiRef: { current: CanvasApi | null };
@@ -180,7 +182,7 @@ function shaderPicture(
   effect: SkRuntimeEffect, cells: SkImage, pal: SkShader, dig: SkShader, w: number, h: number,
   s: number, tx: number, ty: number, vw: number, vh: number, dpr: number,
   selected: number, mosaic: boolean, hatch: boolean, pulse: number[], pulseT: number, map: MapRect | null,
-  dark: boolean, scene: boolean, ghost: boolean,
+  dark: boolean, scene: boolean, ghost: boolean, mystery: boolean,
 ): SkPicture {
   'worklet';
   // сцена (разбор оформления 31.10.2026): виньетка по экрану — только у канвы с кистью, не на «Готово»
@@ -189,7 +191,7 @@ function shaderPicture(
     mosaic: mosaic ? 1 : 0, hatch: hatch ? 1 : 0, gap: 0.5 / s,
     px0: pulse[0], py0: pulse[1], px1: pulse[2], py1: pulse[3], pulseT,
     vx: (vw / 2 - tx) / s, vy: (vh / 2 - ty) / s, vhx: scene ? vw / 2 / s : 0, vhy: vh / 2 / s, dark: dark ? 1 : 0,
-    ghost: ghost ? 1 : 0,
+    ghost: ghost ? 1 : 0, mystery: mystery ? 1 : 0,
   });
   const m = Skia.Matrix();
   m.translate(tx, ty);
@@ -214,7 +216,7 @@ function shaderPicture(
     mm.scale(map.k, map.k);
     const mapShader = effect.makeShaderWithChildren(uniformList({
       w, h, gw: GLYPH_W, gh: GLYPH_H, cellPx: map.k * dpr, near: 0, selected, mosaic: 0, hatch: 0, gap: 0,
-      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0,
+      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0, mystery: 0,
     }), [cellShader, pal, dig], mm);
     const mp = Skia.Paint();
     mp.setShader(mapShader);
@@ -356,6 +358,7 @@ export function StitchCanvas(props: Props) {
   const viewOnly = !!props.viewOnly;
   const dark = !!props.dark;
   const ghost = !!props.ghost;
+  const mystery = !!props.mystery;
 
   const res = useMemo(() => {
     const effect = canvasEffect();
@@ -493,7 +496,7 @@ export function StitchCanvas(props: Props) {
       const ps = pulseStart.get();
       const pt = ps < 0 ? -1 : (clock.get() - ps) / 1000;
       pic = shaderPicture(res.effect, cells!, res.pal, res.dig, w, h, cam.s, cam.tx, cam.ty, vw, vh, dpr,
-        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly, ghost);
+        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly || mystery ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly, ghost, mystery);
     }
     if (phase.get() >= 0) probe.get().build.push(nowMs() - t0);
     return pic;
@@ -590,8 +593,8 @@ export function StitchCanvas(props: Props) {
       const t = nowMs();
       const k = s.get();
       b.active = true;
-      // мини-карта: касание — туда, палец по ней ведёт камеру
-      const map = viewOnly ? null : mapRect(w, h, vw, vh, k);
+      // мини-карта: касание — туда, палец по ней ведёт камеру; у «тайны» её нет
+      const map = viewOnly || mystery ? null : mapRect(w, h, vw, vh, k);
       b.map = inMap(map, e.x, e.y);
       if (b.map && map) {
         b.far = false;
