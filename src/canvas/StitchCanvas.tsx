@@ -21,7 +21,8 @@ import {
   type Camera, clampScale, clampX, clampY, fitScale, inMap, MAP_FRAME, MAP_PAD, mapJump, type MapRect, mapRect, MAX_DP, NUMBERS_DP,
   OPEN_BIG_DP, OPEN_DP, viewFit, wheelFactor, zoomAround,
 } from './camera';
-import { SKSL, uniformList } from './shader';
+import { DARK, LIGHT } from '../ui/theme';
+import { FIELD, SKSL, uniformList } from './shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from './textures';
 import { traverse } from './traverse';
 
@@ -83,6 +84,8 @@ interface Props {
   opaque?: boolean;
   /** без кисти: только камера («Готово», повтор) */
   viewOnly?: boolean;
+  /** тёмная тема: поле за краем узора уходит в тень, виньетка сильнее, мини-карта — цветами темы */
+  dark?: boolean;
   /** где открыть: камера из прошлого раза или «весь узор» */
   initial?: Camera | 'fit' | 'open';
   apiRef: { current: CanvasApi | null };
@@ -157,12 +160,15 @@ function shaderPicture(
   effect: SkRuntimeEffect, cells: SkImage, pal: SkShader, dig: SkShader, w: number, h: number,
   s: number, tx: number, ty: number, vw: number, vh: number, dpr: number,
   selected: number, mosaic: boolean, hatch: boolean, pulse: number[], pulseT: number, map: MapRect | null,
+  dark: boolean, scene: boolean,
 ): SkPicture {
   'worklet';
+  // сцена (разбор оформления 31.10.2026): виньетка по экрану — только у канвы с кистью, не на «Готово»
   const uniforms = uniformList({
     w, h, gw: GLYPH_W, gh: GLYPH_H, cellPx: s * dpr, near: s >= NUMBERS_DP ? 1 : 0, selected,
     mosaic: mosaic ? 1 : 0, hatch: hatch ? 1 : 0, gap: 0.5 / s,
     px0: pulse[0], py0: pulse[1], px1: pulse[2], py1: pulse[3], pulseT,
+    vx: (vw / 2 - tx) / s, vy: (vh / 2 - ty) / s, vhx: scene ? vw / 2 / s : 0, vhy: vh / 2 / s, dark: dark ? 1 : 0,
   });
   const m = Skia.Matrix();
   m.translate(tx, ty);
@@ -178,21 +184,22 @@ function shaderPicture(
   if (map) {
     // мини-карта: вся картинка издалека тем же шейдером и рамка того, что сейчас на экране
     const box = Skia.RRectXY(Skia.XYWHRect(map.x - MAP_PAD, map.y - MAP_PAD, map.w + 2 * MAP_PAD, map.h + 2 * MAP_PAD), 4, 4);
+    const theme = dark ? DARK : LIGHT;
     const bg = Skia.Paint();
-    bg.setColor(Skia.Color('#f7f7f2'));
+    bg.setColor(Skia.Color(theme.surface));
     canvas.drawRRect(box, bg);
     const mm = Skia.Matrix();
     mm.translate(map.x, map.y);
     mm.scale(map.k, map.k);
     const mapShader = effect.makeShaderWithChildren(uniformList({
       w, h, gw: GLYPH_W, gh: GLYPH_H, cellPx: map.k * dpr, near: 0, selected, mosaic: 0, hatch: 0, gap: 0,
-      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1,
+      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0,
     }), [cellShader, pal, dig], mm);
     const mp = Skia.Paint();
     mp.setShader(mapShader);
     canvas.drawRect(Skia.XYWHRect(map.x, map.y, map.w, map.h), mp);
     const edge = Skia.Paint();
-    edge.setColor(Skia.Color('#cfd1c6'));
+    edge.setColor(Skia.Color(theme.border));
     edge.setStyle(1);
     edge.setStrokeWidth(1);
     canvas.drawRRect(box, edge);
@@ -212,7 +219,7 @@ function shaderPicture(
       y1 = c + MAP_FRAME / 2;
     }
     const frame = Skia.Paint();
-    frame.setColor(Skia.Color('#b3162f'));
+    frame.setColor(Skia.Color(theme.accent));
     frame.setStyle(1);
     frame.setStrokeWidth(1.5);
     canvas.drawRect(Skia.XYWHRect(x0, y0, x1 - x0, y1 - y0), frame);
@@ -223,14 +230,14 @@ function shaderPicture(
 /** Путь Б — «слои»: цвета картинкой без сглаживания, сетка путём, цифры атласом. */
 function layersPicture(
   colors: SkImage, digits: SkImage, bytes: Uint8Array, w: number, h: number,
-  s: number, tx: number, ty: number, vw: number, vh: number,
+  s: number, tx: number, ty: number, vw: number, vh: number, dark: boolean,
 ): SkPicture {
   'worklet';
   const rec = Skia.PictureRecorder();
   const view = Skia.XYWHRect(0, 0, vw, vh);
   const canvas = rec.beginRecording(view);
   const bg = Skia.Paint();
-  bg.setColor(Skia.Color('#e2e3da'));
+  bg.setColor(Skia.Color(dark ? FIELD.dark : FIELD.light));
   canvas.drawRect(view, bg);
   canvas.drawImageRectOptions(colors, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(tx, ty, w * s, h * s), FilterMode.Nearest, MipmapMode.None, null);
   if (s >= NUMBERS_DP) {
@@ -326,6 +333,7 @@ export function StitchCanvas(props: Props) {
   const dpr = PixelRatio.get();
   const path: RenderPath = props.path ?? 'shader';
   const viewOnly = !!props.viewOnly;
+  const dark = !!props.dark;
 
   const res = useMemo(() => {
     const effect = Skia.RuntimeEffect.Make(SKSL);
@@ -452,14 +460,14 @@ export function StitchCanvas(props: Props) {
         const rec = Skia.PictureRecorder();
         rec.beginRecording(Skia.XYWHRect(0, 0, vw, vh));
         pic = rec.finishRecordingAsPicture();
-      } else pic = layersPicture(c, res.digits, bytes.get(), w, h, cam.s, cam.tx, cam.ty, vw, vh);
+      } else pic = layersPicture(c, res.digits, bytes.get(), w, h, cam.s, cam.tx, cam.ty, vw, vh, dark);
       // зависимость от клеток — через картинку цветов
     } else {
       const cells = img.get();
       const ps = pulseStart.get();
       const pt = ps < 0 ? -1 : (clock.get() - ps) / 1000;
       pic = shaderPicture(res.effect, cells!, res.pal, res.dig, w, h, cam.s, cam.tx, cam.ty, vw, vh, dpr,
-        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly ? null : mapRect(w, h, vw, vh, cam.s));
+        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly);
     }
     if (phase.get() >= 0) probe.get().build.push(nowMs() - t0);
     return pic;

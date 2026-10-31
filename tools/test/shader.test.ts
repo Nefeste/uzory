@@ -1,6 +1,7 @@
 // Золотые кадры канвы (docs/06-testing.md, «Канва»): шейдер собирается, и цвет в центре
 // каждой вышитой клетки — ровно цвет нити, во всех стилях и масштабах.
 import { describe, expect, test } from 'bun:test';
+import { FIELD, SKSL } from '../../src/canvas/shader';
 import { labToLch, linear, linearToLab } from '../../src/engine/color';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { rng } from '../../src/engine/seed';
@@ -68,15 +69,23 @@ describe('картинка «Поделиться» на самой мелкой
   });
 });
 
-describe('крестик на мелкой клетке не бледнит нить', () => {
+describe('крестик закрывает клетку и не бледнит нить', () => {
   // Картинку «Поделиться» смотрят целиком, и глаз смешивает клетку в один цвет. До 14.10.2026 светлая
   // канва между стежками оставляла от насыщенности нити 30–60 %, а тёмная нить светлела до серой: работа
-  // выходила бледной и в сетку. Теперь мельче 44 точек крестик плотнее, а канва между стежками — в тени нити.
+  // выходила бледной и в сетку. Тогда мельче 44 точек крестик стал плотнее, а канва между стежками — в тени
+  // нити. С 31.10.2026 (разбор оформления: «решётка из белых ромбов») плотный крестик — на любом масштабе:
+  // плечи почти до углов и шириной в половину клетки, канва видна только узкими щелями у середин сторон, в
+  // тени плеч.
   const colors = [0xc8102e, 0x2e4a1e, 0x6f8f3a, 0x7aa6d9, 0xe8b4b8];
   const strip: Pattern = { key: 'strip@1', w: colors.length, h: 1, threads: colors.map((rgb, i) => ({ rgb, name: `n${i}` })), cells: Uint8Array.from(colors, (_, i) => i) };
   const all = Uint8Array.from(colors, () => 1);
   const frame = (s: number) => renderFrame(strip, all, { width: strip.w * s, height: s, tx: 0, ty: 0, s, near: true });
-  const lch = (rgb: number) => labToLch(linearToLab(linear((rgb >> 16) & 255), linear((rgb >> 8) & 255), linear(rgb & 255)));
+  const lchOf = (c: number[]) => labToLch(linearToLab(linear(c[0]), linear(c[1]), linear(c[2])));
+  const lch = (rgb: number) => lchOf([(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255]);
+  const pixel = (f: Awaited<ReturnType<typeof frame>>, s: number) => (x: number, y: number) => {
+    const o = (Math.floor(y) * strip.w * s + Math.floor(x)) * 4;
+    return [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
+  };
 
   test('клетка 22 точки (узор в 70 клеток): средний цвет клетки — почти цвет нити', async () => {
     const s = 22;
@@ -103,20 +112,92 @@ describe('крестик на мелкой клетке не бледнит ни
     expect(bad).toEqual([]);
   });
 
-  test('клетка 44 точки и крупнее — как вблизи: у середины стороны канва, в середине нить', async () => {
-    const s = 44;
-    const f = await frame(s);
-    const px = (x: number, y: number) => {
-      const o = (Math.floor(y) * strip.w * s + Math.floor(x)) * 4;
-      return [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
-    };
-    const cloth = [243, 240, 230];
+  test('клетка 44 точки и крупнее: у края стороны — канва в тени плеч, в середине — нить', async () => {
+    for (const s of [44, 74]) {
+      const px = pixel(await frame(s), s);
+      const cloth = lchOf([243, 240, 230]);
+      colors.forEach((rgb, i) => {
+        const want = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+        // канва: светлая и почти без цвета, но темнее открытой — в тени плеч
+        const edge = lchOf(px((i + 0.5) * s, 0.04 * s));
+        expect(edge[1]).toBeLessThanOrEqual(0.03);
+        expect(edge[0]).toBeGreaterThanOrEqual(0.7);
+        expect(edge[0]).toBeLessThanOrEqual(cloth[0] - 0.05);
+        const mid = px((i + 0.5) * s, 0.5 * s);
+        expect(Math.hypot(...mid.map((v, k) => v - want[k]))).toBeLessThanOrEqual(36);
+      });
+    }
+  });
+
+  test('рабочий масштаб (клетка 74 точки): нить закрывает не меньше 85 % клетки', async () => {
+    // до 31.10.2026 — около 72 %: между плечами светлые ромбы канвы
+    const s = 74;
+    const px = pixel(await frame(s), s);
     colors.forEach((rgb, i) => {
-      const want = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
-      const edge = px((i + 0.5) * s, 0.12 * s);
-      const mid = px((i + 0.5) * s, 0.5 * s);
-      expect(Math.hypot(...edge.map((v, k) => v - cloth[k]))).toBeLessThanOrEqual(24);
-      expect(Math.hypot(...mid.map((v, k) => v - want[k]))).toBeLessThanOrEqual(36);
+      const want = lch(rgb);
+      let n = 0;
+      for (let y = 0; y < s; y++) {
+        for (let x = i * s; x < (i + 1) * s; x++) {
+          // точка нити — того же оттенка, хоть в тени, хоть в блике
+          const c = lchOf(px(x, y));
+          const hue = Math.abs(((c[2] - want[2] + 540) % 360) - 180);
+          if (c[1] > 0.4 * want[1] && hue < 25) n++;
+        }
+      }
+      expect(n / (s * s), rgb.toString(16)).toBeGreaterThanOrEqual(0.85);
     });
+  });
+
+  test('свет сверху слева: у верхнего стежка сторона к свету светлее', async () => {
+    // верхний стежок — из правого верхнего угла в левый нижний; точки поперёк него, по обе стороны от середины
+    const s = 74;
+    const px = pixel(await frame(s), s);
+    colors.forEach((rgb, i) => {
+      const k = 0.14 * s * Math.SQRT1_2;
+      const lit = lchOf(px((i + 0.5) * s - k, 0.5 * s - k));
+      const dark = lchOf(px((i + 0.5) * s + k, 0.5 * s + k));
+      expect(lit[0] - dark[0], rgb.toString(16)).toBeGreaterThan(0.04);
+    });
+  });
+});
+
+describe('сцена: поле за краем узора и виньетка', () => {
+  // разбор оформления 31.10.2026: узор — не прямоугольник в пустом сером поле. За краем — та же канва,
+  // темнее; в тёмной теме она уходит в тень за 160 точек от узора. Углы экрана темнее — виньетка.
+  const s = 10;
+  const width = 360;
+  const height = 640;
+  const tx = (width - p.w * s) / 2;
+  const ty = (height - p.h * s) / 2;
+  const look = (dark: boolean, scene: boolean) => renderFrame(p, stitched, { width, height, s, tx, ty, near: true, scene, dark });
+  const at = (f: Awaited<ReturnType<typeof look>>, x: number, y: number) => {
+    const o = (Math.floor(y) * width + Math.floor(x)) * 4;
+    return labToLch(linearToLab(linear(f.pixels[o]), linear(f.pixels[o + 1]), linear(f.pixels[o + 2])))[0];
+  };
+
+  test('FIELD — цвет поля из шейдера: CLOTH × FIELD_LIGHT и × FIELD_DARK', () => {
+    const num = (name: string) => Number(new RegExp(`const float ${name} = ([\\d.]+);`).exec(SKSL)?.[1]);
+    const cloth = /const half3 CLOTH = half3\(([^)]*)\)/.exec(SKSL)![1].split(',').map(Number);
+    const hex = (k: number) => `#${cloth.map((c) => Math.round(c * k * 255).toString(16).padStart(2, '0')).join('')}`;
+    expect<string[]>([FIELD.light, FIELD.dark]).toEqual([hex(num('FIELD_LIGHT')), hex(num('FIELD_DARK'))]);
+  });
+
+  test('светлая тема: за краем — канва, темнее узора; тёмная: у края светло, вдали — тень', async () => {
+    const light = await look(false, true);
+    const dark = await look(true, true);
+    // у верхнего края узора, посередине, и у верха экрана
+    const near = [width / 2, ty - 4] as const;
+    const far = [width / 2, 8] as const;
+    expect(at(light, ...near)).toBeGreaterThan(0.85);
+    expect(at(light, ...far)).toBeGreaterThan(0.8);
+    expect(at(dark, ...near)).toBeGreaterThan(0.85);
+    expect(at(dark, ...far)).toBeLessThan(0.55);
+  });
+
+  test('виньетка темнит углы экрана, середина — как без неё', async () => {
+    const plain = await look(false, false);
+    const scene = await look(false, true);
+    expect(at(scene, 4, 4)).toBeLessThan(at(plain, 4, 4) - 0.03);
+    expect(Math.abs(at(scene, width / 2, height / 2) - at(plain, width / 2, height / 2))).toBeLessThan(0.002);
   });
 });
