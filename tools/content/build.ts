@@ -31,8 +31,11 @@ import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 import { buildGuarded } from '../../src/engine/build/smooth';
 import { softField } from '../../src/engine/build/soft';
 
-/** Встроенный набор — не больше 8 МБ (docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение. */
-export const PACK_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * Встроенный набор — не больше 12 МБ (решение владельца 31.10.2026, issue 121; было 8;
+ * docs/02-architecture.md, «Ограничения»): у выпуска — ошибка, у сборки для проверки — предупреждение.
+ */
+export const PACK_MAX_BYTES = 12 * 1024 * 1024;
 
 /**
  * Предел времени сборки картинки (docs/specs/2026-09-content-pipeline.md, критерий 4): огромная —

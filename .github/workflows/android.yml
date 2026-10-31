@@ -30,7 +30,8 @@ jobs:
   checks:
     name: Проверки
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # как в pr.yml: сборка картинок и тесты с двумя сборками набора — около 25 минут с 0.16.3
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -253,7 +254,8 @@ jobs:
       # .github/apk-permissions.txt, запретные разрешения студии (их нет в политике
       # конфиденциальности) и «Узоров» (READ_MEDIA, FOREGROUND_SERVICE, INSTALL_REFERRER,
       # WAKE_LOCK), резервная копия включена — работы переживают переустановку
-      # (docs/04-data-model.md), размер не больше 90 МБ (docs/02-architecture.md, «Ограничения»).
+      # (docs/04-data-model.md), размер не больше 99 МБ (решение владельца 31.10.2026, было 90;
+      # docs/02-architecture.md, «Ограничения»).
       # Нужное разрешение — в белый список, в docs/05-process.md и в политику
       # конфиденциальности; ненужное — в blockedPermissions в app.json.
       - name: Содержимое
@@ -263,7 +265,7 @@ jobs:
           allow-file: .github/apk-permissions.txt
           forbid: 'READ_MEDIA|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK'
           backup: 'on'
-          max-size-mb: '90'
+          max-size-mb: '99'
 
       # Своё «Узоров», чего нет в наборе: ровно две архитектуры, как заказано сборке, и
       # RuStore Pay в манифесте ровно тогда, когда задана переменная RUSTORE_APP_ID
