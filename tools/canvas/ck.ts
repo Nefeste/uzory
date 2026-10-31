@@ -4,7 +4,8 @@ import CanvasKitInit from 'canvaskit-wasm/bin/full/canvaskit.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DIGIT_FONT_SIZE, GLYPH_H, GLYPH_W } from '../../src/canvas/glyphs';
-import { SKSL, uniformList, type Uniforms } from '../../src/canvas/shader';
+import { canvasUniforms, SKSL, uniformList, type Uniforms } from '../../src/canvas/shader';
+import { CANVASES, type CanvasLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 
 const dir = join(dirname(require.resolve('canvaskit-wasm/package.json')), 'bin/full');
@@ -108,6 +109,9 @@ export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
   ghost?: boolean;
   /** «Тайна»: издалека невышитое — чистая канва */
   mystery?: boolean;
+  /** канва оформления (src/engine/looks.ts); нет — кремовая; `even` — поле той же ткани (пяльцы) */
+  canvas?: CanvasLook;
+  even?: boolean;
 }): Promise<Frame> {
   const CK = await canvasKit();
   const effect = CK.RuntimeEffect.Make(SKSL, (e: string) => { throw new Error(`SkSL: ${e}`); });
@@ -123,7 +127,7 @@ export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
     mosaic: opts.mosaic ? 1 : 0, hatch: opts.hatch ? 1 : 0, gap: 0.5 / opts.s, px0: 0, py0: 0, px1: -1, py1: -1, pulseT: -1,
     vx: (opts.width / 2 - opts.tx) / opts.s, vy: (opts.height / 2 - opts.ty) / opts.s,
     vhx: opts.scene ? opts.width / 2 / opts.s : 0, vhy: opts.height / 2 / opts.s, dark: opts.dark ? 1 : 0,
-    ghost: opts.ghost ? 1 : 0, mystery: opts.mystery ? 1 : 0,
+    ghost: opts.ghost ? 1 : 0, mystery: opts.mystery ? 1 : 0, ...canvasUniforms(opts.canvas ?? CANVASES[0], opts.even),
   };
   const lm = CK.Matrix.multiply(CK.Matrix.translated(opts.tx, opts.ty), CK.Matrix.scaled(opts.s, opts.s));
   const shader = effect.makeShaderWithChildren(uniformList(u), [nearest(cells), nearest(pal), linear(dig)], lm);

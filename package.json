@@ -1,6 +1,6 @@
 {
   "name": "uzory",
-  "version": "0.16.12",
+  "version": "0.18.1",
   "main": "index",
   "private": true,
   "scripts": {
@@ -34,6 +34,7 @@
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
+    "expo-image-picker": "~57.0.20",
     "expo-sharing": "~57.0.22",
     "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",

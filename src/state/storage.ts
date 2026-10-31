@@ -50,6 +50,8 @@ export const KEYS = {
   notes: 'uzory.notes.v2',
   /** подписка «Узоры+»: последний ответ RuStore Pay и когда спрашивали (src/state/plus.tsx) */
   plus: 'uzory.plus.v1',
+  /** оформления навсегда: купленные товары из последнего ответа RuStore Pay (src/state/looks.ts, 0.18.1) */
+  looks: 'uzory.looks.v1',
   /** запуски и оборвавшиеся сессии — строкой в отчёт об ошибке; никуда не уходит сам (src/state/sessions.ts) */
   sessions: 'uzory.sessions.v1',
 };

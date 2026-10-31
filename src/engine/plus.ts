@@ -49,6 +49,19 @@ export function plusOpen(s: PlusState | null, now: number): boolean {
 }
 
 /**
+ * Новый свой узор (решение владельца 31.10.2026, issue 118, вариант В; docs/specs/2026-09-custom.md,
+ * «Доступ»): первый — бесплатно, дальше — по «Узорам+». `open` — сборка не запирает или подписка
+ * действует; `free` — этот узор первый и бесплатный; `locked` — первый уже был. Начатые свои узоры
+ * дошиваются всегда: запирается только «Вышивать» у нового.
+ */
+export type MineAccess = 'open' | 'free' | 'locked';
+
+export function mineAccess(o: { gate: boolean; plus: boolean; freeUsed: boolean }): MineAccess {
+  if (!o.gate || o.plus) return 'open';
+  return o.freeUsed ? 'locked' : 'free';
+}
+
+/**
  * Показать ли строку «Вся библиотека — в „Узоры+“» на «Готово»: только после бесплатной
  * картинки, не в первые три дня после установки и не второй раз за день.
  */

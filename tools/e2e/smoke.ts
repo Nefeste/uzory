@@ -18,6 +18,7 @@ import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { FREE_FIRST } from '../../src/engine/library';
+import { canvasLook, frameLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
@@ -28,7 +29,7 @@ import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
 import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
 import { E2E_SECRET, e2ePack } from './net';
-import { allButLast, seed, seedWork, seedWorks } from './seed';
+import { allButLast, seed, seedDone, seedWork, seedWorks } from './seed';
 import { lookAtShare } from './share';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -1064,6 +1065,117 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
+
+  // «Свой узор» «как в 1.0» (решение владельца 31.10.2026, issue 118, вариант В): первый — бесплатно, и
+  // под «Вышивать» об этом строка; после него у нового узора вместо «Вышивать» — «Подробнее», а сам он
+  // в «Моих узорах» открывается. Выше, в сборке 0.x для проверки, всё открыто и бесплатный не тратился
+  {
+    const ctxMine = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const pm = await ctxMine.newPage();
+    pm.on('pageerror', (e) => errors.push(e.message));
+    await pm.goto(base);
+    await seedWorks(pm, [], { 'uzory.settings.v1': JSON.stringify({ previewLock: true }) });
+    await pm.getByTestId('home-mine').click();
+    const pick = pm.waitForEvent('filechooser');
+    await pm.getByTestId('mine-pick').click();
+    await (await pick).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
+    await pm.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
+    const freeLine = await pm.getByTestId('mine-free').innerText().catch(() => '');
+    await pm.getByTestId('mine-stitch').click();
+    await pm.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pm.getByTestId('back').click();
+    await pm.getByTestId('mine-locked').waitFor({ timeout: 10_000 }).catch(() => {});
+    const locked = (await pm.getByTestId('mine-locked').count()) === 1 && (await pm.getByTestId('mine-stitch').count()) === 0
+      && (await pm.getByTestId('mine-more').count()) === 1;
+    const kept = (await pm.locator('[data-testid^="mine-open-"]').count()) === 1;
+    check(/бесплатно/.test(freeLine) && locked && kept,
+      `«Свой узор» как в 1.0: у первого — «${freeLine}»; у следующего — ${locked ? '«Подробнее» вместо «Вышивать»' : 'не заперто'}; первый ${kept ? 'в «Моих узорах»' : 'не в «Моих узорах»'}`);
+    await ctxMine.close();
+  }
+
+  // оформления (решение владельца 31.10.2026, issue 116, вариант Б): в сборке для проверки открыты все.
+  // Чёрная канва и пяльцы — на картинке «Поделиться» готовой работы; на экране «Оформление» пять канв и
+  // четыре рамки, выбранные — «Сейчас»; багет — рамка со скосом и золочением
+  {
+    const ctxLooks = await browser.newContext({ viewport: { width: 400, height: 860 }, acceptDownloads: true });
+    const pl = await ctxLooks.newPage();
+    pl.on('pageerror', (e) => errors.push(e.message));
+    await pl.goto(base);
+    const finishedAt = Date.now() - 3_600_000;
+    await seedWorks(pl, [seedDone('w-e2e-looks', first, finishedAt - 1_800_000, finishedAt)], {
+      'uzory.settings.v1': JSON.stringify({ canvas: 'black', frame: 'hoop' }),
+    });
+    const shareNow = async () => {
+      const got = pl.waitForEvent('download', { timeout: 15_000 });
+      await pl.getByTestId('share').click();
+      return got.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
+    };
+    await pl.getByTestId('home-works').click();
+    await pl.getByTestId('works-tab-finished').click();
+    await pl.getByTestId('work-w-e2e-looks').click();
+    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    const hoopPng = await shareNow();
+    const hoopLook = hoopPng ? await lookAtShare(hoopPng, first, frameLook('hoop'), canvasLook('black')) : null;
+    await pl.getByTestId('done-settings').click();
+    await pl.getByTestId('set-looks').click();
+    await pl.getByTestId('looks').waitFor({ timeout: 5000 });
+    const tiles = await pl.locator('[data-testid^="look-"]').count();
+    const chosen = (await pl.getByTestId('look-black').innerText()).includes('Сейчас') && (await pl.getByTestId('look-hoop').innerText()).includes('Сейчас');
+    await pl.getByTestId('look-baguette').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    const baguettePng = await shareNow();
+    const baguetteLook = baguettePng ? await lookAtShare(baguettePng, first, frameLook('baguette'), canvasLook('black')) : null;
+    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 9 && chosen && !!baguetteLook?.size && !!baguetteLook.frame,
+      `оформления: «Поделиться» в пяльцах на чёрной канве — ${hoopLook?.frame ? 'да' : 'нет'}, на экране «Оформление» ${tiles} образцов, `
+      + `выбранные — ${chosen ? '«Сейчас»' : 'без «Сейчас»'}, багет — ${baguetteLook?.frame ? 'со скосом и золочением' : 'нет'}`);
+    await ctxLooks.close();
+  }
+
+  // оформления как в 1.0 — покупка навсегда (0.18.1) в заглушке RuStore Pay: цены — у магазина (не 99 ₽
+  // описания), касание чужого покупает и выбирает его; сбой — с ответом RuStore; «Все оформления» — все;
+  // после перезагрузки купленное на месте
+  {
+    const FAKE = 'uzory.billing.fake.v1';
+    const ctxBuy = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const pb = await ctxBuy.newPage();
+    pb.on('pageerror', (e) => errors.push(e.message));
+    await pb.goto(base);
+    await seedWorks(pb, [], { [FAKE]: JSON.stringify({ mode: 'ok' }), 'uzory.settings.v1': JSON.stringify({ previewLock: true }) });
+    const openLooks = async () => {
+      await pb.getByTestId('home-settings').click();
+      await pb.getByTestId('set-looks').click();
+      await pb.getByTestId('looks').waitFor({ timeout: 5000 });
+    };
+    const tileText = (id: string) => pb.getByTestId(`look-${id}`).innerText();
+    const noteText = () => pb.getByTestId('looks-note').innerText({ timeout: 5000 }).catch(() => '');
+    await openLooks();
+    await pb.waitForFunction(() => /119/.test(document.querySelector('[data-testid="look-black"]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+    const priced = (await tileText('black')).includes('Навсегда · 119 ₽');
+    await pb.getByTestId('look-black').click();
+    const boughtNote = await noteText();
+    const blackChosen = (await tileText('black')).includes('Сейчас');
+    await pb.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), mode: 'failed' })), FAKE);
+    await pb.getByTestId('look-hoop').click();
+    const failNote = await noteText();
+    const hoopStillLocked = (await tileText('hoop')).includes('Навсегда');
+    await pb.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), mode: 'ok' })), FAKE);
+    const allLabel = await pb.getByTestId('looks-all').innerText();
+    await pb.getByTestId('looks-all').click();
+    const allNote = await noteText();
+    const hoopOwned = (await tileText('hoop')).includes('Есть');
+    await pb.reload();
+    await pb.getByTestId('home-library').waitFor({ timeout: 30_000 });
+    await openLooks();
+    const kept = (await tileText('black')).includes('Сейчас') && (await tileText('baguette')).includes('Есть') && (await pb.getByTestId('looks-all').count()) === 0;
+    check(priced && /навсегда/.test(boughtNote) && blackChosen && /Платёж не прошёл/.test(failNote) && /Ответ RuStore/.test(failNote) && hoopStillLocked
+      && allLabel.includes('349 ₽') && /все оформления/.test(allNote) && hoopOwned && kept,
+      `оформления как в 1.0: цена у магазина — ${priced ? '«Навсегда · 119 ₽»' : 'нет'}; чёрная куплена и выбрана — ${blackChosen ? 'да' : 'нет'}; `
+      + `сбой — «${failNote.split('\n')[0]}»${/Ответ RuStore/.test(failNote) ? ' с ответом RuStore' : ''}; «${allLabel}» — ${hoopOwned ? 'все есть' : 'не все'}; `
+      + `после перезагрузки — ${kept ? 'купленное на месте' : 'купленного нет'}`);
+    await ctxBuy.close();
+  }
 
   // «Сообщить об ошибке» (0.14.0): для закрытого теста — сколько раз открывали (перезагрузка выше —
   // второй запуск), сколько раз игра оборвалась и сколько картинок закончено

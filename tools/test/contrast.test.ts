@@ -7,6 +7,7 @@ import { describe, expect, test } from 'bun:test';
 import { SKSL } from '../../src/canvas/shader';
 import { base64Decode } from '../../src/engine/base64';
 import { contrast } from '../../src/engine/color';
+import { CANVASES } from '../../src/engine/looks';
 import { openPack } from '../../src/engine/pack';
 import { BASE_PACK } from '../../src/content/generated/pack';
 
@@ -17,11 +18,10 @@ const half3 = (name: string): V => {
   if (!m) throw new Error(`в шейдере нет ${name}`);
   return m[1].split(',').map(Number) as V;
 };
-const CLOTH = half3('CLOTH');
 const TILE = half3('TILE');
 const DIGIT = half3('DIGIT');
 const rule = /half l = (\w+)\(o\);\s*half3 dc = l > ([\d.]+) \? DIGIT : \(l > ([\d.]+) \? half3\(0\.0\) : half3\(1\.0\)\);/.exec(SKSL);
-// переплетение канвы (cloth в шейдере): яркость CLOTH × k, k — из тех же чисел, что в шейдере
+// переплетение канвы (cloth в шейдере): яркость канвы × k, k — из тех же чисел, что в шейдере
 const weave = /float dome = 1\.0 - ([\d.]+) \* dot\(gf - 0\.5, gf - 0\.5\);[\s\S]*?float k = ([\d.]+) \+ ([\d.]+) \* yarn \+ ([\d.]+) \* dome \+ ([\d.]+) \* fib;/.exec(SKSL);
 const WEAVE = (() => {
   if (!weave) return [NaN, NaN];
@@ -51,9 +51,12 @@ function digit(o: V): V {
 /** Клетка под номером: полотно крестика (самое тёмное и самое светлое место переплетения) или плитка «Мозаики» — как есть, подсвеченная, в полоске штриховки. */
 function cells(col: V): [string, V][] {
   const out: [string, V][] = [];
-  for (const weave of WEAVE) {
-    const cloth: V = [CLOTH[0] * weave, CLOTH[1] * weave, CLOTH[2] * weave];
-    out.push(['крестик', cloth], ['крестик, подсветка', mix(cloth, col, soft)], ['крестик, штриховка', mix(cloth, col, tint)]);
+  // каждая канва оформлений (src/engine/looks.ts): кремовая, белая, лён, чёрная, голубая
+  for (const look of CANVASES) {
+    for (const weave of WEAVE) {
+      const cloth: V = [look.cloth[0] * weave, look.cloth[1] * weave, look.cloth[2] * weave];
+      out.push([`крестик (${look.id})`, cloth], [`крестик (${look.id}), подсветка`, mix(cloth, col, soft)], [`крестик (${look.id}), штриховка`, mix(cloth, col, tint)]);
+    }
   }
   out.push(['мозаика', TILE], ['мозаика, подсветка', mix(TILE, col, soft)], ['мозаика, штриховка', mix(TILE, col, tint)]);
   return out;

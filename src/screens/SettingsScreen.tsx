@@ -17,7 +17,11 @@ import { Button, Screen, SectionTitle, Segmented, ToggleRow, Txt } from '../ui/c
 /** Раздел «Узоры» политики студии (store/forms.md). */
 export const PRIVACY_URL = 'https://gornitsa.games/privacy.html#uzory';
 
-export function SettingsScreen({ onBack, onReport, onAbout, onPlus }: { onBack: () => void; onReport: () => void; onAbout: () => void; onPlus: () => void }) {
+export function SettingsScreen({ onBack, onReport, onAbout, onPlus, onLooks }: {
+  onBack: () => void; onReport: () => void; onAbout: () => void; onPlus: () => void;
+  /** «Оформление»: канва и рамка (src/screens/LooksScreen.tsx) */
+  onLooks: () => void;
+}) {
   const { settings, update, theme } = useSettings();
   const player = usePlayer();
   const [busy, setBusy] = useState<'save' | 'load' | null>(null);
@@ -68,6 +72,11 @@ export function SettingsScreen({ onBack, onReport, onAbout, onPlus }: { onBack: 
           <Segmented<StitchStyle> value={settings.style} onChange={(v) => update({ style: v })} testID="set-style"
             options={[{ id: 'cross', label: T.stitch.styles.cross }, { id: 'mosaic', label: T.stitch.styles.mosaic }]} />
           <Txt dim style={styles.note}>{T.settings.styleNote}</Txt>
+        </View>
+        <View style={styles.block}>
+          <Txt style={styles.label}>{T.looks.title}</Txt>
+          <Button kind="secondary" label={T.looks.open} onPress={onLooks} testID="set-looks" />
+          <Txt dim style={styles.note}>{T.looks.settingsNote}</Txt>
         </View>
         <ToggleRow label={T.settings.shareStitches} note={T.settings.shareStitchesNote} value={settings.shareStitches}
           onChange={(v) => update({ shareStitches: v })} testID="set-share-stitches" />

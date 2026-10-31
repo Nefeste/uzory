@@ -3,6 +3,11 @@
 // (research/feasibility-2026-09/shader.ts): цвета клеток точные.
 //
 // Координаты `p` приходят уже в клетках: шейдер создаётся с матрицей «клетка → экран».
+import { CANVASES, type CanvasLook, type Rgb } from '../engine/looks';
+
+/** Поле за краем узора: та же канва, темнее; в тёмной теме вдали от узора — в тени. */
+const FIELD_LIGHT = 0.93;
+const FIELD_DARK = 0.3;
 
 /**
  * Порядок и число униформ — как в SKSL ниже; `makeShaderWithChildren` берёт их списком.
@@ -44,6 +49,12 @@ export interface Uniforms {
   ghost: number;
   /** 1 — «Тайна»: издалека невышитое — чистая канва, без бледного силуэта картинки */
   mystery: number;
+  /** канва (оформление, src/engine/looks.ts): нить, тень дырочек и тон невышитого издалека, sRGB 0…1 */
+  cloth: Rgb;
+  hole: Rgb;
+  tone: Rgb;
+  /** поле за краем узора — во столько темнее канвы (FIELD_LIGHT); 1 — та же ткань: пяльцы на «Готово» */
+  field: number;
 }
 
 export function uniformList(u: Uniforms): number[] {
@@ -51,7 +62,19 @@ export function uniformList(u: Uniforms): number[] {
   return [
     u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT,
     u.vx, u.vy, u.vhx, u.vhy, u.dark, u.ghost, u.mystery,
+    u.cloth[0], u.cloth[1], u.cloth[2], u.hole[0], u.hole[1], u.hole[2], u.tone[0], u.tone[1], u.tone[2], u.field,
   ];
+}
+
+export interface CanvasUniforms { cloth: Rgb; hole: Rgb; tone: Rgb; field: number }
+
+/**
+ * Униформы канвы оформления: кремовая — прежние константы шейдера до точки. `even` — поле за краем узора
+ * той же ткани, без затемнения: узор в пяльцах лежит на целом куске канвы.
+ */
+export function canvasUniforms(c: CanvasLook, even = false): CanvasUniforms {
+  'worklet';
+  return { cloth: c.cloth, hole: c.hole, tone: c.ghost, field: even ? 1 : FIELD_LIGHT };
 }
 
 /** Без виньетки и в светлой теме: мини-карта, картинка «Поделиться», кадры тестов. */
@@ -59,9 +82,15 @@ export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0, myste
 
 /**
  * Поле за краем узора вдали от него — ровным цветом: фон контейнера канвы до первого кадра и путь
- * «слои». CLOTH × FIELD_LIGHT и × FIELD_DARK из шейдера (tools/test/shader.test.ts сверяет).
+ * «слои». Канва × FIELD_LIGHT и × FIELD_DARK из шейдера (tools/test/shader.test.ts сверяет).
  */
-export const FIELD = { light: '#e2dfd6', dark: '#494845' } as const;
+export function fieldOf(c: CanvasLook): { light: string; dark: string } {
+  const hex = (k: number) => `#${c.cloth.map((v) => Math.round(v * k * 255).toString(16).padStart(2, '0')).join('')}`;
+  return { light: hex(FIELD_LIGHT), dark: hex(FIELD_DARK) };
+}
+
+/** Поле кремовой канвы — бесплатной, у всех. */
+export const FIELD = fieldOf(CANVASES[0]);
 
 /**
  * Шейдер. Цвет номера на невышитой клетке — тёмный, чёрный или белый — выбирается по яркости
@@ -114,10 +143,11 @@ uniform float4 view;
 uniform float dark;
 uniform float ghost;
 uniform float mystery;
+uniform float3 tCloth;
+uniform float3 tHole;
+uniform float3 tGhost;
+uniform float tField;
 
-const half3 CLOTH = half3(0.953, 0.941, 0.902);
-const half3 HOLE = half3(0.600, 0.576, 0.518);
-const half3 GHOST = half3(0.965, 0.965, 0.949);
 const half3 TILE = half3(0.925, 0.929, 0.906);
 const half3 GAP = half3(0.851, 0.859, 0.820);
 const half3 DIGIT = half3(0.231, 0.243, 0.235);
@@ -125,8 +155,7 @@ const half3 DIGIT = half3(0.231, 0.243, 0.235);
 const float2 LXY = float2(-0.30, -0.53);
 const float LZ = 0.79;
 // field beyond the pattern: the same canvas, darker; in the dark theme it fades into shadow within 160 px
-const float FIELD_LIGHT = 0.93;
-const float FIELD_DARK = 0.3;
+const float FIELD_DARK = ${FIELD_DARK};
 
 half luma(half3 c) {
   half3 l = pow(c, half3(2.2));
@@ -167,10 +196,10 @@ half3 cloth(float2 p, float aa, float tex) {
   float fl = floor(s);
   float fib = mix(hash(float2(fi, fl)), hash(float2(fi, fl + 1.0)), smoothstep(0.0, 1.0, s - fl)) - 0.5;
   float k = 0.9 + 0.06 * yarn + 0.04 * dome + 0.05 * fib;
-  half3 o = CLOTH * half(mix(1.0, k, tex));
+  half3 o = half3(tCloth) * half(mix(1.0, k, tex));
   float d = length(max(e - 0.035, 0.0)) - 0.045;
   float hole = 1.0 - smoothstep(-aa, aa, d);
-  return mix(o, HOLE, half(hole * 0.9));
+  return mix(o, half3(tHole), half(hole * 0.9));
 }
 
 half3 strand(half3 col, float a, float n, float2 u, float lit) {
@@ -265,8 +294,8 @@ half4 main(float2 p) {
   }
   if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= grid.x || cell.y >= grid.y) {
     float2 beyond = max(max(-p, p - grid), 0.0);
-    float k = mix(FIELD_LIGHT, FIELD_DARK, dark * smoothstep(0.0, 1.0, length(beyond) * cellPx / 160.0));
-    return half4((near < 0.5 || mosaic > 0.5 ? CLOTH : cloth(p, aa, tex)) * half(k * vig), 1.0);
+    float k = mix(tField, FIELD_DARK, dark * smoothstep(0.0, 1.0, length(beyond) * cellPx / 160.0));
+    return half4((near < 0.5 || mosaic > 0.5 ? half3(tCloth) : cloth(p, aa, tex)) * half(k * vig), 1.0);
   }
   half4 c = cells.eval(cell + 0.5);
   float idx = floor(c.r * 255.0 + 0.5);
@@ -275,8 +304,8 @@ half4 main(float2 p) {
   float lit = smoothstep(16.0, 40.0, cellPx);
   float dense = 1.0 - smoothstep(28.0, 44.0, cellPx);
   if (idx > 254.5) {
-    if (near < 0.5) return half4(CLOTH * half(vig), 1.0);
-    return half4((mosaic > 0.5 ? CLOTH : cloth(p, aa, tex)) * half(vig), 1.0);
+    if (near < 0.5) return half4(half3(tCloth) * half(vig), 1.0);
+    return half4((mosaic > 0.5 ? half3(tCloth) : cloth(p, aa, tex)) * half(vig), 1.0);
   }
   half3 col = palette.eval(float2(idx + 0.5, 0.5)).rgb;
   bool sel = abs(idx - selected) < 0.5;
@@ -284,7 +313,7 @@ half4 main(float2 p) {
   if (near < 0.5) {
     half g = pow(luma(col), 0.4545);
     // mystery: from afar the cell to come is plain canva, otherwise its pale tone would show the picture
-    o = done ? col : (mystery > 0.5 ? CLOTH : mix(GHOST, half3(g), 0.35));
+    o = done ? col : (mystery > 0.5 ? half3(tCloth) : mix(half3(tGhost), half3(g), 0.35));
     if (!done && sel) o = mix(o, col, 0.3);
     // texture from afar only on the working canvas (the scene): the finished work on "Done" and
     // the shared picture stay flat cells

@@ -3,6 +3,7 @@
 // (src/engine/share.ts): размер, фон, рамка и паспарту, выбранный стиль в клетках работы, строки
 // подписи под рамкой.
 import sharp from 'sharp';
+import { CANVASES, type CanvasLook, FRAMES, type FrameLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { SHARE_COLORS, SHARE_STITCHES_FROM, shareLayout } from '../../src/engine/share';
 
@@ -57,10 +58,12 @@ export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: 
   return { cells, cross, tile };
 }
 
-/** Разбор PNG законченной работы узора `p`. */
-export async function lookAtShare(png: Uint8Array, p: Pattern): Promise<ShareLook> {
+/** Разбор PNG законченной работы узора `p`; рамка и канва — оформления (src/engine/looks.ts), сразу — бесплатные. */
+export async function lookAtShare(png: Uint8Array, p: Pattern, look: FrameLook = FRAMES[0], canvas: CanvasLook = CANVASES[0]): Promise<ShareLook> {
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
-  const L = shareLayout(p.w, p.h);
+  const hoop = look.kind === 'hoop';
+  const L = shareLayout(p.w, p.h, hoop);
+  const cloth = `#${canvas.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
   const px = (x: number, y: number): RGB => {
     const i = (Math.floor(y) * info.width + Math.floor(x)) * info.channels;
     return [data[i], data[i + 1], data[i + 2]];
@@ -70,10 +73,18 @@ export async function lookAtShare(png: Uint8Array, p: Pattern): Promise<ShareLoo
   const frame = size
     && is(L.frame.x / 2, L.frame.y / 2, SHARE_COLORS.background)
     && is(L.width - L.frame.x / 2, L.height - 4, SHARE_COLORS.background)
-    && is((L.frame.x + L.mat.x) / 2, L.frame.y + L.frame.h / 2, SHARE_COLORS.frame)
-    && is(L.frame.x + L.frame.w / 2, (L.frame.y + L.mat.y) / 2, SHARE_COLORS.frame)
-    && is((L.mat.x + L.work.x) / 2, L.mat.y + L.mat.h / 2, SHARE_COLORS.mat)
-    && is(L.mat.x + L.mat.w / 2, (L.mat.y + L.work.y) / 2, SHARE_COLORS.mat);
+    && (hoop
+      // пяльцы: обод слева, ткань канвы у верхнего края круга, латунный винт над ободом
+      ? is(L.frame.x + 5, L.frame.y + L.frame.h / 2, look.light)
+        && is(L.mat.x + L.mat.w / 2, L.mat.y + 6, cloth)
+        && is(L.frame.x + L.frame.w / 2, L.frame.y - 4, '#c9b98f')
+      // рамка со скосом: левая и верхняя грани — к свету, нижняя — в тени; у багета — золочение
+      : is((L.frame.x + L.mat.x) / 2, L.frame.y + L.frame.h / 2, look.light)
+        && is(L.frame.x + L.frame.w / 2, (L.frame.y + L.mat.y) / 2, look.light)
+        && is(L.frame.x + L.frame.w / 2, (L.mat.y + L.mat.h + L.frame.y + L.frame.h) / 2, look.dark)
+        && (!look.inner || is(L.mat.x - 2, L.mat.y + L.mat.h / 2, look.inner))
+        && is((L.mat.x + L.work.x) / 2, L.mat.y + L.mat.h / 2, SHARE_COLORS.mat)
+        && is(L.mat.x + L.mat.w / 2, (L.mat.y + L.work.y) / 2, SHARE_COLORS.mat));
 
   const { cells, cross, tile } = size ? stitchStyles(p, px, L.work.x, L.work.y, L.cell) : { cells: 0, cross: 0, tile: 0 };
 

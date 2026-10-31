@@ -29,6 +29,21 @@ describe('картинка «Поделиться»', () => {
     }
   });
 
+  test('пяльцы (оформление, 0.18.0): картинка до 2000, углы работы — внутри круга ткани, ткань — внутри обода', () => {
+    for (const [w, h] of [[1, 1], [16, 18], [25, 25], [37, 20], [120, 80], [180, 240], [MAX_SIDE, MAX_SIDE], [MAX_SIDE, 30]]) {
+      const L = shareLayout(w, h, true);
+      const at = `${w} × ${h}`;
+      expect([at, L.cell >= 1 && L.cell <= SHARE_CELL_MAX && Math.hypot(L.work.w, L.work.h) <= Math.max(SHARE_PICTURE_MAX, Math.hypot(w, h))]).toEqual([at, true]);
+      expect([at, L.width <= 2000 && L.height <= 2000]).toEqual([at, true]);
+      const cx = L.mat.x + L.mat.w / 2;
+      const cy = L.mat.y + L.mat.h / 2;
+      const corners = [[L.work.x, L.work.y], [L.work.x + L.work.w, L.work.y], [L.work.x, L.work.y + L.work.h], [L.work.x + L.work.w, L.work.y + L.work.h]];
+      expect([at, corners.every(([x, y]) => Math.hypot(x - cx, y - cy) < L.mat.w / 2)]).toEqual([at, true]);
+      expect([at, L.mat.w === L.mat.h && L.frame.w === L.frame.h && inside(L.mat, L.frame)]).toEqual([at, true]);
+      expect([at, L.frame.y + L.frame.h < L.title && L.mark < L.height]).toEqual([at, true]);
+    }
+  });
+
   test('стежки — с клетки 14 точек: у узоров до 114 клеток по длинной стороне', () => {
     // решение владельца 09.10.2026 — по образцам; на канве стиль виден с 18 dp, вместе с номерами
     expect(SHARE_STITCHES_FROM).toBe(14);

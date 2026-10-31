@@ -2,6 +2,7 @@
 // Настройки игрока (docs/08-game-design.md, «Настройки»; перенос механики из «Вотчины»).
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { type CanvasId, type FrameId, FREE_CANVAS, FREE_FRAME } from '../engine/looks';
 import { DARK, LIGHT, type Theme } from '../ui/theme';
 import type { Ambience } from './ambience';
 import { KEYS, loadJson, saveJson } from './storage';
@@ -28,11 +29,15 @@ export interface Settings {
   ambience: Ambience;
   /** сборка 0.x для проверки: запирать картинки «Узоры+», как в 1.0 (образец экрана подписки) */
   previewLock: boolean;
+  /** оформление (src/engine/looks.ts): канва и рамка на «Готово» и «Поделиться»; показывается, только если есть у игрока */
+  canvas: CanvasId;
+  frame: FrameId;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true, shareStitches: false,
   hints: true, haptics: true, sound: true, music: true, ambience: 'off', previewLock: false,
+  canvas: FREE_CANVAS, frame: FREE_FRAME,
 };
 
 interface Ctx {

@@ -1,7 +1,8 @@
 // Золотые кадры канвы (docs/06-testing.md, «Канва»): шейдер собирается, и цвет в центре
 // каждой вышитой клетки — ровно цвет нити, во всех стилях и масштабах.
 import { describe, expect, test } from 'bun:test';
-import { FIELD, SKSL } from '../../src/canvas/shader';
+import { canvasUniforms, FIELD, fieldOf, SKSL } from '../../src/canvas/shader';
+import { CANVASES } from '../../src/engine/looks';
 import { labToLch, linear, linearToLab } from '../../src/engine/color';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { rng } from '../../src/engine/seed';
@@ -103,7 +104,7 @@ describe('«Тайна» издалека', () => {
   test('невышитое — ровно цвет канвы, вышитое — цвет нити; без «тайны» невышитое — разными тонами', async () => {
     const s = 6;
     const look = (mystery: boolean) => renderFrame(p, stitched, { width: p.w * s, height: p.h * s, tx: 0, ty: 0, s, near: false, mystery });
-    const cloth = /const half3 CLOTH = half3\(([^)]*)\)/.exec(SKSL)![1].split(',').map((v) => Math.round(Number(v) * 255));
+    const cloth = CANVASES[0].cloth.map((v) => Math.round(v * 255));
     const tones = async (mystery: boolean) => {
       const f = await look(mystery);
       const seen = new Set<string>();
@@ -251,11 +252,16 @@ describe('сцена: поле за краем узора и виньетка', 
     return labToLch(linearToLab(linear(f.pixels[o]), linear(f.pixels[o + 1]), linear(f.pixels[o + 2])))[0];
   };
 
-  test('FIELD — цвет поля из шейдера: CLOTH × FIELD_LIGHT и × FIELD_DARK', () => {
-    const num = (name: string) => Number(new RegExp(`const float ${name} = ([\\d.]+);`).exec(SKSL)?.[1]);
-    const cloth = /const half3 CLOTH = half3\(([^)]*)\)/.exec(SKSL)![1].split(',').map(Number);
-    const hex = (k: number) => `#${cloth.map((c) => Math.round(c * k * 255).toString(16).padStart(2, '0')).join('')}`;
-    expect<string[]>([FIELD.light, FIELD.dark]).toEqual([hex(num('FIELD_LIGHT')), hex(num('FIELD_DARK'))]);
+  test('FIELD — цвет поля из шейдера: канва × поле (униформа) и × FIELD_DARK; у кремовой — прежние цвета', () => {
+    const dark = Number(/const float FIELD_DARK = ([\d.]+);/.exec(SKSL)?.[1]);
+    for (const c of CANVASES) {
+      const k = canvasUniforms(c).field;
+      const hex = (m: number) => `#${c.cloth.map((v) => Math.round(v * m * 255).toString(16).padStart(2, '0')).join('')}`;
+      expect<string[]>([fieldOf(c).light, fieldOf(c).dark]).toEqual([hex(k), hex(dark)]);
+    }
+    // без покупки — как до оформлений, до точки
+    expect<string[]>([FIELD.light, FIELD.dark]).toEqual(['#e2dfd6', '#494845']);
+    expect(canvasUniforms(CANVASES[0], true).field).toBe(1);
   });
 
   test('светлая тема: за краем — канва, темнее узора; тёмная: у края светло, вдали — тень', async () => {

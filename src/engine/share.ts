@@ -28,11 +28,13 @@ const OUT = 72;
 const FRAME = 18;
 const MAT = 44;
 const CAPTION = 190;
+/** Пяльцы (оформление «Пяльцы», src/engine/looks.ts): обод и поля ткани от углов узора до обода. */
+export const HOOP_RING = 22;
+const HOOP_PAD = 36;
 
-/** Цвета картинки: льняной фон, тёмное дерево рамки, бумажное паспарту, строки подписи. */
+/** Цвета картинки: льняной фон, бумажное паспарту, строки подписи; рамка — оформления (src/engine/looks.ts). */
 export const SHARE_COLORS = {
   background: '#ecede6',
-  frame: '#6f5641',
   mat: '#f7f7f2',
   title: '#1a1b1e',
   caption: '#4b4f4c',
@@ -58,11 +60,32 @@ export interface ShareLayout {
   markAlone: number;
 }
 
-/** Раскладка для узора w × h клеток. */
-export function shareLayout(w: number, h: number): ShareLayout {
-  const cell = Math.max(1, Math.min(SHARE_CELL_MAX, Math.floor(SHARE_PICTURE_MAX / Math.max(w, h))));
+/**
+ * Раскладка для узора w × h клеток. В рамке — рамка, паспарту, работа. В пяльцах (`hoop`) — квадраты,
+ * описанные вокруг кругов: `frame` — обода, `mat` — ткани; работа в середине, её углы — внутри круга ткани.
+ */
+export function shareLayout(w: number, h: number, hoop = false): ShareLayout {
+  // в пяльцах до SHARE_PICTURE_MAX — диагональ работы: она поперёк круга ткани
+  const cell = Math.max(1, Math.min(SHARE_CELL_MAX, Math.floor(SHARE_PICTURE_MAX / (hoop ? Math.hypot(w, h) : Math.max(w, h)))));
   const pw = w * cell;
   const ph = h * cell;
+  if (hoop) {
+    const din = Math.ceil(Math.hypot(pw, ph)) + 2 * HOOP_PAD;
+    const dout = din + 2 * HOOP_RING;
+    const base = OUT + dout;
+    return {
+      cell,
+      width: dout + 2 * OUT,
+      height: dout + OUT + CAPTION,
+      frame: { x: OUT, y: OUT, w: dout, h: dout },
+      mat: { x: OUT + HOOP_RING, y: OUT + HOOP_RING, w: din, h: din },
+      work: { x: OUT + HOOP_RING + Math.floor((din - pw) / 2), y: OUT + HOOP_RING + Math.floor((din - ph) / 2), w: pw, h: ph },
+      title: base + 72,
+      caption: base + 118,
+      mark: base + 164,
+      markAlone: base + 130,
+    };
+  }
   const base = OUT + ph + 2 * (MAT + FRAME);
   return {
     cell,

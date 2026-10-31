@@ -4,8 +4,9 @@
 // Ответы RuStore Pay → права подписки «Узоры+», цены и причины (чистые функции: их гоняют тесты
 // под Bun без телефона, tools/test/rustore.test.ts). Правила прав по сохранённому ответу — в движке
 // (src/engine/plus.ts); здесь — только как ответ RuStore становится этим ответом.
+import { LOOK_PRODUCTS } from '../engine/looks';
 import { PLUS_OFFLINE_MS, type PlusPeriod, type PlusState, type PlusStatus } from '../engine/plus';
-import type { BillingFail, Product, ProductId } from '../state/billingApi';
+import type { BillingFail, LookPrice, Product, ProductId } from '../state/billingApi';
 import { causeReasonOf, reasonOf, type RsReason } from '@gornitsa/kit/rustore-pay/rules';
 import type { RsProduct, RsPurchase } from './rustore';
 
@@ -109,4 +110,31 @@ export function plusStateOf(list: readonly RsPurchase[], now: number): PlusState
     if (RANK[status] > RANK[best.status] || (RANK[status] === RANK[best.status] && end(s) > end(best))) best = s;
   }
   return best;
+}
+
+/**
+ * Купленные оформления навсегда (0.18.1; docs/specs/2026-10-looks.md, «Покупка»): разовые покупки наших
+ * товаров в статусе CONFIRMED. По документации Pay SDK для React Native 11.1.0 (rustore.ru/help/sdk/pay/
+ * react-native/11-1-0, 31.10.2026): CONFIRMED — «покупка успешно оплачена»; оплата в одну стадию
+ * подтверждения не требует; PAID и REVERSED — только у двухстадийной (её игра не запускает). Список
+ * покупок без фильтров отдаёт PAID, CONFIRMED, ACTIVE и PAUSED — возвращённая покупка (REFUNDED) в него
+ * не попадает, и оформление снова заперто. Порядок — как в каталоге, без повторов.
+ */
+export function looksOf(list: readonly RsPurchase[]): string[] {
+  const got = new Set<string>();
+  for (const p of list) {
+    const pp = p.productPurchase;
+    if (pp && pp.status === 'CONFIRMED' && LOOK_PRODUCTS.includes(pp.productId)) got.add(pp.productId);
+  }
+  return LOOK_PRODUCTS.filter((id) => got.has(id));
+}
+
+/** Товары RuStore → цены оформлений: только наши разовые товары и только с ценой; порядок — как в каталоге. */
+export function lookPricesOf(list: readonly RsProduct[]): LookPrice[] {
+  const out: LookPrice[] = [];
+  for (const id of LOOK_PRODUCTS) {
+    const price = list.find((x) => x.productId === id)?.amountLabel?.trim();
+    if (price) out.push({ id, price });
+  }
+  return out;
 }

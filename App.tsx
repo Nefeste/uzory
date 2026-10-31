@@ -16,6 +16,7 @@ import { FIRST_PICTURE, patternOf, pictureById } from './src/state/library';
 import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
 import { billing } from './src/state/billing';
+import { useLooksRefresh } from './src/state/looks';
 import { PlusProvider } from './src/state/plus';
 import { installSessions } from './src/state/sessions';
 import { keepSplash } from './src/state/splash';
@@ -28,6 +29,7 @@ import { DoneScreen } from './src/screens/DoneScreen';
 import { FileScreen } from './src/screens/FileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
+import { LooksScreen } from './src/screens/LooksScreen';
 import { MineScreen } from './src/screens/MineScreen';
 import { PictureScreen } from './src/screens/PictureScreen';
 import { PlusScreen } from './src/screens/PlusScreen';
@@ -65,7 +67,8 @@ type Route =
   | { name: 'works'; tab?: WorksTab }
   | { name: 'calendar' }
   | { name: 'plus'; sample: boolean }
-  | { name: 'report'; from: string };
+  | { name: 'report'; from: string }
+  | { name: 'looks' };
 
 /** Экран в стеке: `k` — свой ключ, чтобы два одинаковых экрана подряд не делили состояние. */
 type Entry = Route & { k: number };
@@ -95,6 +98,9 @@ function Root() {
   const plus = () => go({ name: 'plus', sample: !billing.available });
   /** Поменять данные экрана на вершине, не пересоздавая его. */
   const patch = (k: number, p: Partial<Route>) => setStack((s) => s.map((e) => (e.k === k ? ({ ...e, ...p } as Entry) : e)));
+
+  // купленные оформления — при запуске и при возвращении в игру (src/state/looks.ts)
+  useLooksRefresh();
 
   // шейдер канвы прогревается невидимым кадром вскоре после первого экрана, а не на открытии работы
   // (docs/02-architecture.md, «Канва»; src/canvas/effect.ts)
@@ -133,7 +139,9 @@ function Root() {
       break;
     case 'mine':
       screen = (
-        <MineScreen onBack={back} owner onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
+        // карточка для библиотеки — инструмент владельца, только в закрытой веб-версии
+        <MineScreen onBack={back} owner={Platform.OS === 'web'} onPlus={plus}
+          onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
           onDone={(pattern, title, workId) => go({ name: 'done', pattern, title, workId, listed: true })} />
       );
       break;
@@ -192,7 +200,11 @@ function Root() {
       screen = <FileScreen onBack={back} onReplay={(pattern, workId) => go({ name: 'done', pattern, title: pattern.key, workId })} />;
       break;
     case 'settings':
-      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} onPlus={plus} />;
+      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} onPlus={plus}
+        onLooks={() => go({ name: 'looks' })} />;
+      break;
+    case 'looks':
+      screen = <LooksScreen onBack={back} />;
       break;
     case 'about':
       screen = <AboutScreen onBack={back} />;
