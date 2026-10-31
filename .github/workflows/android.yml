@@ -30,7 +30,9 @@ jobs:
   checks:
     name: Проверки
     runs-on: ubuntu-24.04
-    # как в pr.yml: сборка картинок и тесты с двумя сборками набора — около 25 минут с 0.16.3
+    # как в pr.yml, но «две сборки подряд» — всегда весь набор заново (выпуск проверяется целиком): сборка
+    # картинок около семи минут с 0.16.3, тесты — ещё около семи (узоры остальных тестов — из кэша сборки,
+    # tools/content/cache.ts)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -51,6 +53,8 @@ jobs:
       - name: Линтер
         run: npm run lint
       - name: Тесты
+        env:
+          UZORY_FULL_BUILD_CHECK: '1'
         run: bun test tools/test
       - name: Отчёт сборки картинок
         if: always()
