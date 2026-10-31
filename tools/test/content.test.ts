@@ -135,8 +135,9 @@ describe('время сборки (docs/specs/2026-09-content-pipeline.md, кр�
 });
 
 describe('сборка', () => {
-  // полная сборка идёт минуты (картины в четыре клетки на сантиметр, старинные схемы; 331 картинка —
-  // около трёх минут у ассистента, 04.10.2026): первая общая для обоих тестов, предел — с запасом на рост набора
+  // полная сборка идёт минуты (картины в четыре клетки на сантиметр, старинные схемы, с 0.16.3 — крупные
+  // пересобранные картинки: 414 картинок и 336 прежних версий — около семи минут у ассистента, 31.10.2026):
+  // первая общая для всех тестов ниже, предел — с запасом на рост набора
   let first: ReturnType<typeof buildAll> | null = null;
   const once = () => (first ??= buildAll());
 
@@ -145,7 +146,7 @@ describe('сборка', () => {
     const b = await buildAll();
     expect(a.failed).toEqual([]);
     expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
-  }, 900_000);
+  }, 1_800_000);
 
   test('выпущенные узоры не изменились (tools/test/fixtures/released.json)', async () => {
     const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;
@@ -155,7 +156,7 @@ describe('сборка', () => {
       const b = [...built, ...previous].find((x) => x.pattern.key === key);
       expect(b ? patternDigest(b.pattern) : `узора ${key} нет`).toBe(sha);
     }
-  }, 300_000);
+  }, 900_000);
 
   test('узоры выпуска закреплены: у каждой картинки с «да» — строка в released.json', async () => {
     const released = JSON.parse(readFileSync(join(FIX, 'released.json'), 'utf8')).patterns as Record<string, string>;
@@ -165,7 +166,7 @@ describe('сборка', () => {
     // картинки «в запас» с «да» в APK не идут: их узоры закрепляет PR набора недели (issue 86)
     const loose = built.filter((b) => !b.trial && !b.card.stock && released[b.pattern.key] === undefined).map((b) => b.pattern.key);
     expect(loose).toEqual([]);
-  }, 300_000);
+  }, 900_000);
 
   test('прежние версии узоров — в наборе скрытыми, после всех картинок; библиотека показывает нынешние', async () => {
     // начатая на прежней версии работа открывается по своему ключу (ADR 0010), а библиотека,
@@ -186,5 +187,5 @@ describe('сборка', () => {
     // телефон даёт такому дню запасную картинку (src/engine/calendar.ts); остальные дни — только нынешние картинки
     const fixed = new Set(readFixedDays(calendar[0].date).map((d) => d.date));
     expect(calendar.filter((d) => !fixed.has(d.date) && !built.some((b) => b.picture.id === d.picture && !b.picture.hidden))).toEqual([]);
-  }, 300_000);
+  }, 900_000);
 });

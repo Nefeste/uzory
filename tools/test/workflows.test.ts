@@ -84,7 +84,7 @@ describe('общий набор студии gornitsa-kit (ADR студии 0022
     // резервная копия включена: работы переживают переустановку (docs/04-data-model.md)
     expect(contents.backup).toBe('on');
     expect(contents.forbid).toBe('READ_MEDIA|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK');
-    expect(contents['max-size-mb']).toBe('90');
+    expect(contents['max-size-mb']).toBe('99');
     const allow = readFileSync(join(dir, '..', '..', contents['allow-file']), 'utf8');
     for (const p of ['android.permission.INTERNET', 'android.permission.VIBRATE', 'games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']) expect(allow).toContain(p);
     // ровно две архитектуры и RuStore Pay в манифесте набор не проверяет — это шаг игры после него
