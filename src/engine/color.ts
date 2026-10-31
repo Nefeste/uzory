@@ -15,7 +15,8 @@ export function fromLinear(x: number): number {
   return Math.max(0, Math.min(255, Math.round(v * 255)));
 }
 
-const LINEAR = Float64Array.from({ length: 256 }, (_, i) => toLinear(i));
+/** Канал 0…255 → линейный свет: таблица (в горячих циклах — напрямую, без вызова функции). */
+export const LINEAR = Float64Array.from({ length: 256 }, (_, i) => toLinear(i));
 
 /** Таблица «канал → линейный свет» без пересчёта степеней. */
 export const linear = (c: number) => LINEAR[c];

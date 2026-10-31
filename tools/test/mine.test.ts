@@ -185,8 +185,45 @@ describe('свой узор', () => {
     expect(readCard(cardFile('bad', strong.yaml.replace('simplify: 2', 'simplify: 3'))).errors.join()).toContain('pattern.simplify');
   });
 
+  test('снимок с телефона: трава в точку не пестрит узор — кадр до сетки усредняется до 4 × 4 точек на клетку (0.18.2)', () => {
+    // луг под небом: светлые и тёмные травинки поровну, вперемешку по точке — так выглядит снимок в
+    // 12 Мп и больше, уменьшенный до 2000 точек: на клетку «средней» — два десятка точек, и какой
+    // травы в клетке больше, решает случай
+    const grass = (x: number, y: number) => {
+      if (y < 0.4) return 0x9cc3e6;
+      let a = Math.floor(y * 1050) * 1400 + Math.floor(x * 1400);
+      a = Math.imul(a ^ (a >>> 16), 0x45d9f3b);
+      a = Math.imul(a ^ (a >>> 16), 0x45d9f3b);
+      return (a ^ (a >>> 16)) & 1 ? 0x8fbf4a : 0x2f5a1c;
+    };
+    const r = photo(1400, 1050, grass);
+    const o = { crop: [0, 0, 1, 1] as Crop, side: 70, threads: 16 };
+    /** доля соседних клеток луга с разной нитью */
+    const motley = (p: Pattern) => {
+      let diff = 0, all = 0;
+      for (let y = Math.ceil(p.h * 0.45); y < p.h; y++) {
+        for (let x = 0; x + 1 < p.w; x++) {
+          all++;
+          if (p.cells[y * p.w + x] !== p.cells[y * p.w + x + 1]) diff++;
+        }
+      }
+      return diff / all;
+    };
+    const now = buildMine(r, o);
+    // прежняя сборка — та же, только без усреднения: цвет клетки — по отдельным точкам
+    const { px: _px, ...before } = MINE_GRID;
+    const old = buildPattern(photoGrid(r, { crop: o.crop, size: o.side, ...before }), { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[0] }).pattern;
+    expect(motley(old)).toBeGreaterThan(0.2);
+    expect(motley(now.pattern)).toBeLessThan(motley(old) / 4);
+    // ни одиночных, ни мелких пятен; «почти одноцветная» — да: у неба и луга по нити
+    expect(now.verdict.issues).toEqual(['flat']);
+    // небо и луг — по-прежнему разные: граница пятен остаётся
+    expect(now.pattern.cells[0]).not.toBe(now.pattern.cells[now.pattern.cells.length - 1]);
+  });
+
   test('упрощение: пёстрая листва без него рассыпается, с ним — ровные пятна', () => {
-    const r = photo(700, 525, leaves);
+    // четыре точки на клетку: усреднять нечего, пятна листвы — чуть больше клетки
+    const r = photo(280, 210, leaves);
     const plain = buildMine(r, { crop: [0, 0, 1, 1], side: 70, threads: 16 });
     expect(plain.checked.stats.small).toBeGreaterThan(2);
     // «нет» — та же сборка, что и без настройки

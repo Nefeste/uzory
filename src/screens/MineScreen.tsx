@@ -66,6 +66,12 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     draft = photo ? { photo, crop, side, threads, simplify, title } : null;
   }, [photo, crop, side, threads, simplify, title]);
   const [result, setResult] = useState<{ key: string; build: MineBuild } | null>(null);
+  // какой по счёту снимок открыт: ключ сборки и рамки — номер, а не data: URI в мегабайт
+  const [shot, setShot] = useState(0);
+  // снимок выбран и читается — секунды у снимка в 50 Мп: экран говорит, что занят
+  const [opening, setOpening] = useState(false);
+  // рамку держат пальцем: прокрутка экрана стоит, узор собирается, когда отпустят
+  const [touching, setTouching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry; done?: WorkEntry }[]>([]);
   const [sure, setSure] = useState<string | null>(null);
@@ -89,11 +95,12 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     void refresh();
   }, []);
 
-  // сборка узора — после паузы в правках; пока узор не для этих правок, идёт «Собираю…»
-  const inputKey = photo ? `${photo.uri} ${crop.join(',')} ${side} ${threads} ${simplify}` : '';
+  // сборка узора — после паузы в правках и когда рамку отпустили: сборка занимает поток JS, и
+  // палец на рамке ждал бы её; пока узор не для этих правок, идёт «Собираю…»
+  const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify}` : '';
   const building = !!photo && result?.key !== inputKey;
   useEffect(() => {
-    if (!photo) return;
+    if (!photo || touching) return;
     const t = setTimeout(() => {
       try {
         const build = buildMine(photo.raster, { crop, side, threads, simplify });
@@ -103,23 +110,28 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [photo, crop, side, threads, simplify, inputKey]);
+  }, [photo, crop, side, threads, simplify, inputKey, touching]);
 
   const built = result?.build ?? null;
   const preview = useMemo(() => (built ? previewUri(built.pattern, 'done', 520) : null), [built]);
 
+  // другой снимок: пока он читается, прежнего не видно; не открылся — прежний на месте и строка, почему
   const pick = async () => {
+    if (opening) return;
     setError(null);
     try {
-      const p = await pickPhoto();
-      if (!p) return;
+      const p = await pickPhoto(() => setOpening(true));
+      if (!p || !alive.current) return;
       setPhoto(p);
+      setShot((n) => n + 1);
       setCrop([0, 0, 1, 1]);
       setResult(null);
       setTitle(T.mine.defaultName(new Date()));
     } catch (e) {
       if (!(e instanceof PhotoError)) logError('mine', e, 'pick');
-      setError(Platform.OS === 'web' ? T.mine.badFile : T.mine.badPhoto);
+      if (alive.current) setError(Platform.OS === 'web' ? T.mine.badFile : T.mine.badPhoto);
+    } finally {
+      if (alive.current) setOpening(false);
     }
   };
 
@@ -130,7 +142,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   const sizeKey = (Object.keys(MINE_SIZES) as SizeKey[]).find((k) => MINE_SIZES[k] === side);
 
   const stitch = async () => {
-    if (!built || building || built.verdict.level === 'bad' || access === 'locked') return;
+    if (!built || building || opening || built.verdict.level === 'bad' || access === 'locked') return;
     setSaving(true);
     setError(null);
     try {
@@ -172,35 +184,41 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   return (
     <Screen title={T.mine.title} onBack={onBack} wide={wide}>
-      <ScrollView contentContainerStyle={styles.body}>
+      {/* в вебе — мышь, прокрутку она не задевает, а без полосы прокрутки раскладка сдвинулась бы под курсором */}
+      <ScrollView contentContainerStyle={styles.body} scrollEnabled={Platform.OS === 'web' || !touching}>
         {!photo ? (
           <Card style={styles.intro}>
             <Txt>{T.mine.intro}</Txt>
-            <Button label={T.mine.pick} onPress={() => void pick()} testID="mine-pick" />
+            {opening ? <Opening /> : <Button label={T.mine.pick} onPress={() => void pick()} testID="mine-pick" />}
             {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
           </Card>
         ) : (
           <View style={[styles.editor, wide && styles.editorWide]}>
             <View style={[styles.col, wide && styles.colWide]}>
-              <CropBox uri={photo.uri} width={photo.raster.width} height={photo.raster.height} maxW={photoW} maxH={photoH} crop={crop} onChange={setCrop} />
+              {opening ? (
+                <View style={[styles.opening, { height: photoH, backgroundColor: theme.surfaceAlt }]}><Opening /></View>
+              ) : (
+                <CropBox key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height} maxW={photoW} maxH={photoH}
+                  crop={crop} onChange={setCrop} onActive={setTouching} />
+              )}
               <View style={styles.row}>
-                <Button small kind="secondary" label={T.mine.whole} onPress={() => setCrop([0, 0, 1, 1])} testID="mine-whole" />
-                <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} testID="mine-other" />
+                <Button small kind="secondary" label={T.mine.whole} onPress={() => setCrop([0, 0, 1, 1])} disabled={opening} testID="mine-whole" />
+                <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} disabled={opening} testID="mine-other" />
               </View>
               <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
               {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
             </View>
             <View style={[styles.col, wide && styles.colWide, wide && styles.colRight]}>
               <View style={[styles.preview, { backgroundColor: theme.surfaceAlt }]}>
-                {preview ? <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-preview" /> : null}
-                {building ? (
+                {preview && !opening ? <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-preview" /> : null}
+                {building && !opening ? (
                   <View style={styles.building} testID="mine-building">
                     <ActivityIndicator color={theme.accent} />
                     <Txt dim>{T.mine.building}</Txt>
                   </View>
                 ) : null}
               </View>
-              {built ? (
+              {built && !opening ? (
                 <>
                   <Txt bold testID="mine-meta">{T.mine.meta(built.pattern.w, built.pattern.h, built.pattern.threads.length, estimateMinutes(built.pattern))}</Txt>
                   <View style={[styles.verdict, { borderColor: verdictColor }]} testID="mine-verdict">
@@ -240,7 +258,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                 </View>
               ) : (
                 <>
-                  <Button label={T.mine.stitch} onPress={() => void stitch()} disabled={!built || building || saving || built.verdict.level === 'bad'}
+                  <Button label={T.mine.stitch} onPress={() => void stitch()} disabled={!built || building || saving || opening || built.verdict.level === 'bad'}
                     style={styles.go} testID="mine-stitch" />
                   {access === 'free' ? <Txt dim style={styles.small} testID="mine-free">{T.mine.free}</Txt> : null}
                 </>
@@ -282,6 +300,17 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   );
 }
 
+/** Снимок читается: круг и строка — на месте кнопки или рамки. */
+function Opening() {
+  const { theme } = useSettings();
+  return (
+    <View style={styles.openingRow} testID="mine-opening">
+      <ActivityIndicator color={theme.accent} />
+      <Txt dim>{T.mine.opening}</Txt>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 10 },
   intro: { gap: 12 },
@@ -296,6 +325,8 @@ const styles = StyleSheet.create({
   small: { fontSize: 13 },
   preview: { width: '100%', aspectRatio: 1.3, borderRadius: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   previewImg: { width: '100%', height: '100%' },
+  opening: { alignSelf: 'stretch', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  openingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   building: { position: 'absolute', alignItems: 'center', gap: 6, padding: 10, borderRadius: 6, backgroundColor: 'rgba(247, 247, 242, 0.85)' },
   verdict: { borderLeftWidth: 4, paddingLeft: 10, paddingVertical: 4, gap: 2 },
   input: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },

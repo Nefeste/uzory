@@ -88,6 +88,11 @@ export interface Card {
     /** насыщенность до палитры: хрома в OKLab ×chroma, 1 — как есть (dominant.ts, saturate) */
     chroma?: number;
     /**
+     * точек на клетку: до сетки кадр усредняется по площади до px × px точек на клетку (smooth.ts,
+     * averageRaster; у «Своего узора» — 4, с 0.18.2); без поля — как есть
+     */
+    px?: number;
+    /**
      * порог различимости нитей вместо порога размера по числу клеток (MIN_DELTA): у листа с бумагой узор
      * малый по клеткам, а сетка — средняя, и порог малой сливает лепестки с листьями. Не ниже порога
      * размера по стороне сетки: до 70 клеток — 0,045 (docs/09-content.md, §6; с 16.10.2026)
@@ -166,7 +171,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -208,6 +213,9 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.tone !== undefined && (typeof p.tone !== 'number' || (p.tone !== 0 && (p.tone < 0.1 || p.tone > 1)) || p.chart)) errors.push(`pattern.tone ${String(p.tone)}: 0 или 0,1…1, и не у схемы`);
   if (p.grid !== undefined && ((p.grid !== 'mean' && p.grid !== 'dominant') || p.chart)) errors.push(`pattern.grid «${String(p.grid)}»: mean или dominant, и не у схемы`);
   if (p.chroma !== undefined && (typeof p.chroma !== 'number' || p.chroma < 1 || p.chroma > 1.5 || p.chart)) errors.push(`pattern.chroma ${String(p.chroma)}: 1…1,5, и не у схемы`);
+  if (p.px !== undefined && (!Number.isInteger(p.px) || p.px < 2 || p.px > 8 || p.chart || p.smooth === 2)) {
+    errors.push(`pattern.px ${String(p.px)}: целое 2…8, не у схемы и не со smooth: 2 — сдвиг среднего сам уменьшает снимок`);
+  }
   if (p.min_delta !== undefined) {
     // размер по стороне сетки: ниже его порога различимости нельзя, выше порога малой — незачем
     const bySide = (['S', 'M', 'L', 'XL'] as const).find((c) => p.size <= SIZES[c].side) ?? 'XL';

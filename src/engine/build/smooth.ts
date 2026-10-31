@@ -10,7 +10,7 @@
 //       (мазки, зерно, листва) сходится к цвету пятна, граница пятен остаётся. Ровнее, «мультяшнее»,
 //       но мелкой детали меньше, чем у 1.
 // Свой детерминированный фильтр, не генератор изображений (ADR 0006).
-import { fromLinear, labToLinear, linear, linearToLabInto } from '../color';
+import { fromLinear, labToLinear, LINEAR, linearToLabInto } from '../color';
 import type { Pattern } from '../pattern';
 import type { Grid, Raster } from './grid';
 import { type BuildLog, type BuildOptions, buildPattern, type Clean } from './palette';
@@ -57,42 +57,70 @@ function spans(a: number, b: number, max: number): { i: number; w: number }[] {
   return out;
 }
 
-/** Кадр → W × H точек по площади в линейном свете (как toGrid), в OKLab — три плоскости. */
-function resample(r: Raster, crop: Crop, W: number, H: number): Float32Array[] {
+/**
+ * Кадр → W × H точек по площади в линейном свете (как toGrid): `put(i, r, g, b)` получает точку `i`
+ * (построчно) в линейном свете.
+ */
+function areaResample(r: Raster, crop: Crop, W: number, H: number, put: (i: number, lr: number, lg: number, lb: number) => void): void {
   const x0 = crop[0] * r.width, y0 = crop[1] * r.height;
   const cw = (crop[2] - crop[0]) * r.width, ch = (crop[3] - crop[1]) * r.height;
-  const cols = Array.from({ length: W }, (_, x) => spans(x0 + (x * cw) / W, x0 + ((x + 1) * cw) / W, r.width));
-  const rows = Array.from({ length: H }, (_, y) => spans(y0 + (y * ch) / H, y0 + ((y + 1) * ch) / H, r.height));
+  const cols = flat(Array.from({ length: W }, (_, x) => spans(x0 + (x * cw) / W, x0 + ((x + 1) * cw) / W, r.width)));
+  const rows = flat(Array.from({ length: H }, (_, y) => spans(y0 + (y * ch) / H, y0 + ((y + 1) * ch) / H, r.height)));
   // сначала по строкам — только тех строк снимка, что попали в кадр
-  const top = rows[0][0].i;
-  const n = rows[H - 1][rows[H - 1].length - 1].i - top + 1;
+  const top = rows.at[0];
+  const n = rows.at[rows.from[H] - 1] - top + 1;
   const line = new Float32Array(n * W * 3);
+  const d = r.data;
   for (let yy = 0; yy < n; yy++) {
     const row = (top + yy) * r.width;
     for (let x = 0; x < W; x++) {
       let sr = 0, sg = 0, sb = 0, sw = 0;
-      for (const c of cols[x]) {
-        const o = (row + c.i) * 3;
-        sr += linear(r.data[o]) * c.w; sg += linear(r.data[o + 1]) * c.w; sb += linear(r.data[o + 2]) * c.w; sw += c.w;
+      for (let k = cols.from[x]; k < cols.from[x + 1]; k++) {
+        const o = (row + cols.at[k]) * 3;
+        const w = cols.w[k];
+        sr += LINEAR[d[o]] * w; sg += LINEAR[d[o + 1]] * w; sb += LINEAR[d[o + 2]] * w; sw += w;
       }
       const o = (yy * W + x) * 3;
       line[o] = sr / sw; line[o + 1] = sg / sw; line[o + 2] = sb / sw;
     }
   }
-  const P = [new Float32Array(W * H), new Float32Array(W * H), new Float32Array(W * H)];
-  const lab = new Float64Array(3);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       let sr = 0, sg = 0, sb = 0, sw = 0;
-      for (const s of rows[y]) {
-        const o = ((s.i - top) * W + x) * 3;
-        sr += line[o] * s.w; sg += line[o + 1] * s.w; sb += line[o + 2] * s.w; sw += s.w;
+      for (let k = rows.from[y]; k < rows.from[y + 1]; k++) {
+        const o = ((rows.at[k] - top) * W + x) * 3;
+        const w = rows.w[k];
+        sr += line[o] * w; sg += line[o + 1] * w; sb += line[o + 2] * w; sw += w;
       }
-      linearToLabInto(sr / sw, sg / sw, sb / sw, lab, 0);
-      const i = y * W + x;
-      P[0][i] = lab[0]; P[1][i] = lab[1]; P[2][i] = lab[2];
+      put(y * W + x, sr / sw, sg / sw, sb / sw);
     }
   }
+}
+
+/**
+ * Доли точек по столбцам или строкам — плоскими массивами: `from[x]…from[x + 1]` — доли `x`. Перебор
+ * массивов объектов на телефоне (Hermes, без JIT) — главное время усреднения.
+ */
+function flat(list: { i: number; w: number }[][]): { from: Int32Array; at: Int32Array; w: Float64Array } {
+  const from = new Int32Array(list.length + 1);
+  for (let x = 0; x < list.length; x++) from[x + 1] = from[x] + list[x].length;
+  const at = new Int32Array(from[list.length]);
+  const w = new Float64Array(from[list.length]);
+  list.forEach((l, x) => l.forEach((s, j) => {
+    at[from[x] + j] = s.i;
+    w[from[x] + j] = s.w;
+  }));
+  return { from, at, w };
+}
+
+/** Кадр → W × H точек по площади в линейном свете (как toGrid), в OKLab — три плоскости. */
+function resample(r: Raster, crop: Crop, W: number, H: number): Float32Array[] {
+  const P = [new Float32Array(W * H), new Float32Array(W * H), new Float32Array(W * H)];
+  const lab = new Float64Array(3);
+  areaResample(r, crop, W, H, (i, lr, lg, lb) => {
+    linearToLabInto(lr, lg, lb, lab, 0);
+    P[0][i] = lab[0]; P[1][i] = lab[1]; P[2][i] = lab[2];
+  });
   return P;
 }
 
@@ -151,6 +179,29 @@ export function smoothRaster(r: Raster, crop: Crop, size: number, level: Smooth)
     data[i * 3 + 1] = fromLinear(Math.min(1, Math.max(0, lg)));
     data[i * 3 + 2] = fromLinear(Math.min(1, Math.max(0, lb)));
   }
+  return { raster: { width: W, height: H, data }, crop: [0, 0, 1, 1] };
+}
+
+/**
+ * Снимок для сетки, усреднённый по площади до `px` × `px` точек на клетку (поле `px` карточки; у
+ * «Своего узора» — с 0.18.2, просьба владельца 31.10.2026: «уменьшать количество пикселей перед
+ * обработкой в узоры»). У снимка с телефона на клетку приходятся десятки точек — зерно матрицы,
+ * фактура травы и листвы, — и преобладающий цвет по отдельным точкам выходил случайным: узор пестрел.
+ * Усреднённая точка — уже цвет места, а граница пятен остаётся: точек на клетку всё ещё px × px.
+ * Кадр нового снимка — весь снимок, каждая клетка — ровно px × px его точек; у снимка, где на
+ * клетку и так не больше px точек, — снимок и кадр как есть.
+ */
+export function averageRaster(r: Raster, crop: Crop, size: number, px: number): { raster: Raster; crop: Crop } {
+  const { w, h, cw, ch } = cellsOf(r, crop, size);
+  const K = Math.min(px, Math.floor(Math.sqrt(WORK_PIXELS / (w * h))));
+  if (K < 1 || Math.min(cw / w, ch / h) <= K) return { raster: r, crop };
+  const W = w * K, H = h * K;
+  const data = new Uint8Array(W * H * 3);
+  areaResample(r, crop, W, H, (i, lr, lg, lb) => {
+    data[i * 3] = fromLinear(lr);
+    data[i * 3 + 1] = fromLinear(lg);
+    data[i * 3 + 2] = fromLinear(lb);
+  });
   return { raster: { width: W, height: H, data }, crop: [0, 0, 1, 1] };
 }
 

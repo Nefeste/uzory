@@ -20,8 +20,8 @@ export interface Photo {
 
 export class PhotoError extends Error {}
 
-/** Открывает выбор файла; отказался — null; не картинка — PhotoError. */
-export function pickPhoto(): Promise<Photo | null> {
+/** Открывает выбор файла; отказался — null; не картинка — PhotoError. `onOpen` — файл выбран и читается. */
+export function pickPhoto(onOpen?: () => void): Promise<Photo | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -36,6 +36,7 @@ export function pickPhoto(): Promise<Photo | null> {
         resolve(null);
         return;
       }
+      onOpen?.();
       decodePhoto(file).then(resolve, reject);
     });
     input.addEventListener('cancel', () => {
