@@ -228,6 +228,8 @@ export const ru = {
     settings: 'Настройки',
     /** «116 640 стежков · 8 часов»; минут нет у работ, начатых до того, как их стали считать, — тогда без времени */
     stats: (stitches: number, min?: number) => `${big(stitches)} ${pluralRu(stitches, 'стежок', 'стежка', 'стежков')}${min ? ` · ${spent(min)}` : ''}`,
+    /** счётчик повтора «Как вышивалось»: «1 240 из 11 473» */
+    replayCount: (shown: number, total: number) => `${big(shown)} из ${big(total)}`,
     about: 'О картине',
     share: 'Поделиться',
     sharing: 'Готовлю…',
