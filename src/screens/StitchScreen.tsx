@@ -5,7 +5,7 @@ import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { type Camera, openCamera } from '../canvas/camera';
 import { FIELD } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
@@ -24,6 +24,7 @@ import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
 import { DIGIT_FONT } from '../ui/fonts';
+import { Icon } from '../ui/Icon';
 
 /** Уход с экрана: где вышивали — работа откроется там же (docs/specs/2026-09-canvas.md, «Камера»). */
 function leave(session: WorkSession, api: { current: CanvasApi | null }, size: { current: { w: number; h: number } | null }) {
@@ -226,7 +227,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
       <Txt dim testID="percent">{T.common.percent(percent)}</Txt>
       <Pressable onPress={() => setPanel(panel ? null : 'menu')} hitSlop={10} accessibilityRole="button"
         accessibilityLabel={T.stitch.menu} style={styles.menuBtn} testID="menu">
-        <Txt bold style={styles.menuIcon}>⋮</Txt>
+        <Icon name="more" color={theme.text} />
       </Pressable>
     </View>
   );
@@ -250,15 +251,19 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
               onCamera={() => act('camera')}
             />
           ) : <ActivityIndicator style={styles.msg} color={theme.accent} />}
+        {/* доля вышитого — тонкой линией кумачом по верху канвы: прогресс виден краем глаза (3.5) */}
+        <View style={[styles.progress, { width: `${percent}%`, backgroundColor: theme.accent }]} testID="progress-line" />
         {shown && !finishing ? (
-          <View style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
+          // строка поверх канвы приходит снизу и уходит вниз, а не появляется рывком (3.7)
+          <Animated.View key={shown.text} entering={FadeInDown.duration(180)} exiting={FadeOutDown.duration(180)}
+            style={[styles.line, { backgroundColor: theme.surface, borderColor: theme.border }, shown.pick === undefined && styles.through]}
             testID={line ? 'hint' : `hint-${hint}`}>
             <Txt style={styles.lineText}>{shown.text}</Txt>
             {shown.pick !== undefined ? (
               <Button small kind="secondary" label={T.stitch.pick} testID="pick"
                 onPress={() => { setSelected(shown.pick!); setLine(null); }} />
             ) : null}
-          </View>
+          </Animated.View>
         ) : null}
         {panel ? (
           <Pressable style={styles.backdrop} onPress={() => setPanel(null)} accessibilityLabel={T.stitch.close} testID="panel-close">
@@ -287,7 +292,12 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
         ) : null}
       </View>
       <Animated.View style={[styles.bar, hudStyle, finishing && styles.off]}>
-        <Button small kind="secondary" label={`${T.stitch.where} ${left}`} onPress={where} testID="where" style={styles.where} />
+        {/* «Где ещё?» — лупа и остаток нити в «пилюле» (разбор оформления 31.10.2026, 3.6) */}
+        <Pressable onPress={where} accessibilityRole="button" testID="where"
+          style={({ pressed }) => [styles.where, { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.8 : 1 }]}>
+          <Icon name="search" color={theme.text} size={20} />
+          <Txt bold style={styles.whereText}>{`${T.stitch.where} ${left}`}</Txt>
+        </Pressable>
         {session ? (
           <ThreadBar threads={pattern.threads} left={session.state.left} selected={selected} stay={justDone}
             onSelect={(t) => { setSelected(t); setLine(null); }}
@@ -303,10 +313,10 @@ const styles = StyleSheet.create({
   msg: { margin: 24 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   menuBtn: { width: 30, height: 40, alignItems: 'center', justifyContent: 'center' },
-  menuIcon: { fontSize: 24, lineHeight: 28 },
   // строка — поверх канвы: её появление не меняет размер канвы и не сдвигает клетки
   line: { position: 'absolute', left: 8, right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: 6 },
   lineText: { flex: 1, fontSize: 15 },
+  progress: { position: 'absolute', left: 0, top: 0, height: 2, pointerEvents: 'none' },
   // строка без кнопки не мешает вышивать клетки под ней
   through: { pointerEvents: 'none' },
   off: { pointerEvents: 'none' },
@@ -317,5 +327,9 @@ const styles = StyleSheet.create({
   panelLabel: { fontSize: 13, marginTop: 4 },
   aboutBody: { gap: 8 },
   bar: { paddingTop: 6 },
-  where: { alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4 },
+  where: {
+    alignSelf: 'flex-start', marginLeft: 10, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 42, paddingHorizontal: 14, borderRadius: 21, borderWidth: 1,
+  },
+  whereText: { fontSize: 15 },
 });

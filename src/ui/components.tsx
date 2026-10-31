@@ -2,6 +2,7 @@
 // Общие элементы интерфейса (перенос из «Вотчины», вид — по сайту студии).
 import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, Text, View, type StyleProp, type SwitchProps, type TextStyle, type ViewStyle } from 'react-native';
+import { Icon } from './Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from '../i18n';
 import { useSettings } from '../state/settings';
@@ -24,7 +25,7 @@ export function Screen({ children, title, onBack, right, wide }: { children: Rea
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           {onBack ? (
             <Pressable onPress={onBack} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel={T.common.back} testID="back">
-              <Text maxFontSizeMultiplier={FONT_MAX} style={[styles.backText, { color: theme.text }]}>‹</Text>
+              <Icon name="back" color={theme.text} size={26} />
             </Pressable>
           ) : <View style={styles.back} />}
           <Txt title style={styles.title} numberOfLines={1}>{title}</Txt>
@@ -136,7 +137,6 @@ const styles = StyleSheet.create({
   wide: { maxWidth: 1600 },
   header: { height: 52, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  backText: { fontSize: 34, lineHeight: 36, marginTop: -4 },
   title: { flex: 1, fontSize: 20, textAlign: 'center' },
   right: { minWidth: 44, alignItems: 'flex-end' },
   btn: { minHeight: 50, borderRadius: 6, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },

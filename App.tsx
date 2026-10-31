@@ -4,6 +4,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { BackHandler, Image, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { warmCanvas } from './src/canvas/effect';
@@ -71,6 +72,8 @@ type Entry = Route & { k: number };
 
 let nextKey = 1;
 const entry = (r: Route): Entry => ({ ...r, k: nextKey++ });
+/** Экраны с канвой и замеры — без перехода: их первые кадры — работе и числам замера. */
+const CANVAS_ROUTES = new Set<Route['name']>(['stitch', 'stitchMine', 'bench', 'scrollBench']);
 
 const caption = (pic: PackPicture) => whoMade(pic) || undefined;
 
@@ -226,7 +229,8 @@ function Root() {
           player.update({ hints: [] });
           home();
         }}>
-        <View key={route.k} style={{ flex: 1 }}>{screen}</View>
+        {/* экран проявляется, а не сменяется рывком (3.8); канва — без перехода: её первые кадры — работе */}
+        <Animated.View key={route.k} entering={CANVAS_ROUTES.has(route.name) ? undefined : FadeIn.duration(160)} style={{ flex: 1 }}>{screen}</Animated.View>
       </ErrorBoundary>
     </View>
   );
