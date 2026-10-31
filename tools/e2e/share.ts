@@ -32,9 +32,9 @@ export interface ShareLook {
 
 /**
  * Стиль вышитых клеток на картинке: работа с точки (`x0`, `y0`), клетка — `c` точек. «Крестиком» — у
- * середины верхней стороны клетки не нить, а канва (на мелкой клетке — канва в тени нити, src/canvas/shader.ts),
- * в середине нить; «плиткой» — и там и там ровно нить. Клетки, чья нить почти как канва, не в счёт: на них
- * стиль не виден.
+ * середины верхней стороны клетки, у самого края, не нить, а канва (на мелкой клетке — канва в тени нити,
+ * src/canvas/shader.ts), в середине нить; «плиткой» — и там и там ровно нить. Клетки, чья нить почти как
+ * канва, не в счёт: на них стиль не виден.
  */
 export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: number, y0: number, c: number) {
   let cells = 0;
@@ -48,7 +48,9 @@ export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: 
     const x = x0 + ((i % p.w) + 0.5) * c;
     const top = y0 + Math.floor(i / p.w) * c;
     const mid = px(x, top + 0.5 * c);
-    const edge = px(x, top + 0.12 * c);
+    // у самого края: плечи крестика (с 31.10.2026 — почти до углов) сюда не доходят, а шов «Мозаики»
+    // в точку уже позади
+    const edge = px(x, top + Math.max(1.5, 0.04 * c));
     if (dist(edge, col) > 24 && dist(mid, col) <= 36) cross++;
     if (dist(edge, col) <= 4 && dist(mid, col) <= 4) tile++;
   }

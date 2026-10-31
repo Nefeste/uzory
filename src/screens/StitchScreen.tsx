@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { type Camera, openCamera } from '../canvas/camera';
+import { FIELD } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { ThreadBar } from '../canvas/ThreadBar';
@@ -220,7 +221,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
 
   return (
     <Screen title={title} onBack={onBack} wide right={right}>
-      <View style={[styles.canvas, { backgroundColor: '#e2e3da' }]} onLayout={(e) => {
+      <View style={[styles.canvas, { backgroundColor: theme.dark ? FIELD.dark : FIELD.light }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;
         setSize(next);
@@ -231,7 +232,7 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
               pattern={pattern} stitched={session.state.stitched} selected={selected}
               mosaic={settings.style === 'mosaic'} hatch={settings.highlight === 'hatch'}
               bigNumbers={settings.bigNumbers} fill={settings.fill} font={font}
-              width={size.w} height={size.h} apiRef={api}
+              width={size.w} height={size.h} apiRef={api} dark={theme.dark}
               initial={openCamera(pattern.w, pattern.h, size.w, size.h, settings.bigNumbers, session.at)}
               onStroke={onStroke} onForeign={onForeign} onPick={onPick} onFill={onFill} onTick={tick}
               onCamera={() => act('camera')}

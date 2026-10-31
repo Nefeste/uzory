@@ -4,7 +4,7 @@
 // «Вышито в „Узорах“». Сторона — до 2000 точек.
 // Где что лежит и каких цветов — src/engine/share.ts: по нему же сценарий проверяет картинку.
 import { ImageFormat, Skia, type SkFont, TileMode, FilterMode, MipmapMode } from '@shopify/react-native-skia';
-import { SKSL, uniformList } from '../canvas/shader';
+import { NO_SCENE, SKSL, uniformList } from '../canvas/shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from '../canvas/textures';
 import type { Pattern } from '../engine/pattern';
 import { SHARE_COLORS, shareLayout, type ShareRect, shareStitches } from '../engine/share';
@@ -54,7 +54,7 @@ export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
   m.scale(cell, cell);
   const shader = effect.makeShaderWithChildren(uniformList({
     w: p.w, h: p.h, gw: GLYPH_W, gh: GLYPH_H, cellPx: cell, near: shareStitches(cell, look.stitches) ? 1 : 0, selected: -1,
-    mosaic: look.mosaic ? 1 : 0, hatch: 0, gap: 0.5 / cell, px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1,
+    mosaic: look.mosaic ? 1 : 0, hatch: 0, gap: 0.5 / cell, px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, ...NO_SCENE,
   }), [
     cells.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None),
     pal.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Nearest, MipmapMode.None),

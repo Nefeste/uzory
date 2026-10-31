@@ -21,6 +21,14 @@ const CLOTH = half3('CLOTH');
 const TILE = half3('TILE');
 const DIGIT = half3('DIGIT');
 const rule = /half l = (\w+)\(o\);\s*half3 dc = l > ([\d.]+) \? DIGIT : \(l > ([\d.]+) \? half3\(0\.0\) : half3\(1\.0\)\);/.exec(SKSL);
+// переплетение канвы (cloth в шейдере): яркость CLOTH × k, k — из тех же чисел, что в шейдере
+const weave = /float dome = 1\.0 - ([\d.]+) \* dot\(gf - 0\.5, gf - 0\.5\);[\s\S]*?float k = ([\d.]+) \+ ([\d.]+) \* yarn \+ ([\d.]+) \* dome \+ ([\d.]+) \* fib;/.exec(SKSL);
+const WEAVE = (() => {
+  if (!weave) return [NaN, NaN];
+  const [dome, base, yarn, lift, fib] = weave.slice(1).map(Number);
+  // нить yarn — от 0 до 1, купол dome — от 1 − dome / 2 до 1, волокна fib — ±0,5
+  return [base + lift * (1 - dome / 2) - fib / 2, base + yarn + lift + fib / 2];
+})();
 const tint = Number(/base = hatch > 0\.5 \? mix\(base, col, half\(([\d.]+) \* stripe\)\) : mix\(base, col, ([\d.]+)\);/.exec(SKSL)?.[1]);
 const soft = Number(/base = hatch > 0\.5 \? mix\(base, col, half\(([\d.]+) \* stripe\)\) : mix\(base, col, ([\d.]+)\);/.exec(SKSL)?.[2]);
 
@@ -40,10 +48,10 @@ function digit(o: V): V {
   return l > hi ? DIGIT : l > lo ? [0, 0, 0] : [1, 1, 1];
 }
 
-/** Клетка под номером: полотно крестика (с переплетением ±2 %) или плитка «Мозаики» — как есть, подсвеченная, в полоске штриховки. */
+/** Клетка под номером: полотно крестика (самое тёмное и самое светлое место переплетения) или плитка «Мозаики» — как есть, подсвеченная, в полоске штриховки. */
 function cells(col: V): [string, V][] {
   const out: [string, V][] = [];
-  for (const weave of [0.965, 1.005]) {
+  for (const weave of WEAVE) {
     const cloth: V = [CLOTH[0] * weave, CLOTH[1] * weave, CLOTH[2] * weave];
     out.push(['крестик', cloth], ['крестик, подсветка', mix(cloth, col, soft)], ['крестик, штриховка', mix(cloth, col, tint)]);
   }
@@ -65,8 +73,18 @@ function worst(colors: Iterable<V>): { k: number; what: string } {
 describe('контраст номера на клетке', () => {
   test('правило шейдера на месте: цвет номера — по яркости WCAG, подсветка и штриховка найдены', () => {
     expect(rule?.[1]).toBe('wcag');
+    // переплетение найдено и в разумных пределах: канва не темнее 85 % и не светлее 105 % своего цвета
+    expect(WEAVE[0]).toBeGreaterThanOrEqual(0.85);
+    expect(WEAVE[1]).toBeLessThanOrEqual(1.05);
     expect(soft).toBeGreaterThan(0);
     expect(tint).toBeGreaterThan(soft);
+  });
+
+  test('виньетка темнит клетку до выбора цвета номера: контраст держится и в углах экрана', () => {
+    // поверх номера она роняла бы худший контраст до 4,2 : 1 уже при 6 % (разбор оформления 31.10.2026)
+    const vig = SKSL.indexOf('o *= half(vig);');
+    expect(vig).toBeGreaterThan(0);
+    expect(SKSL.indexOf('half l = wcag(o);')).toBeGreaterThan(vig);
   });
 
   test('каждая нить встроенного набора: не ниже 4,5 : 1', () => {

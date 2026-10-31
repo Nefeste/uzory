@@ -101,6 +101,9 @@ export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
   near: boolean; mosaic?: boolean; hatch?: boolean; selected?: number;
   /** цифры шрифтом приложения, а не «семисегментные» */
   font?: boolean;
+  /** сцена, как у канвы с кистью: виньетка по кадру; `dark` — тёмная тема */
+  scene?: boolean;
+  dark?: boolean;
 }): Promise<Frame> {
   const CK = await canvasKit();
   const effect = CK.RuntimeEffect.Make(SKSL, (e: string) => { throw new Error(`SkSL: ${e}`); });
@@ -114,6 +117,8 @@ export async function renderFrame(p: Pattern, stitched: Uint8Array, opts: {
   const u: Uniforms = {
     w: p.w, h: p.h, gw: GW, gh: GH, cellPx: opts.s, near: opts.near ? 1 : 0, selected: opts.selected ?? -1,
     mosaic: opts.mosaic ? 1 : 0, hatch: opts.hatch ? 1 : 0, gap: 0.5 / opts.s, px0: 0, py0: 0, px1: -1, py1: -1, pulseT: -1,
+    vx: (opts.width / 2 - opts.tx) / opts.s, vy: (opts.height / 2 - opts.ty) / opts.s,
+    vhx: opts.scene ? opts.width / 2 / opts.s : 0, vhy: opts.height / 2 / opts.s, dark: opts.dark ? 1 : 0,
   };
   const lm = CK.Matrix.multiply(CK.Matrix.translated(opts.tx, opts.ty), CK.Matrix.scaled(opts.s, opts.s));
   const shader = effect.makeShaderWithChildren(uniformList(u), [nearest(cells), nearest(pal), linear(dig)], lm);

@@ -33,12 +33,31 @@ export interface Uniforms {
   py1: number;
   /** секунд с начала пульсации; < 0 — нет */
   pulseT: number;
+  /** середина экрана и половина его ширины и высоты, в клетках, — для виньетки; vhx = 0 — без неё */
+  vx: number;
+  vy: number;
+  vhx: number;
+  vhy: number;
+  /** 1 — тёмная тема: поле за краем узора уходит в тень, виньетка сильнее */
+  dark: number;
 }
 
 export function uniformList(u: Uniforms): number[] {
   'worklet';
-  return [u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT];
+  return [
+    u.w, u.h, u.gw, u.gh, u.cellPx, u.near, u.selected, u.mosaic, u.hatch, u.gap, u.px0, u.py0, u.px1, u.py1, u.pulseT,
+    u.vx, u.vy, u.vhx, u.vhy, u.dark,
+  ];
 }
+
+/** Без виньетки и в светлой теме: мини-карта, картинка «Поделиться», кадры тестов. */
+export const NO_SCENE = { vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0 } as const;
+
+/**
+ * Поле за краем узора вдали от него — ровным цветом: фон контейнера канвы до первого кадра и путь
+ * «слои». CLOTH × FIELD_LIGHT и × FIELD_DARK из шейдера (tools/test/shader.test.ts сверяет).
+ */
+export const FIELD = { light: '#e2dfd6', dark: '#494845' } as const;
 
 /**
  * Шейдер. Цвет номера на невышитой клетке — тёмный, чёрный или белый — выбирается по яркости
@@ -47,11 +66,25 @@ export function uniformList(u: Uniforms): number[] {
  * степенью 2,2 (`luma`, им считается далёкий вид) у порогов он падал до 4,4 : 1 —
  * tools/test/contrast.test.ts. Внутри строки шейдера — только латиница (tools/test/i18n.test.ts).
  *
- * Крестик зависит от размера клетки на экране (`dense`). От 44 точек — как вблизи: два стежка, между
- * ними светлая канва. Мельче 28 точек стежки шире, а канва между ними в тени нити. Мелкую клетку глаз
- * смешивает в один цвет: светлая канва оставляла от насыщенности нити 30–60 %, тёмная нить светлела
- * до серой, и вся работа на картинке «Поделиться» выходила бледной и в сетку (14.10.2026,
- * tools/test/shader.test.ts). Между 28 и 44 точками крестик переходит плавно.
+ * Крестик — как настоящая вышивка (разбор оформления 31.10.2026: «решётка из белых ромбов», «лента, а не
+ * нить»). Плечи стежка — почти до углов клетки и шириной в половину клетки: нить закрывает около 89 %
+ * клетки (было около 72 %), канва видна узкими щелями у середин сторон, в тени плеч. Каждое плечо —
+ * прядь-цилиндр под одним светом сверху слева: сторона к свету светлее и с мягким бликом, другая — в
+ * тени; скрутка идёт наискось к оси, концы у дырочек темнее. Плечи отбрасывают на канву тень вниз и
+ * вправо, верхнее — и на нижнее. В середине клетки свет, блик и скрутка сходятся в ноль — там ровно цвет
+ * нити (tools/test/shader.test.ts). Мельче 40 точек свет гаснет, а мельче 44 канва между плечами — в тени
+ * нити: мелкую клетку глаз смешивает в один цвет, и светлая канва бледнила работу на картинке
+ * «Поделиться» (14.10.2026).
+ *
+ * Канва — аида: в клетке четыре квадратика корзиночного плетения, у каждого две нити с волокнами вдоль,
+ * дырочки в углах клетки. Яркость переплетения — от 0,9 до 1,025 цвета канвы: номер на ней держит
+ * 4,5 : 1 (tools/test/contrast.test.ts берёт эти числа из шейдера). Издалека на канве с кистью края
+ * вышитых клеток чуть темнее, середина — ровно цвет нити: вышивка, а не карта цветов. Законченная работа на
+ * «Готово» и картинка «Поделиться» без стежков — ровные клетки (решение владельца 15.10.2026).
+ *
+ * Сцена: за краем узора — та же канва, темнее (FIELD_LIGHT); в тёмной теме она за 160 точек от узора
+ * уходит в тень (FIELD_DARK), и узор лежит как под лампой. Углы экрана темнее — виньетка, у канвы с
+ * кистью (`view`); она темнит клетку до выбора цвета номера, поэтому контраст держится и в углах.
  */
 export const SKSL = `
 uniform shader cells;
@@ -67,14 +100,21 @@ uniform float hatch;
 uniform float gap;
 uniform float4 pulse;
 uniform float pulseT;
+uniform float4 view;
+uniform float dark;
 
 const half3 CLOTH = half3(0.953, 0.941, 0.902);
-const half3 OUTSIDE = half3(0.886, 0.890, 0.855);
-const half3 HOLE = half3(0.667, 0.643, 0.580);
+const half3 HOLE = half3(0.600, 0.576, 0.518);
 const half3 GHOST = half3(0.965, 0.965, 0.949);
 const half3 TILE = half3(0.925, 0.929, 0.906);
 const half3 GAP = half3(0.851, 0.859, 0.820);
 const half3 DIGIT = half3(0.231, 0.243, 0.235);
+// light from the upper left: its direction in the canvas plane (cells, y down) and towards the viewer
+const float2 LXY = float2(-0.30, -0.53);
+const float LZ = 0.79;
+// field beyond the pattern: the same canvas, darker; in the dark theme it fades into shadow within 160 px
+const float FIELD_LIGHT = 0.93;
+const float FIELD_DARK = 0.3;
 
 half luma(half3 c) {
   half3 l = pow(c, half3(2.2));
@@ -86,6 +126,12 @@ half wcag(half3 c) {
   return dot(l, half3(0.2126, 0.7152, 0.0722));
 }
 
+float hash(float2 q) {
+  float3 h = fract(q.xyx * 0.1031);
+  h += dot(h, h.yzx + 33.33);
+  return fract((h.x + h.y) * h.z);
+}
+
 float segDist(float2 p, float2 a, float2 b) {
   float2 pa = p - a;
   float2 ba = b - a;
@@ -93,34 +139,78 @@ float segDist(float2 p, float2 a, float2 b) {
   return length(pa - ba * t);
 }
 
-half3 cloth(float2 f, float aa, float tex) {
+half3 cloth(float2 p, float aa, float tex) {
+  float2 f = fract(p);
   float2 e = min(f, 1.0 - f);
-  float hole = 1.0 - smoothstep(0.075, 0.075 + 1.5 * aa, length(e));
-  float wv = sin(f.x * 18.85) * sin(f.y * 18.85);
-  half3 o = CLOTH * half(0.985 + 0.02 * wv * tex);
-  return mix(o, HOLE, half(hole * 0.85));
+  float2 g = p * 2.0;
+  float2 gf = fract(g);
+  bool hor = mod(floor(g.x) + floor(g.y), 2.0) < 0.5;
+  float across = hor ? gf.y : gf.x;
+  float along = hor ? g.x : g.y;
+  float lane = hor ? g.y : g.x;
+  float yarn = sin(fract(across * 2.0) * 3.1416);
+  float dome = 1.0 - 0.8 * dot(gf - 0.5, gf - 0.5);
+  float fi = floor(lane * 10.0);
+  float s = along * 1.5;
+  float fl = floor(s);
+  float fib = mix(hash(float2(fi, fl)), hash(float2(fi, fl + 1.0)), smoothstep(0.0, 1.0, s - fl)) - 0.5;
+  float k = 0.9 + 0.06 * yarn + 0.04 * dome + 0.05 * fib;
+  half3 o = CLOTH * half(mix(1.0, k, tex));
+  float d = length(max(e - 0.035, 0.0)) - 0.045;
+  float hole = 1.0 - smoothstep(-aa, aa, d);
+  return mix(o, HOLE, half(hole * 0.9));
 }
 
-half3 floss(half3 col, float d, float w, float along, float across, float tex, float dark) {
-  float r = d / w;
-  float tw = sin((along * 3.0 + across * 9.0) * 6.2832);
-  return col * half((1.0 - dark * r * r) * (1.0 + 0.07 * tw * tex));
+half3 strand(half3 col, float a, float n, float2 u, float lit) {
+  float m = clamp(n, -1.0, 1.0);
+  float c = sqrt(1.0 - m * m);
+  float side = dot(u, LXY);
+  float shade = (0.6 + 0.5 * max(0.0, m * side + c * LZ)) / (0.6 + 0.5 * LZ);
+  float twist = sin((a * 4.0 + m * 2.4) * 6.2832);
+  float ends = 1.0 - 0.3 * smoothstep(0.5, 0.68, abs(a));
+  float x = (m + 0.45 * sign(side)) / 0.3;
+  float spec = max(0.0, 1.0 - x * x) * smoothstep(0.0, 0.3, abs(m));
+  half3 o = col * half(mix(1.0, shade * ends * (1.0 + 0.07 * twist), lit));
+  return mix(o, half3(1.0), half(0.1 * spec * spec * lit));
 }
 
-half3 cross(float2 f, half3 col, half3 base, float aa, float tex, float dense) {
-  float e = mix(0.11, 0.06, dense);
-  float w = mix(0.165, 0.23, dense);
-  float dark = mix(0.30, 0.22, dense);
-  float d1 = segDist(f, float2(e, e), float2(1.0 - e, 1.0 - e));
-  float d2 = segDist(f, float2(1.0 - e, e), float2(e, 1.0 - e));
-  float c1 = 1.0 - smoothstep(w - aa, w + aa, d1);
+half3 cross(float2 p, float2 f, half3 col, float aa, float tex, float lit, float dense) {
+  float e = 0.045;
+  float w = 0.235;
+  float2 q = f - 0.5;
+  float2 u1 = float2(0.7071, -0.7071);
+  float2 u2 = float2(0.7071, 0.7071);
+  float2 a2 = float2(1.0 - e, e);
+  float2 b2 = float2(e, 1.0 - e);
+  float d2 = segDist(f, a2, b2);
   float c2 = 1.0 - smoothstep(w - aa, w + aa, d2);
-  half3 o = mix(base, col * 0.6, half(0.6 * dense));
-  o = mix(o, floss(col, d1, w, f.x + f.y, f.x - f.y, tex, dark) * half(mix(0.9, 0.95, dense)), half(c1));
-  float sh = 1.0 - smoothstep(w, w + 0.09, d2);
-  o = mix(o, o * 0.72, half(sh * (1.0 - c2) * 0.7));
-  o = mix(o, floss(col, d2, w, f.x - f.y, f.x + f.y, tex, dark), half(c2));
-  return o;
+  half3 upper = strand(col, dot(q, float2(-0.7071, 0.7071)), dot(q, u2) / w, u2, lit);
+  // inside the upper arm nothing else shows: no canva, shadows or lower arm to compute
+  if (c2 >= 1.0) return upper;
+  float2 a1 = float2(e, e);
+  float2 b1 = float2(1.0 - e, 1.0 - e);
+  float d1 = segDist(f, a1, b1);
+  float c1 = 1.0 - smoothstep(w - aa, w + aa, d1);
+  float2 off = float2(0.035, 0.06);
+  float s2 = segDist(f - off, a2, b2);
+  half3 o;
+  if (c1 >= 1.0) {
+    o = strand(col, dot(q, float2(0.7071, 0.7071)), dot(q, u1) / w, u1, lit) * half(mix(0.92, 0.95, dense));
+  } else {
+    // canva between the arms: in their shade, and in the shadow cast down and right
+    float s1 = segDist(f - off, a1, b1);
+    float drop = 1.0 - smoothstep(w - 0.05, w + 0.08, min(s1, s2));
+    float ao = smoothstep(w, w + 0.18, min(d1, d2));
+    o = mix(cloth(p, aa, tex), col * 0.6, half(0.6 * dense));
+    o *= half(1.0 - lit * (0.28 * (1.0 - ao) + 0.22 * drop));
+    if (c1 > 0.0) {
+      half3 lower = strand(col, dot(q, float2(0.7071, 0.7071)), dot(q, u1) / w, u1, lit);
+      o = mix(o, lower * half(mix(0.92, 0.95, dense)), half(c1));
+    }
+  }
+  float sh = 1.0 - smoothstep(w - 0.04, w + 0.05, s2);
+  o = mix(o, o * 0.7, half(sh * (1.0 - c2) * 0.6 * lit));
+  return mix(o, upper, half(c2));
 }
 
 half glyphAt(float2 q, float d) {
@@ -153,17 +243,28 @@ half number(float2 f, float n, float bold) {
 
 half4 main(float2 p) {
   float2 cell = floor(p);
-  if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= grid.x || cell.y >= grid.y) return half4(OUTSIDE, 1.0);
+  float aa = 1.0 / max(cellPx, 1.0);
+  float tex = smoothstep(18.0, 44.0, cellPx);
+  // vignette: darker screen corners; the number colour below is chosen from the darkened cell
+  float vig = 1.0;
+  if (view.z > 0.0) {
+    float r = length((p - view.xy) / view.zw) * 0.7071;
+    vig = 1.0 - mix(0.1, 0.22, dark) * smoothstep(0.45, 1.0, r);
+  }
+  if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= grid.x || cell.y >= grid.y) {
+    float2 beyond = max(max(-p, p - grid), 0.0);
+    float k = mix(FIELD_LIGHT, FIELD_DARK, dark * smoothstep(0.0, 1.0, length(beyond) * cellPx / 160.0));
+    return half4((near < 0.5 || mosaic > 0.5 ? CLOTH : cloth(p, aa, tex)) * half(k * vig), 1.0);
+  }
   half4 c = cells.eval(cell + 0.5);
   float idx = floor(c.r * 255.0 + 0.5);
   bool done = c.g > 0.5;
   float2 f = fract(p);
-  float aa = 1.0 / max(cellPx, 1.0);
-  float tex = smoothstep(18.0, 44.0, cellPx);
+  float lit = smoothstep(16.0, 40.0, cellPx);
   float dense = 1.0 - smoothstep(28.0, 44.0, cellPx);
   if (idx > 254.5) {
-    if (near < 0.5) return half4(CLOTH, 1.0);
-    return half4(mosaic > 0.5 ? CLOTH : cloth(f, aa, tex), 1.0);
+    if (near < 0.5) return half4(CLOTH * half(vig), 1.0);
+    return half4((mosaic > 0.5 ? CLOTH : cloth(p, aa, tex)) * half(vig), 1.0);
   }
   half3 col = palette.eval(float2(idx + 0.5, 0.5)).rgb;
   bool sel = abs(idx - selected) < 0.5;
@@ -172,7 +273,14 @@ half4 main(float2 p) {
     half g = pow(luma(col), 0.4545);
     o = done ? col : mix(GHOST, half3(g), 0.35);
     if (!done && sel) o = mix(o, col, 0.3);
-    return half4(o, 1.0);
+    // texture from afar only on the working canvas (the scene): the finished work on "Done" and
+    // the shared picture stay flat cells
+    if (done && view.z > 0.0) {
+      float2 e = min(f, 1.0 - f);
+      float edge = 1.0 - smoothstep(0.0, 0.3, min(e.x, e.y));
+      o *= half(1.0 - 0.06 * edge * smoothstep(3.0, 8.0, cellPx));
+    }
+    return half4(o * half(vig), 1.0);
   }
   float stripe = step(0.5, fract((p.x + p.y) * 2.0));
   if (mosaic > 0.5) {
@@ -182,10 +290,15 @@ half4 main(float2 p) {
     if (!done && sel) tile = hatch > 0.5 ? mix(tile, col, half(0.45 * stripe)) : mix(tile, col, 0.25);
     o = mix(GAP, tile, half(inside));
   } else {
-    half3 base = cloth(f, aa, tex);
-    if (!done && sel) base = hatch > 0.5 ? mix(base, col, half(0.45 * stripe)) : mix(base, col, 0.25);
-    o = done ? cross(f, col, base, aa, tex, dense) : base;
+    if (done) {
+      o = cross(p, f, col, aa, tex, lit, dense);
+    } else {
+      half3 base = cloth(p, aa, tex);
+      if (sel) base = hatch > 0.5 ? mix(base, col, half(0.45 * stripe)) : mix(base, col, 0.25);
+      o = base;
+    }
   }
+  o *= half(vig);
   if (!done) {
     half a = number(f, idx + 1.0, sel ? 1.0 : 0.0);
     half l = wcag(o);
