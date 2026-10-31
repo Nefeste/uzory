@@ -101,6 +101,27 @@ const check = (ok: boolean, what: string) => {
  * Центр клетки на экране при камере открытия новой работы (src/canvas/camera.ts, `openCamera`):
  * маленькая картинка — «весь узор» по центру, большая — масштаб открытия, середина узора в середине экрана.
  */
+/**
+ * Двойной щелчок со временем событий, как у пальца: второе нажатие — через `gap` мс после первого по часам
+ * самих событий (CDP `Input.dispatchMouseEvent`, поле `timestamp`). Щелчки Playwright уходят по очереди:
+ * второй — когда страница обработала первый, и на медленной машине (раннер GitHub, программный WebGL)
+ * промежуток между ними по времени событий растёт: у ассистента под нагрузкой — до 180 мс вместо 80, а
+ * тег v0.16.12 на раннере упал на «двойное касание залило область: 1 из 68 клеток» — промежуток вышел за
+ * окно двойного касания (250 мс). Приложение меряет окно по времени событий (src/canvas/StitchCanvas.tsx,
+ * `input`), и с явным временем двойной щелчок сценария — ровно 80 мс на любой машине.
+ */
+async function doubleTap(page: Page, x: number, y: number, gap = 80) {
+  const cdp = await page.context().newCDPSession(page);
+  const t0 = Date.now() / 1000;
+  const send = (type: 'mousePressed' | 'mouseReleased', t: number, clickCount: number) =>
+    cdp.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount, timestamp: t });
+  await send('mousePressed', t0, 1);
+  await send('mouseReleased', t0 + 0.01, 1);
+  await send('mousePressed', t0 + gap / 1000, 2);
+  await send('mouseReleased', t0 + (gap + 10) / 1000, 2);
+  await cdp.detach();
+}
+
 async function cellPoint(page: Page, p: Pattern, cell: number) {
   const box = (await page.getByTestId('canvas').boundingBox())!;
   const c = openCamera(p.w, p.h, box.width, box.height, false);
@@ -458,9 +479,7 @@ try {
   }
   const left0 = await whereLeft();
   const rp = await cellPoint(page, first, region[0]);
-  await page.mouse.click(rp.x, rp.y);
-  await page.waitForTimeout(80);
-  await page.mouse.click(rp.x, rp.y);
+  await doubleTap(page, rp.x, rp.y);
   const leftBelow = (n: number) => page.waitForFunction((k) => {
     const m = document.querySelector('[data-testid="where"]')?.textContent?.match(/(\d+)\s*$/);
     return !!m && Number(m[1]) <= k;
@@ -833,9 +852,7 @@ try {
       if (koltsa.cells[i] !== t || filled[i]) continue;
       for (const c of fillRegion(koltsa, filled, i)) filled[c] = 1;
       const pt = await cellPoint(page, koltsa, i);
-      await page.mouse.click(pt.x, pt.y);
-      await page.waitForTimeout(80);
-      await page.mouse.click(pt.x, pt.y);
+      await doubleTap(page, pt.x, pt.y);
       await page.waitForTimeout(400);
     }
   }
@@ -1042,9 +1059,7 @@ try {
       await page.getByTestId('pick').click();
       await page.waitForTimeout(200);
     }
-    await page.mouse.click(at.x, at.y);
-    await page.waitForTimeout(80);
-    await page.mouse.click(at.x, at.y);
+    await doubleTap(page, at.x, at.y);
     await page.waitForTimeout(400);
   }
   const minePercent = await page.getByTestId('percent').innerText();
@@ -1649,9 +1664,7 @@ try {
       if (first.cells[i] !== t || zFilled[i]) continue;
       for (const c of fillRegion(first, zFilled, i)) zFilled[c] = 1;
       const pt = await cellPoint(zp, first, i);
-      await zp.mouse.click(pt.x, pt.y);
-      await zp.waitForTimeout(80);
-      await zp.mouse.click(pt.x, pt.y);
+      await doubleTap(zp, pt.x, pt.y);
       await zp.waitForTimeout(400);
     }
   }
