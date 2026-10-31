@@ -45,9 +45,10 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
     async purchase(id) {
       try {
         // одна стадия: выдавать подписку нечем, кроме самого приложения (как «Про» в «Нардах»)
-        const r = await pay.purchase(id, null, null, null, null, null, 'ONE_STEP', 'LIGHT', {});
-        // подписка выдана — отметить в RuStore (для оплаты не обязательно; не вышло — не страшно)
-        pay.updateAcknowledgementState(r.purchaseId, 'ACKNOWLEDGED').catch(() => undefined);
+        // Отметки «выдано» (`updateAcknowledgementState`) нет: она необязательна (RuStore, «Признак
+        // выдачи товара»), а в обёртке 11.1.0 ломает оплату — с двумя аргументами модуль бросает
+        // исключение сразу, мимо .catch, с тремя её ответ роняет приложение («Нарды» 1.1.1, 1.1.3).
+        await pay.purchase(id, null, null, null, null, null, 'ONE_STEP', 'LIGHT', {});
         // срок — из списка покупок; RuStore его ещё не отдал — оплачено, срока нет: трое суток
         // с проверки (src/engine/plus.ts), а следующая проверка его узнает
         const s = await status();

@@ -63,7 +63,6 @@ export interface PayNative {
     appUserId: string | null, appUserEmail: string | null, preferredPurchaseType: 'ONE_STEP' | 'TWO_STEP' | null,
     sdkTheme: 'LIGHT' | 'DARK' | null, listenerIds: Record<string, string>,
   ): Promise<RsPurchaseResult>;
-  updateAcknowledgementState(purchaseId: string, state: 'PENDING' | 'ACKNOWLEDGED' | 'UNKNOWN', payload?: string): Promise<string>;
   getUserAuthorizationStatus(): Promise<boolean>;
   isRuStoreInstalled(): Promise<boolean>;
   openRuStore(): Promise<void>;

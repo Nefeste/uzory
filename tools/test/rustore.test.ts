@@ -112,7 +112,9 @@ describe('цены и ошибки RuStore', () => {
 function fakePay(o: { purchases?: () => RsPurchase[]; buy?: () => void; products?: RsProduct[]; available?: boolean; cause?: string; installed?: boolean } = {}) {
   const calls: { name: string; args: unknown[] }[] = [];
   const rec = (name: string, args: unknown[]) => calls.push({ name, args });
-  const pay: PayNative = {
+  // у настоящего модуля метод отметки «выдано» есть, и вызов с неверным числом аргументов бросает
+  // исключение сразу (новая архитектура React Native) — покупка не должна его трогать
+  const pay: PayNative & { updateAcknowledgementState: (...a: unknown[]) => never } = {
     getPurchaseAvailability: async () => (rec('getPurchaseAvailability', []), { availability: o.available ?? true, ...(o.cause ? { cause: o.cause } : {}) }),
     getProducts: async (ids) => (rec('getProducts', [ids]), o.products ?? []),
     getPurchases: async (...a) => (rec('getPurchases', a), (o.purchases ?? (() => []))()),
@@ -122,7 +124,10 @@ function fakePay(o: { purchases?: () => RsPurchase[]; buy?: () => void; products
       o.buy?.();
       return { purchaseId: 'buy-1', productId: String(a[0]), invoiceId: 'inv', productType: 'SUBSCRIPTION', sandbox: true };
     },
-    updateAcknowledgementState: async (...a) => (rec('updateAcknowledgementState', a), 'ok'),
+    updateAcknowledgementState: (...a) => {
+      rec('updateAcknowledgementState', a);
+      throw new Error('TurboModule method "updateAcknowledgementState" called with 2 arguments (expected argument count: 3)');
+    },
     getUserAuthorizationStatus: async () => true,
     isRuStoreInstalled: async () => o.installed ?? true,
     openRuStore: async () => undefined,
@@ -154,7 +159,7 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
     expect(await rustoreBilling(broken.pay, APP_ID).products()).toBeNull();
   });
 
-  test('покупка: одна стадия, без почты и идентификатора игрока; срок — из списка покупок; отметка «выдано»', async () => {
+  test('покупка: одна стадия, без почты и идентификатора игрока; срок — из списка покупок; без отметки «выдано»', async () => {
     let bought = false;
     const year = '2027-10-20T12:00:00Z';
     const f = fakePay({ buy: () => { bought = true; }, purchases: () => (bought ? [sub('uzory_plus_year', 'ACTIVE', year)] : []) });
@@ -165,7 +170,8 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
     expect(call.args[4]).toBeNull(); // appUserId
     expect(call.args[5]).toBeNull(); // appUserEmail
     expect(call.args[6]).toBe('ONE_STEP');
-    expect(f.calls.find((c) => c.name === 'updateAcknowledgementState')?.args).toEqual(['buy-1', 'ACKNOWLEDGED']);
+    // «Нарды» 1.1.0 и 1.1.2: отметка ломала оплату и роняла приложение — её нет совсем
+    expect(f.calls.find((c) => c.name === 'updateAcknowledgementState')).toBeUndefined();
   });
 
   test('оплачено, а в списке покупок её ещё нет — открыто без срока (трое суток до следующей проверки)', async () => {
