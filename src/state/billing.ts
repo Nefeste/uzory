@@ -1,6 +1,6 @@
 // Магазин подписки «Узоры+» (docs/specs/2026-09-plus.md, «Протокол»): цены, покупка и права —
 // у RuStore Pay (src/money/, перенесён из «Нард»; код денег — путь владельца). Магазин есть, когда в
-// сборке нативный модуль RuStore Pay (plugins/with-rustore.js) и номер приложения в консоли
+// сборке нативный модуль RuStore Pay (плагин набора @gornitsa/kit/rustore-pay/plugin) и номер приложения в консоли
 // RuStore — переменная репозитория `RUSTORE_APP_ID`, в сборку — `EXPO_PUBLIC_RUSTORE_APP_ID`
 // (.github/workflows/android.yml). Без номера магазина нет, как до RuStore Pay: экран «Узоры+» —
 // образец, а всё бесплатное работает. Веб-версия — ./billing.web.ts; что спрашивается у

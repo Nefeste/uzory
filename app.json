@@ -64,7 +64,7 @@
         }
       ],
       "./plugins/with-release-signing",
-      "./plugins/with-rustore"
+      ["@gornitsa/kit/rustore-pay/plugin", { "scheme": "gornitsauzorypay", "noAppId": "skip" }]
     ],
     "experiments": {
       "reactCompiler": true

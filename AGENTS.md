@@ -49,7 +49,10 @@ Infrastructure is reused from the studio's other games **by copying** with a sou
 (studio ADR 0002, project ADR 0001):
 `Nefeste/votchina` (dialog, i18n mechanics, crash log and report, storage, settings, release
 signing plugin, Android CI, RuStore upload), `Nefeste/anamnez` (Skia setup incl. web CanvasKit
-loading), `Nefeste/nardy` (RuStore Pay and Review integration). The studio brand
+loading), `Nefeste/nardy` (RuStore Review integration). RuStore Pay is not a copy: the build
+plugin, wrapper types and the purchase come from the studio kit package `@gornitsa/kit/rustore-pay`
+(`Nefeste/gornitsa-kit`, tag `v1.1.0`, studio ADR 0022); rights, prices and player words stay in
+`src/money/`. The studio brand
 (fonts Kurale and Onest, colour tokens, the ornament band) is in the charter's `brand/`; the site
 `Nefeste/gornitsagames` holds the nginx config of the server that hosts picture packs and the
 closed web version (`deploy/uzory/` there).
