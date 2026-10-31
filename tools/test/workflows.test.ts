@@ -2,7 +2,8 @@
 // закрытые репозитории аккаунта и считается за месяц; в октябре 2026 оно кончилось, и сборки
 // встали. «Узоры» пока открыты, и на них это место не считается: правила — на тот день, когда
 // репозиторий закроется (ADR студии 0017). Файлы между заданиями — кэшем Actions, артефакт
-// никогда не валит задание. Ниже — ветка vps веб-версии для сайта (docs/specs/2026-09-web.md).
+// никогда не валит задание. Ниже — ветка vps веб-версии для сайта (docs/specs/2026-09-web.md)
+// и шаги общего набора студии gornitsa-kit (ADR студии 0022): RuStore, ключ, подпись, содержимое APK.
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -58,6 +59,40 @@ describe('релиз на тег версии', () => {
     expect(s.with.name).toBe('v${{ steps.ver.outputs.version }}');
     expect(s.with.prerelease).toBe(false);
     expect(s.with.make_latest).toBe(true);
+  });
+});
+
+describe('общий набор студии gornitsa-kit (ADR студии 0022)', () => {
+  test('RuStore — workflow набора, только руками, пакет и APK игры, как прежде и с пре-релизами', () => {
+    const rs = wf('rustore.yml');
+    expect(Object.keys(rs.on)).toEqual(['workflow_dispatch']);
+    expect(rs.jobs.upload.uses).toBe('Nefeste/gornitsa-kit/.github/workflows/rustore.yml@v1');
+    const app = JSON.parse(readFileSync(join(dir, '..', '..', 'app.json'), 'utf8'));
+    expect(rs.jobs.upload.with.package).toBe(app.expo.android.package);
+    expect(rs.jobs.upload.with.apk).toBe('uzory-*.apk');
+    expect(rs.jobs.upload.with.prereleases).toBe(true);
+  });
+
+  test('ключ, подпись и содержимое APK — действия набора; белый список — файлом; свои проверки — шагом игры', () => {
+    const build = wf('android.yml').jobs.build;
+    const kit = (name: string) => build.steps.find((s: any) => s.uses === `Nefeste/gornitsa-kit/actions/${name}@v1`);
+    expect(kit('android-keystore').with['gradle-prefix']).toBe('UZORY');
+    expect(kit('android-keystore').if).toBe("needs.key.outputs.ready == 'yes'");
+    expect(kit('android-signature').with['keystore-file']).toBe('${{ steps.keystore.outputs.file }}');
+    expect(kit('android-signature').with.expected).toBe('${{ vars.ANDROID_CERT_SHA256 }}');
+    const contents = kit('android-contents').with;
+    // резервная копия включена: работы переживают переустановку (docs/04-data-model.md)
+    expect(contents.backup).toBe('on');
+    expect(contents.forbid).toBe('READ_MEDIA|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK');
+    expect(contents['max-size-mb']).toBe('90');
+    const allow = readFileSync(join(dir, '..', '..', contents['allow-file']), 'utf8');
+    for (const p of ['android.permission.INTERNET', 'android.permission.VIBRATE', 'games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']) expect(allow).toContain(p);
+    // ровно две архитектуры и RuStore Pay в манифесте набор не проверяет — это шаг игры после него
+    const names = build.steps.map((s: any) => s.name ?? s.id);
+    const own = build.steps.find((s: any) => s.name === 'Содержимое — архитектуры и RuStore Pay');
+    expect(own.run).toContain('arm64-v8a armeabi-v7a');
+    expect(own.run).toContain('console_app_id_value');
+    expect(names.indexOf(own.name)).toBeGreaterThan(names.indexOf('Содержимое'));
   });
 });
 

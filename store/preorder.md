@@ -41,7 +41,7 @@
    RuStore берёт его из первого APK, и потом оно не меняется (ADR
    [0014](../docs/adr/0014-permanent-app-id-and-key.md)).
 2. **Первый APK — только через консоль.** API RuStore принимает вторую и следующие версии
-   (`tools/store/rustore.mjs`, `.github/workflows/rustore.yml`). Файл — `uzory-55.apk` из релиза
+   (`.github/workflows/rustore.yml`, загрузку делает набор студии `gornitsa-kit`). Файл — `uzory-55.apk` из релиза
    [`v0.15.9`](https://github.com/Nefeste/uzory/releases/tag/v0.15.9): подписан постоянным ключом,
    отпечаток сверяет CI (`ANDROID_CERT_SHA256`). Перед загрузкой — поставить его на свой телефон:
    ставится и открывается. Это сборка для проверки (в ней есть «Для проверки»), поэтому — только

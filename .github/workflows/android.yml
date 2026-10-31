@@ -214,14 +214,17 @@ jobs:
       - name: Больше памяти Gradle
         run: printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\n' >> android/gradle.properties
 
-      - name: Файл ключа
+      # Ключ, подпись и содержимое — действия общего набора студии (ADR студии 0022):
+      # Nefeste/gornitsa-kit, actions/android-*. Секретов нет — подпись отладочная, релиза нет.
+      - id: keystore
         if: needs.key.outputs.ready == 'yes'
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/uzory-release.jks"
-          echo "ORG_GRADLE_PROJECT_UZORY_UPLOAD_STORE_FILE=$RUNNER_TEMP/uzory-release.jks" >> "$GITHUB_ENV"
+        uses: Nefeste/gornitsa-kit/actions/android-keystore@v1
+        with:
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          store-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          gradle-prefix: UZORY
 
       - name: Сборка ${{ matrix.target }}
         working-directory: android
@@ -236,98 +239,49 @@ jobs:
 
       # Подпись проверяется на готовом файле, а не по настройкам. Отпечаток постоянного ключа
       # закреплён переменной ANDROID_CERT_SHA256 — чужой ключ в секретах остановит сборку.
+      # Файл ключа после сборки удаляется.
       - name: Подпись
         id: cert
-        env:
-          READY: ${{ needs.key.outputs.ready }}
-          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
-          FILE: ${{ matrix.file }}
-          TARGET: ${{ matrix.target }}
-        run: |
-          set -euo pipefail
-          rm -f "$RUNNER_TEMP/uzory-release.jks"
-          BT="$ANDROID_HOME/build-tools/$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -n1)"
-          if [ "$TARGET" = "apk" ]; then
-            OUT="$("$BT/apksigner" verify --print-certs "$FILE" 2>&1)"
-          else
-            OUT="$(keytool -printcert -jarfile "$FILE" 2>&1)"
-          fi
-          echo "$OUT"
-          hex() { tr '[:upper:]' '[:lower:]' | sed -E 's/^[[:space:]]*sha-?256:?//' | tr -d ': \t'; }
-          CERT="$(printf '%s\n' "$OUT" | grep -iE 'sha-?256( digest)?:' | head -n1 | sed -E 's/.*([Dd]igest|SHA-?256):?[[:space:]]*//' | hex || true)"
-          # общеизвестный отладочный ключ шаблона React Native
-          DEBUG=fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
-          EXPECTED="$(printf '%s' "$EXPECTED" | hex)"
-          if ! printf '%s' "$CERT" | grep -qE '^[0-9a-f]{64}$'; then echo "::error::Не нашёл отпечаток SHA-256 в выводе (см. выше)."; exit 1; fi
-          if [ "$READY" = "yes" ]; then
-            if [ "$CERT" = "$DEBUG" ]; then echo "::error::Ключ подложен, а $TARGET подписан отладочным: плагин подписи не сработал."; exit 1; fi
-            if [ "$CERT" != "$EXPECTED" ]; then echo "::error::Отпечаток $CERT не совпал с ANDROID_CERT_SHA256."; exit 1; fi
-            LABEL="постоянным ключом"
-          else
-            LABEL="отладочным ключом — только проверка, файл не выкладывается"
-          fi
-          echo "sha256=$CERT" >> "$GITHUB_OUTPUT"
-          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
-          { echo "### Подпись $TARGET"; echo ""; echo "Подписан $LABEL; SHA-256 сертификата: \`$CERT\`"; } >> "$GITHUB_STEP_SUMMARY"
+        uses: Nefeste/gornitsa-kit/actions/android-signature@v1
+        with:
+          file: ${{ matrix.file }}
+          expected: ${{ vars.ANDROID_CERT_SHA256 }}
+          permanent: ${{ steps.keystore.outputs.permanent || 'no' }}
+          keystore-file: ${{ steps.keystore.outputs.file }}
 
-      # Что внутри: 16 КБ, обе архитектуры и никаких других, разрешения по белому списку,
-      # резервная копия включена, размер в бюджете (docs/06-testing.md, §7).
+      # Что внутри (docs/06-testing.md, §7): 16 КБ, разрешения ровно по белому списку
+      # .github/apk-permissions.txt, запретные разрешения студии (их нет в политике
+      # конфиденциальности) и «Узоров» (READ_MEDIA, FOREGROUND_SERVICE, INSTALL_REFERRER,
+      # WAKE_LOCK), резервная копия включена — работы переживают переустановку
+      # (docs/04-data-model.md), размер не больше 90 МБ (docs/02-architecture.md, «Ограничения»).
+      # Нужное разрешение — в белый список, в docs/05-process.md и в политику
+      # конфиденциальности; ненужное — в blockedPermissions в app.json.
       - name: Содержимое
+        uses: Nefeste/gornitsa-kit/actions/android-contents@v1
+        with:
+          file: ${{ matrix.file }}
+          allow-file: .github/apk-permissions.txt
+          forbid: 'READ_MEDIA|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK'
+          backup: 'on'
+          max-size-mb: '90'
+
+      # Своё «Узоров», чего нет в наборе: ровно две архитектуры, как заказано сборке, и
+      # RuStore Pay в манифесте ровно тогда, когда задана переменная RUSTORE_APP_ID
+      # (plugins/with-rustore.js); без неё покупок в сборке нет.
+      - name: Содержимое — архитектуры и RuStore Pay
         env:
           FILE: ${{ matrix.file }}
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           BT="$ANDROID_HOME/build-tools/$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -n1)"
-          WORK="$RUNNER_TEMP/contents"; rm -rf "$WORK"; mkdir -p "$WORK"; unzip -q "$FILE" -d "$WORK"
-          if [ "$TARGET" = "apk" ]; then LIBS="$WORK/lib"; else LIBS="$WORK/base/lib"; fi
-
-          # 1. 16 КБ: у каждой 64-битной .so все сегменты LOAD выровнены не меньше чем на 2^14
-          BAD=0
-          while IFS= read -r so; do
-            for a in $(readelf -lW "$so" | awk '$1=="LOAD"{print $NF}'); do
-              if [ $((a)) -lt 16384 ]; then echo "::error::$(basename "$so"): LOAD выровнен на $a, нужно 0x4000"; BAD=1; fi
-            done
-          done < <(find "$LIBS/arm64-v8a" -name '*.so')
-          [ "$BAD" = 0 ] || exit 1
-          if [ "$TARGET" = "apk" ]; then "$BT/zipalign" -c -P 16 -v 4 "$FILE" > "$RUNNER_TEMP/zipalign.log" || { tail -n 30 "$RUNNER_TEMP/zipalign.log"; echo "::error::zipalign: APK не выровнен на 16 КБ"; exit 1; }; fi
-          echo "16 КБ: выровнено ($(find "$LIBS/arm64-v8a" -name '*.so' | wc -l) библиотек)"
-          # ровно две архитектуры, как заказано сборке
-          ARCHS="$(find "$LIBS" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | paste -sd ' ')"
+          # ровно две архитектуры, как заказано сборке (у AAB библиотеки — в base/lib)
+          ARCHS="$(unzip -Z1 "$FILE" | sed -nE 's#^(base/)?lib/([^/]+)/.+#\2#p' | sort -u | paste -sd ' ')"
           if [ "$ARCHS" != "arm64-v8a armeabi-v7a" ]; then echo "::error::Архитектуры: $ARCHS, а нужно arm64-v8a и armeabi-v7a"; exit 1; fi
-
-          SIZE="$(stat -c %s "$FILE")"
-          MB="$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')"
-          { echo "### $TARGET"; echo ""; echo "Размер: $MB МБ (две архитектуры)"; } >> "$GITHUB_STEP_SUMMARY"
-          echo "Размер $TARGET: $MB МБ"
-          if [ "$SIZE" -gt $((90 * 1048576)) ]; then echo "::error::Больше 90 МБ — бюджет APK (docs/02-architecture.md, «Ограничения»)."; exit 1; fi
+          echo "Архитектуры: $ARCHS"
 
           if [ "$TARGET" = "apk" ]; then
-            # 2. Разрешения ровно по белому списку (docs/05-process.md)
-            PERMS="$("$BT/aapt2" dump permissions "$FILE" | sed -nE "s/.*name='([^']+)'.*/\1/p" | sort -u)"
-            # shellcheck disable=SC2016 # обратные кавычки — разметка итогов
-            { echo ""; echo "Разрешения:"; printf '%s\n' "$PERMS" | sed 's/^/- `/; s/$/`/'; } >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' "$PERMS"
-            DENY='EXTERNAL_STORAGE|READ_MEDIA|SYSTEM_ALERT_WINDOW|AD_ID|LOCATION|CAMERA|RECORD_AUDIO|CONTACTS|READ_PHONE|CALL_LOG|SMS|MANAGE_|QUERY_ALL_PACKAGES|ACCOUNTS|FOREGROUND_SERVICE|INSTALL_REFERRER|WAKE_LOCK'
-            if printf '%s\n' "$PERMS" | grep -E "$DENY"; then echo "::error::В APK запретное разрешение (выше)."; exit 1; fi
-            # Каталог и наборы по сети, вибрация стежка, настройки звука (expo-audio с 0.2)
-            # и служебное разрешение самого приложения. Новое — сюда, в docs/05-process.md
-            # и в политику конфиденциальности; ненужное — в blockedPermissions в app.json.
-            ALLOW='^(android\.permission\.(INTERNET|ACCESS_NETWORK_STATE|VIBRATE|MODIFY_AUDIO_SETTINGS)|games\.gornitsa\.uzory\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
-            EXTRA="$(printf '%s\n' "$PERMS" | grep -vE "$ALLOW" || true)"
-            if [ -n "$EXTRA" ]; then echo "::error::Разрешения вне списка: $(printf '%s\n' "$EXTRA" | paste -sd ' ')."; exit 1; fi
-
-            # 3. Резервная копия включена: работы переживают переустановку (docs/04-data-model.md)
-            BACKUP="$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$FILE" | grep -A0 'allowBackup' || true)"
-            echo "allowBackup: $BACKUP"
-            if ! printf '%s' "$BACKUP" | grep -qE '0xffffffff|true'; then echo "::error::allowBackup не включён."; exit 1; fi
-            echo "- резервная копия: включена" >> "$GITHUB_STEP_SUMMARY"
-
-            TARGET_SDK="$("$BT/aapt2" dump badging "$FILE" | sed -nE "s/^targetSdkVersion:'([0-9]+)'.*/\1/p")"
-            echo "target API: $TARGET_SDK" | tee -a "$GITHUB_STEP_SUMMARY"
-
-            # 4. RuStore Pay: номер приложения в манифесте есть ровно тогда, когда задана переменная
-            # RUSTORE_APP_ID (plugins/with-rustore.js); без неё покупок в сборке нет
+            # номер приложения в манифесте есть ровно тогда, когда задана переменная RUSTORE_APP_ID
             # (без конвейера в grep -q: под pipefail обрыв printf выглядел бы как «не нашлось»)
             PAY="$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$FILE" | grep -A2 'console_app_id_value' || true)"
             if [ -n "$EXPO_PUBLIC_RUSTORE_APP_ID" ]; then
