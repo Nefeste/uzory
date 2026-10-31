@@ -1,12 +1,14 @@
 // из nardy: tools/test/money.test.ts @ 63e8ee9 и af8b683 (раздел «Е2»: ответы RuStore Pay и плагин сборки)
 // RuStore Pay «Узоров+» (docs/specs/2026-09-plus.md, «Протокол»): ответы RuStore → права, цены и
 // причины; магазин на поддельном нативном модуле — без номера приложения покупок нет; плагин
-// сборки встаёт в шаблоны Expo SDK 57 и без номера ничего не вписывает.
+// сборки из общего набора `@gornitsa/kit` подключён с настройками «Узоров» и без номера ничего не
+// вписывает. Вставки плагина в шаблоны Expo и типы обёртки проверяют тесты набора.
 import { describe, expect, test } from 'bun:test';
 import { PLUS_OFFLINE_MS, plusOpen } from '../../src/engine/plus';
 import type { PayNative, RsProduct, RsPurchase } from '../../src/money/rustore';
 import { rustoreBilling } from '../../src/money/rustoreBilling';
-import { causeOf, failOf, kopecksOf, plusStateOf, productsOf, rsDetail, rsText } from '../../src/money/rustoreRules';
+import { causeOf, failOf, kopecksOf, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from '../../src/money/rustoreRules';
+import { buy } from '@gornitsa/kit/rustore-pay/rules';
 
 const DAY = 86400000;
 const NOW = Date.parse('2026-10-20T12:00:00Z');
@@ -79,15 +81,35 @@ describe('цены и ошибки RuStore', () => {
     expect(productsOf([product('uzory_plus_month', ' '), product('uzory_plus_year', 'USD 9')])).toEqual([{ id: 'uzory_plus_year', period: 'year', price: 'USD 9' }]);
   });
 
-  test('ошибка → что сказать: отказ и отказ войти — тихо; нет RuStore; нет сети; прочее — платёж не прошёл', () => {
-    expect(failOf(err('ProductPurchaseCancelled'))).toBe('cancelled');
-    expect(failOf(err('RuStoreUserUnauthorizedException'))).toBe('cancelled');
-    expect(failOf(err('RuStoreNotInstalledException'))).toBe('no-store');
-    expect(failOf(err('RuStoreOutdatedException'))).toBe('no-store');
-    expect(failOf(err('RuStorePaymentNetworkException'))).toBe('offline');
-    expect(failOf(err('ProductPurchaseException'))).toBe('failed');
-    expect(failOf(new Error('сеть'))).toBe('failed');
-    expect(failOf(null)).toBe('failed');
+  test('ошибка → что сказать: отказ и отказ войти — тихо; нет RuStore; нет сети; прочее — платёж не прошёл', async () => {
+    // покупка — `buy` набора: он ловит отказ обёртки и отдаёт код и причину
+    const failed = async (e: unknown) => {
+      const r = await buy({ purchase: async () => { throw e; } }, 'uzory_plus_month', 'LIGHT');
+      if (r.ok) throw new Error('покупка прошла');
+      return failOf(r);
+    };
+    expect(await failed(err('ProductPurchaseCancelled'))).toBe('cancelled');
+    expect(await failed(err('RuStoreUserUnauthorizedException'))).toBe('cancelled');
+    expect(await failed(err('RuStoreNotInstalledException'))).toBe('no-store');
+    expect(await failed(err('RuStoreOutdatedException'))).toBe('no-store');
+    expect(await failed(err('RuStorePaymentNetworkException'))).toBe('offline');
+    expect(await failed(err('ProductPurchaseException'))).toBe('failed');
+    // причины набора, у которых в «Узорах» своих слов нет, — «платёж не прошёл»
+    expect(await failed(err('RuStorePayInvalidConsoleAppId'))).toBe('failed');
+    expect(await failed(err('ApplicationSchemeWasNotProvided'))).toBe('failed');
+    expect(await failed(new Error('сеть'))).toBe('failed');
+    expect(await failed(null)).toBe('failed');
+  });
+
+  test('магазин недоступен: по коду — нет RuStore и нет сети, прочие причины набора не видны игроку', () => {
+    expect(unavailableOf(err('RuStoreNotInstalledException'))).toBe('no-store');
+    expect(unavailableOf(err('RuStoreOutdatedException'))).toBe('no-store');
+    expect(unavailableOf(err('RuStorePaymentNetworkException'))).toBe('offline');
+    for (const code of ['RuStoreUserUnauthorizedException', 'RuStorePayInvalidConsoleAppId', 'ApplicationSchemeWasNotProvided', 'RuStorePaymentCommonException']) {
+      expect({ code, fail: unavailableOf(err(code)) }).toEqual({ code, fail: null });
+    }
+    expect(unavailableOf(new Error('сеть'))).toBeNull();
+    expect(unavailableOf(null)).toBeNull();
   });
 
   test('«Ответ RuStore»: знакомые тексты SDK — в причину; строка — в одну, не длиннее 200 знаков; код и текст ошибки', () => {
@@ -96,6 +118,8 @@ describe('цены и ошибки RuStore', () => {
     expect(causeOf('RuStore outdated')).toBe('no-store');
     expect(causeOf('Application signature not correct')).toBeNull();
     expect(causeOf('Console application id is not provided')).toBeNull();
+    expect(causeOf('RuStore User Not Authorized')).toBeNull();
+    expect(causeOf('Application scheme was not provided')).toBeNull();
     expect(rsText('  Application\n signature   not correct ')).toBe('Application signature not correct');
     expect(rsText('а'.repeat(300))).toHaveLength(200);
     expect(rsText('   ')).toBeUndefined();
@@ -170,6 +194,8 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
     expect(call.args[4]).toBeNull(); // appUserId
     expect(call.args[5]).toBeNull(); // appUserEmail
     expect(call.args[6]).toBe('ONE_STEP');
+    expect(call.args[7]).toBe('LIGHT'); // тема шторки — светлая, как игра
+    expect(call.args).toHaveLength(9); // ровно столько, сколько у метода обёртки 11.1.0
     // «Нарды» 1.1.0 и 1.1.2: отметка ломала оплату и роняла приложение — её нет совсем
     expect(f.calls.find((c) => c.name === 'updateAcknowledgementState')).toBeUndefined();
   });
@@ -226,72 +252,37 @@ describe('магазин RuStore Pay (src/money/rustoreBilling.ts)', () => {
   });
 });
 
-describe('плагин сборки plugins/with-rustore.js', () => {
+describe('плагин сборки из набора (@gornitsa/kit/rustore-pay/plugin)', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const plugin = require('../../plugins/with-rustore.js') as ((c: object) => { mods?: { android?: Record<string, unknown> } }) & {
-    SCHEME: string;
-    transforms: Record<'projectGradle' | 'appGradle' | 'mainApplication' | 'mainActivity', (s: string) => string> & { manifest: (m: object, id: string) => any };
+  const { plan } = require('@gornitsa/kit/rustore-pay/plugin') as {
+    plan: (env: Record<string, string | undefined>, o: object) => { appId: string; mods: string[] };
+  };
+  const root = `${import.meta.dir}/../..`;
+  const entry = async () => {
+    const app = JSON.parse(await Bun.file(`${root}/app.json`).text());
+    return (app.expo.plugins as unknown[]).find((p) => Array.isArray(p) && p[0] === '@gornitsa/kit/rustore-pay/plugin') as [string, object] | undefined;
   };
 
-  test('вставки встают в шаблоны Expo SDK 57 и не повторяются', () => {
-    const t = plugin.transforms;
-    const project = 'allprojects {\n  repositories {\n    google()\n  }\n}\n';
-    const app = 'android {\n}\n\ndependencies {\n    implementation("com.facebook.react:react-android")\n}\n';
-    const application = 'package games.gornitsa.uzory\n\nimport android.app.Application\nimport com.facebook.react.PackageList\n\n' +
-      '      packageList =\n        PackageList(this).packages.apply {\n          // add(MyReactNativePackage())\n        }\n';
-    const activity = 'package games.gornitsa.uzory\n\nimport android.os.Build\nimport android.os.Bundle\n\nclass MainActivity : ReactActivity() {\n' +
-      '  override fun onCreate(savedInstanceState: Bundle?) {\n    setTheme(R.style.AppTheme);\n    super.onCreate(null)\n  }\n}\n';
-    for (const [f, src, mark] of [
-      [t.projectGradle, project, 'nexus-external.rustore.ru'],
-      [t.appGradle, app, 'ru.rustore.sdk-wrapper.react-native:pay:'],
-      [t.mainApplication, application, 'add(RuStoreReactPayPackage())'],
-      [t.mainActivity, activity, 'override fun onNewIntent(intent: Intent)'],
-    ] as const) {
-      const once = f(src);
-      expect(once).toContain(mark);
-      expect(f(once)).toBe(once);
-    }
-    expect(() => t.mainActivity('class MainActivity {}')).toThrow(/шаблон/);
-  });
-
-  test('манифест: номер приложения, схема возврата из банка — своя, у главного экрана', () => {
-    const m = {
-      manifest: {
-        application: [{ $: { 'android:name': '.MainApplication' }, activity: [{ $: { 'android:name': '.MainActivity' }, 'intent-filter': [{ action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }], category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }] }] }] }],
-      },
-    };
-    const out = plugin.transforms.manifest(m, APP_ID);
-    const meta = Object.fromEntries(out.manifest.application[0]['meta-data'].map((d: any) => [d.$['android:name'], d.$['android:value']]));
-    expect(meta).toEqual({ console_app_id_value: APP_ID, sdk_pay_scheme_value: 'gornitsauzorypay', internal_config_key: 'react-native' });
-    expect(plugin.SCHEME).toBe('gornitsauzorypay');
-    const filters = out.manifest.application[0].activity[0]['intent-filter'];
-    expect(filters.filter((f: any) => (f.data ?? []).some((d: any) => d.$['android:scheme'] === plugin.SCHEME))).toHaveLength(1);
-    plugin.transforms.manifest(out, APP_ID);
-    expect(out.manifest.application[0].activity[0]['intent-filter']).toHaveLength(2);
-  });
-
-  test('без RUSTORE_APP_ID плагин ничего не вписывает — сборка та же, что до RuStore Pay', () => {
-    const mods = (id: string | undefined) => {
-      const was = process.env.EXPO_PUBLIC_RUSTORE_APP_ID;
-      if (id === undefined) delete process.env.EXPO_PUBLIC_RUSTORE_APP_ID; else process.env.EXPO_PUBLIC_RUSTORE_APP_ID = id;
-      try {
-        return Object.keys(plugin({ name: 'uzory', slug: 'uzory' }).mods?.android ?? {}).sort();
-      } finally {
-        if (was === undefined) delete process.env.EXPO_PUBLIC_RUSTORE_APP_ID; else process.env.EXPO_PUBLIC_RUSTORE_APP_ID = was;
-      }
-    };
-    expect(mods(undefined)).toEqual([]);
-    expect(mods(' ')).toEqual([]);
-    expect(mods(APP_ID)).toEqual(['appBuildGradle', 'mainActivity', 'mainApplication', 'manifest', 'projectBuildGradle']);
-  });
-
-  test('плагин подключён в app.json, а номер приложения в репозиторий не зашит', async () => {
-    const root = `${import.meta.dir}/../..`;
+  test('подключён в app.json со схемой «Узоров» (вечной: она в манифесте выпущенных сборок) и без номера — ничего', async () => {
+    // gornitsauzorypay — прежняя SCHEME из plugins/with-rustore.js; другой сборки, кроме RuStore, нет
+    expect((await entry())?.[1]).toEqual({ scheme: 'gornitsauzorypay', noAppId: 'skip' });
     const app = JSON.parse(await Bun.file(`${root}/app.json`).text());
-    expect(app.expo.plugins).toContain('./plugins/with-rustore');
+    expect(app.expo.plugins).not.toContain('./plugins/with-rustore');
+  });
+
+  test('без RUSTORE_APP_ID плагин ничего не вписывает — сборка та же, что до RuStore Pay', async () => {
+    const o = (await entry())![1];
+    expect(plan({}, o).mods).toEqual([]);
+    expect(plan({ EXPO_PUBLIC_RUSTORE_APP_ID: ' ' }, o).mods).toEqual([]);
+    expect(plan({ EXPO_PUBLIC_RUSTORE_APP_ID: APP_ID }, o)).toEqual({
+      appId: APP_ID, mods: ['projectBuildGradle', 'appBuildGradle', 'mainApplication', 'mainActivity', 'manifest'],
+    });
+  });
+
+  test('номер приложения в репозиторий не зашит', async () => {
     const wf = await Bun.file(`${root}/.github/workflows/android.yml`).text();
     expect(wf).toContain("EXPO_PUBLIC_RUSTORE_APP_ID: ${{ vars.RUSTORE_APP_ID || '' }}");
-    for (const f of ['app.json', '.github/workflows/android.yml', 'src/state/billing.ts', 'plugins/with-rustore.js']) {
+    for (const f of ['app.json', '.github/workflows/android.yml', 'src/state/billing.ts']) {
       expect({ f, hasId: (await Bun.file(`${root}/${f}`).text()).includes(APP_ID) }).toEqual({ f, hasId: false });
     }
   });

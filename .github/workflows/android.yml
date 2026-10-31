@@ -178,7 +178,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     # Номер приложения в консоли RuStore (переменная репозитория, не секрет) — как в «Нардах»: нужен
-    # и prebuild (plugins/with-rustore.js), и сборке JS (src/state/billing.ts), поэтому — на всё
+    # и prebuild (плагин набора @gornitsa/kit/rustore-pay/plugin), и сборке JS (src/state/billing.ts), поэтому — на всё
     # задание. Нет переменной — RuStore Pay в сборку не входит и покупок в ней нет
     # (docs/specs/2026-09-plus.md, «Что изменилось», 20.10.2026).
     env:
@@ -267,7 +267,7 @@ jobs:
 
       # Своё «Узоров», чего нет в наборе: ровно две архитектуры, как заказано сборке, и
       # RuStore Pay в манифесте ровно тогда, когда задана переменная RUSTORE_APP_ID
-      # (plugins/with-rustore.js); без неё покупок в сборке нет.
+      # (плагин набора @gornitsa/kit/rustore-pay/plugin); без неё покупок в сборке нет.
       - name: Содержимое — архитектуры и RuStore Pay
         env:
           FILE: ${{ matrix.file }}
@@ -285,7 +285,7 @@ jobs:
             # (без конвейера в grep -q: под pipefail обрыв printf выглядел бы как «не нашлось»)
             PAY="$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$FILE" | grep -A2 'console_app_id_value' || true)"
             if [ -n "$EXPO_PUBLIC_RUSTORE_APP_ID" ]; then
-              if [ -z "$PAY" ]; then echo "::error::RUSTORE_APP_ID задан, а RuStore Pay в манифест не встал (plugins/with-rustore.js)."; exit 1; fi
+              if [ -z "$PAY" ]; then echo "::error::RUSTORE_APP_ID задан, а RuStore Pay в манифест не встал (@gornitsa/kit/rustore-pay/plugin)."; exit 1; fi
               case "$PAY" in *"$EXPO_PUBLIC_RUSTORE_APP_ID"*) ;; *) echo "$PAY"; echo "::warning::Номер приложения RuStore в манифесте не прочитался как $EXPO_PUBLIC_RUSTORE_APP_ID — сверьте вывод aapt2 выше." ;; esac
               echo "- RuStore Pay: есть, приложение $EXPO_PUBLIC_RUSTORE_APP_ID — подписка «Узоры+» покупается" | tee -a "$GITHUB_STEP_SUMMARY"
             else

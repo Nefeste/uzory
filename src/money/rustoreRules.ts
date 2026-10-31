@@ -1,11 +1,15 @@
-// из nardy: src/money/rustoreRules.ts @ 63e8ee9 (rsCode и статусы подписки; права — PlusState «Узоров»);
-// «Ответ RuStore» (causeOf, rsText, rsDetail) — из nardy @ af8b683, причины — BillingFail «Узоров»
+// из nardy: src/money/rustoreRules.ts @ 63e8ee9 (статусы подписки; права — PlusState «Узоров»);
+// коды и тексты ошибок, «Ответ RuStore» (rsText, rsDetail) и причины — из общего набора
+// `@gornitsa/kit/rustore-pay/rules` (тег v1.1.0), слова для игрока — BillingFail «Узоров»
 // Ответы RuStore Pay → права подписки «Узоры+», цены и причины (чистые функции: их гоняют тесты
 // под Bun без телефона, tools/test/rustore.test.ts). Правила прав по сохранённому ответу — в движке
 // (src/engine/plus.ts); здесь — только как ответ RuStore становится этим ответом.
 import { PLUS_OFFLINE_MS, type PlusPeriod, type PlusState, type PlusStatus } from '../engine/plus';
 import type { BillingFail, Product, ProductId } from '../state/billingApi';
-import type { RsErrorCode, RsProduct, RsPurchase } from './rustore';
+import { causeReasonOf, reasonOf, type RsReason } from '@gornitsa/kit/rustore-pay/rules';
+import type { RsProduct, RsPurchase } from './rustore';
+
+export { rsDetail, rsText } from '@gornitsa/kit/rustore-pay/rules';
 
 /** Товары в консоли RuStore и их срок — вечные, как идентификатор приложения. */
 export const PLUS_PRODUCTS: Readonly<Record<ProductId, PlusPeriod>> = { uzory_plus_month: 'month', uzory_plus_year: 'year' };
@@ -13,34 +17,25 @@ export const PRODUCT_IDS = Object.keys(PLUS_PRODUCTS) as ProductId[];
 
 const isProduct = (id: string): id is ProductId => (PRODUCT_IDS as readonly string[]).includes(id);
 
-/** Ошибка Pay SDK: код из списка RuStore или `null`. */
-export function rsCode(e: unknown): RsErrorCode | null {
-  const c = (e as { code?: unknown } | null)?.code;
-  return typeof c === 'string' && c.length > 0 ? (c as RsErrorCode) : null;
-}
+/**
+ * Причины набора (`reasonOf`, `causeReasonOf` — коды и тексты Pay SDK 11.1.0 и core 10.5.0, разбор «Нард»,
+ * 23.10.2026) → что сказать игроку (docs/specs/2026-09-plus.md, «Неудачные случаи»): нет или устарел
+ * RuStore — «установите или обновите»; нет сети — «нет связи». Остальные причины набора — нет входа,
+ * номера приложения, схемы — у «Узоров» отдельных слов не имеют: «платёж не прошёл» или «Не удалось
+ * узнать цену» со строкой «Ответ RuStore».
+ */
+const SAY: Readonly<Partial<Record<RsReason, BillingFail>>> = { 'no-rustore': 'no-store', outdated: 'no-store', offline: 'offline' };
+const say = (r: RsReason | null): BillingFail | null => (r ? SAY[r] ?? null : null);
 
 /**
- * Ошибка RuStore → что сказать игроку (docs/specs/2026-09-plus.md, «Неудачные случаи»): нет или
- * устарел RuStore — «установите или обновите»; нет сети — «нет связи»; отказ игрока и отказ войти
- * в RuStore (окно входа RuStore показывает само) — тихо назад; прочее — «платёж не прошёл».
+ * Покупка не прошла (`buy` набора) → что сказать игроку: отказ игрока и отказ войти в RuStore (окно
+ * входа RuStore показывает само) — тихо назад; нет или устарел RuStore; нет сети; прочее — «платёж не
+ * прошёл».
  */
-export function failOf(e: unknown): BillingFail {
-  switch (rsCode(e)) {
-    case 'ProductPurchaseCancelled': case 'RuStoreUserUnauthorizedException': return 'cancelled';
-    case 'RuStoreNotInstalledException': case 'RuStoreOutdatedException': return 'no-store';
-    case 'RuStorePaymentNetworkException': return 'offline';
-    default: return 'failed';
-  }
+export function failOf(r: { cancelled: boolean; reason: RsReason | null }): BillingFail {
+  if (r.cancelled || r.reason === 'not-signed-in') return 'cancelled';
+  return say(r.reason) ?? 'failed';
 }
-
-/**
- * Ошибки SDK, по которым игроку есть что сказать: код (имя класса) и начало текста — как в Pay SDK 11.1.0
- * и core 10.5.0 (разбор «Нард», 23.10.2026). Остальные — «Не удалось узнать цену» и строка «Ответ RuStore».
- */
-const KNOWN: readonly (readonly [code: RsErrorCode, text: string, fail: BillingFail])[] = [
-  ['RuStoreNotInstalledException', 'RuStore not installed', 'no-store'],
-  ['RuStoreOutdatedException', 'RuStore outdated', 'no-store'],
-];
 
 /**
  * Отказ `getPurchaseAvailability` → что сказать игроку; `null` — текст незнакомый. Любую ошибку по дороге —
@@ -48,27 +43,12 @@ const KNOWN: readonly (readonly [code: RsErrorCode, text: string, fail: BillingF
  * «недоступно», и обёртка для React Native передаёт из него только текст (`cause`). Поэтому причина — по тексту.
  */
 export function causeOf(cause: string): BillingFail | null {
-  const c = cause.toLowerCase();
-  return KNOWN.find((k) => c.includes(k[1].toLowerCase()))?.[2] ?? null;
+  return say(causeReasonOf(cause));
 }
 
 /** Ошибка SDK (отказ промиса обёртки) → что сказать игроку о магазине; `null` — причина не видна. */
 export function unavailableOf(e: unknown): BillingFail | null {
-  const code = rsCode(e);
-  if (code === 'RuStorePaymentNetworkException') return 'offline';
-  return KNOWN.find((k) => k[0] === code)?.[2] ?? null;
-}
-
-/** Текст для строки «Ответ RuStore»: в одну строку, не длиннее 200 знаков; пустой — `undefined`. */
-export function rsText(s: unknown): string | undefined {
-  const t = typeof s === 'string' ? s.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
-  return t || undefined;
-}
-
-/** Ошибка SDK для строки «Ответ RuStore»: код и текст, как пришли. */
-export function rsDetail(e: unknown): string | undefined {
-  const m = (e as { message?: unknown } | null)?.message;
-  return rsText([rsCode(e), typeof m === 'string' ? m : ''].filter(Boolean).join(': '));
+  return say(reasonOf(e));
 }
 
 /**

@@ -1,4 +1,5 @@
-// из nardy: src/money/billing.ts @ 63e8ee9, «Ответ RuStore» — @ af8b683 (порт «Узоров» — src/state/billingApi.ts, права — PlusState)
+// из nardy: src/money/billing.ts @ 63e8ee9, «Ответ RuStore» — @ af8b683 (порт «Узоров» — src/state/billingApi.ts, права — PlusState);
+// сама покупка — `buy` общего набора `@gornitsa/kit/rustore-pay` (тег v1.1.0)
 // Магазин подписки «Узоры+» на телефоне — RuStore Pay (docs/specs/2026-09-plus.md, «Протокол»).
 // Фабрика, а не модуль: нативный модуль и номер приложения приходят аргументами, поэтому
 // tools/test/rustore.test.ts проверяет её под Bun с поддельным модулем. Собирает её
@@ -10,6 +11,7 @@
 // (`appUserEmail`, `appUserId`) игра в RuStore Pay не передаёт (docs/10-money.md, «RuStore»).
 import { plusOpen, type PlusState } from '../engine/plus';
 import type { Availability, Billing } from '../state/billingApi';
+import { buy } from '@gornitsa/kit/rustore-pay/rules';
 import type { PayNative } from './rustore';
 import { causeOf, failOf, PLUS_PRODUCTS, PRODUCT_IDS, plusStateOf, productsOf, rsDetail, rsText, unavailableOf } from './rustoreRules';
 
@@ -43,27 +45,27 @@ export function rustoreBilling(pay: PayNative | null, appId: string, now: () => 
       }
     },
     async purchase(id) {
-      try {
-        // одна стадия: выдавать подписку нечем, кроме самого приложения (как «Про» в «Нардах»)
-        // Отметки «выдано» (`updateAcknowledgementState`) нет: она необязательна (RuStore, «Признак
-        // выдачи товара»), а в обёртке 11.1.0 ломает оплату — с двумя аргументами модуль бросает
-        // исключение сразу, мимо .catch, с тремя её ответ роняет приложение («Нарды» 1.1.1, 1.1.3).
-        await pay.purchase(id, null, null, null, null, null, 'ONE_STEP', 'LIGHT', {});
+      // одна стадия, без почты и идентификатора игрока — `buy` набора (как «Про» в «Нардах»): выдавать
+      // подписку нечем, кроме самого приложения. Отметки «выдано» (`updateAcknowledgementState`) нет:
+      // она необязательна (RuStore, «Признак выдачи товара»), а в обёртке 11.1.0 ломает оплату — с
+      // двумя аргументами модуль бросает исключение сразу, с тремя её ответ роняет приложение
+      // («Нарды» 1.1.0, 1.1.2).
+      const r = await buy(pay, id, 'LIGHT');
+      if (r.ok) {
         // срок — из списка покупок; RuStore его ещё не отдал — оплачено, срока нет: трое суток
         // с проверки (src/engine/plus.ts), а следующая проверка его узнает
         const s = await status();
         return { ok: true, state: s && plusOpen(s, now()) ? s : { status: 'active', product: PLUS_PRODUCTS[id], checkedAt: now() } };
-      } catch (e) {
-        const fail = failOf(e);
-        // игрок мог заплатить и закрыть окно, или ответ потерялся: права — у RuStore (spec,
-        // «Неудачные случаи»), поэтому после любого отказа, кроме «нет RuStore», — спросить его
-        if (fail !== 'no-store') {
-          const s = await status();
-          if (s && plusOpen(s, now())) return { ok: true, state: s };
-        }
-        // отказ игрока — тихо; остальное — что ответил RuStore, строкой на экране
-        return fail === 'cancelled' ? { ok: false, fail } : { ok: false, fail, detail: rsDetail(e) };
       }
+      const fail = failOf(r);
+      // игрок мог заплатить и закрыть окно, или ответ потерялся: права — у RuStore (spec,
+      // «Неудачные случаи»), поэтому после любого отказа, кроме «нет RuStore», — спросить его
+      if (fail !== 'no-store') {
+        const s = await status();
+        if (s && plusOpen(s, now())) return { ok: true, state: s };
+      }
+      // отказ игрока — тихо; остальное — что ответил RuStore, строкой на экране
+      return fail === 'cancelled' ? { ok: false, fail } : { ok: false, fail, detail: r.detail };
     },
     status,
     async availability(): Promise<Availability> {
