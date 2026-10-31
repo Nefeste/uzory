@@ -23,7 +23,8 @@ import {
 } from './camera';
 import { DARK, LIGHT } from '../ui/theme';
 import { canvasEffect } from './effect';
-import { FIELD, uniformList } from './shader';
+import { CANVASES, type CanvasLook, canvasLook, type Rgb } from '../engine/looks';
+import { type CanvasUniforms, canvasUniforms, fieldOf, uniformList } from './shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from './textures';
 import { traverse } from './traverse';
 
@@ -91,6 +92,10 @@ interface Props {
   ghost?: boolean;
   /** «Тайна»: без мини-карты, издалека невышитое — чистая канва */
   mystery?: boolean;
+  /** канва оформления (src/engine/looks.ts); нет — кремовая, бесплатная */
+  canvas?: CanvasLook;
+  /** поле за краем узора — той же ткани, без затемнения: узор в пяльцах на «Готово» */
+  evenField?: boolean;
   /** где открыть: камера из прошлого раза или «весь узор» */
   initial?: Camera | 'fit' | 'open';
   apiRef: { current: CanvasApi | null };
@@ -182,7 +187,7 @@ function shaderPicture(
   effect: SkRuntimeEffect, cells: SkImage, pal: SkShader, dig: SkShader, w: number, h: number,
   s: number, tx: number, ty: number, vw: number, vh: number, dpr: number,
   selected: number, mosaic: boolean, hatch: boolean, pulse: number[], pulseT: number, map: MapRect | null,
-  dark: boolean, scene: boolean, ghost: boolean, mystery: boolean,
+  dark: boolean, scene: boolean, ghost: boolean, mystery: boolean, look: CanvasUniforms,
 ): SkPicture {
   'worklet';
   // сцена (разбор оформления 31.10.2026): виньетка по экрану — только у канвы с кистью, не на «Готово»
@@ -191,7 +196,7 @@ function shaderPicture(
     mosaic: mosaic ? 1 : 0, hatch: hatch ? 1 : 0, gap: 0.5 / s,
     px0: pulse[0], py0: pulse[1], px1: pulse[2], py1: pulse[3], pulseT,
     vx: (vw / 2 - tx) / s, vy: (vh / 2 - ty) / s, vhx: scene ? vw / 2 / s : 0, vhy: vh / 2 / s, dark: dark ? 1 : 0,
-    ghost: ghost ? 1 : 0, mystery: mystery ? 1 : 0,
+    ghost: ghost ? 1 : 0, mystery: mystery ? 1 : 0, ...look,
   });
   const m = Skia.Matrix();
   m.translate(tx, ty);
@@ -216,7 +221,7 @@ function shaderPicture(
     mm.scale(map.k, map.k);
     const mapShader = effect.makeShaderWithChildren(uniformList({
       w, h, gw: GLYPH_W, gh: GLYPH_H, cellPx: map.k * dpr, near: 0, selected, mosaic: 0, hatch: 0, gap: 0,
-      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0, mystery: 0,
+      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, vx: 0, vy: 0, vhx: 0, vhy: 0, dark: 0, ghost: 0, mystery: 0, ...look,
     }), [cellShader, pal, dig], mm);
     const mp = Skia.Paint();
     mp.setShader(mapShader);
@@ -253,14 +258,14 @@ function shaderPicture(
 /** Путь Б — «слои»: цвета картинкой без сглаживания, сетка путём, цифры атласом. */
 function layersPicture(
   colors: SkImage, digits: SkImage, bytes: Uint8Array, w: number, h: number,
-  s: number, tx: number, ty: number, vw: number, vh: number, dark: boolean,
+  s: number, tx: number, ty: number, vw: number, vh: number, dark: boolean, field: { light: string; dark: string },
 ): SkPicture {
   'worklet';
   const rec = Skia.PictureRecorder();
   const view = Skia.XYWHRect(0, 0, vw, vh);
   const canvas = rec.beginRecording(view);
   const bg = Skia.Paint();
-  bg.setColor(Skia.Color(dark ? FIELD.dark : FIELD.light));
+  bg.setColor(Skia.Color(dark ? field.dark : field.light));
   canvas.drawRect(view, bg);
   canvas.drawImageRectOptions(colors, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(tx, ty, w * s, h * s), FilterMode.Nearest, MipmapMode.None, null);
   if (s >= NUMBERS_DP) {
@@ -315,7 +320,7 @@ function layersPicture(
 }
 
 /** Цвета клеток для «слоёв»: вышитое — нитью, невышитое — бледным тоном, выбранная — окраской. */
-function layerColors(bytes: Uint8Array, rgb: number[], selected: number, out: Uint8Array): void {
+function layerColors(bytes: Uint8Array, rgb: number[], selected: number, out: Uint8Array, cloth: Rgb): void {
   'worklet';
   const n = bytes.length / 4;
   for (let i = 0; i < n; i++) {
@@ -323,7 +328,7 @@ function layerColors(bytes: Uint8Array, rgb: number[], selected: number, out: Ui
     const o = i * 4;
     out[o + 3] = 255;
     if (t === 255) {
-      out[o] = 243; out[o + 1] = 240; out[o + 2] = 230;
+      out[o] = Math.round(cloth[0] * 255); out[o + 1] = Math.round(cloth[1] * 255); out[o + 2] = Math.round(cloth[2] * 255);
       continue;
     }
     const c = rgb[t];
@@ -359,6 +364,11 @@ export function StitchCanvas(props: Props) {
   const dark = !!props.dark;
   const ghost = !!props.ghost;
   const mystery = !!props.mystery;
+  // канва оформления: униформы и поле — один раз на канву, а не на каждый кадр
+  const canvasId = props.canvas?.id ?? CANVASES[0].id;
+  const even = !!props.evenField;
+  const look = useMemo(() => canvasUniforms(canvasLook(canvasId), even), [canvasId, even]);
+  const field = useMemo(() => fieldOf(canvasLook(canvasId)), [canvasId]);
 
   const res = useMemo(() => {
     const effect = canvasEffect();
@@ -461,7 +471,7 @@ export function StitchCanvas(props: Props) {
     'worklet';
     if (!layersOn) return;
     const out = colorBytes.get();
-    layerColors(bytes.get(), res.rgb, sel.get(), out);
+    layerColors(bytes.get(), res.rgb, sel.get(), out, look.cloth);
     colors.set(rgbaImage(out, w, h));
   };
 
@@ -489,14 +499,14 @@ export function StitchCanvas(props: Props) {
         const rec = Skia.PictureRecorder();
         rec.beginRecording(Skia.XYWHRect(0, 0, vw, vh));
         pic = rec.finishRecordingAsPicture();
-      } else pic = layersPicture(c, res.digits, bytes.get(), w, h, cam.s, cam.tx, cam.ty, vw, vh, dark);
+      } else pic = layersPicture(c, res.digits, bytes.get(), w, h, cam.s, cam.tx, cam.ty, vw, vh, dark, field);
       // зависимость от клеток — через картинку цветов
     } else {
       const cells = img.get();
       const ps = pulseStart.get();
       const pt = ps < 0 ? -1 : (clock.get() - ps) / 1000;
       pic = shaderPicture(res.effect, cells!, res.pal, res.dig, w, h, cam.s, cam.tx, cam.ty, vw, vh, dpr,
-        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly || mystery ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly, ghost, mystery);
+        sel.get(), mosaic.get(), hatch.get(), pulse.get(), pt, viewOnly || mystery ? null : mapRect(w, h, vw, vh, cam.s), dark, !viewOnly, ghost, mystery, look);
     }
     if (phase.get() >= 0) probe.get().build.push(nowMs() - t0);
     return pic;

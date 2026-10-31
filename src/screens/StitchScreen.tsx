@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { type Camera, openCamera } from '../canvas/camera';
-import { FIELD } from '../canvas/shader';
+import { fieldOf } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { ThreadBar } from '../canvas/ThreadBar';
@@ -16,6 +16,7 @@ import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
+import { useLooks } from '../state/looks';
 import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
@@ -52,6 +53,9 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   onSettings?: () => void;
 }) {
   const { settings, update, theme } = useSettings();
+  // канва оформления (src/state/looks.ts); фон до первого кадра — её же поле
+  const looks = useLooks();
+  const field = fieldOf(looks.canvas);
   const player = usePlayer();
   const font = useFont(DIGIT_FONT, DIGIT_FONT_SIZE);
   const [session, setSession] = useState<WorkSession | null>(null);
@@ -247,14 +251,14 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
 
   return (
     <Screen title={mystery ? T.mystery.title : title} onBack={onBack} wide right={right}>
-      <View style={[styles.canvas, { backgroundColor: theme.dark ? FIELD.dark : FIELD.light }]} onLayout={(e) => {
+      <View style={[styles.canvas, { backgroundColor: theme.dark ? field.dark : field.light }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;
         setSize(next);
       }} testID="canvas">
         {broken ? <Txt style={styles.msg}>{T.stitch.broken}</Txt>
           : size && font && session ? (
-            <StitchCanvas
+            <StitchCanvas canvas={looks.canvas}
               pattern={pattern} stitched={session.state.stitched} selected={selected}
               mosaic={settings.style === 'mosaic'} hatch={settings.highlight === 'hatch'}
               bigNumbers={settings.bigNumbers} fill={settings.fill} font={font}

@@ -18,6 +18,7 @@ import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { FREE_FIRST } from '../../src/engine/library';
+import { canvasLook, frameLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
@@ -28,7 +29,7 @@ import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
 import { type BuiltCatalog, makeCatalog, signJson } from '../content/catalog';
 import { E2E_SECRET, e2ePack } from './net';
-import { allButLast, seed, seedWork, seedWorks } from './seed';
+import { allButLast, seed, seedDone, seedWork, seedWorks } from './seed';
 import { lookAtShare } from './share';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -1090,6 +1091,46 @@ try {
     check(/бесплатно/.test(freeLine) && locked && kept,
       `«Свой узор» как в 1.0: у первого — «${freeLine}»; у следующего — ${locked ? '«Подробнее» вместо «Вышивать»' : 'не заперто'}; первый ${kept ? 'в «Моих узорах»' : 'не в «Моих узорах»'}`);
     await ctxMine.close();
+  }
+
+  // оформления (решение владельца 31.10.2026, issue 116, вариант Б): в сборке для проверки открыты все.
+  // Чёрная канва и пяльцы — на картинке «Поделиться» готовой работы; на экране «Оформление» пять канв и
+  // четыре рамки, выбранные — «Сейчас»; багет — рамка со скосом и золочением
+  {
+    const ctxLooks = await browser.newContext({ viewport: { width: 400, height: 860 }, acceptDownloads: true });
+    const pl = await ctxLooks.newPage();
+    pl.on('pageerror', (e) => errors.push(e.message));
+    await pl.goto(base);
+    const finishedAt = Date.now() - 3_600_000;
+    await seedWorks(pl, [seedDone('w-e2e-looks', first, finishedAt - 1_800_000, finishedAt)], {
+      'uzory.settings.v1': JSON.stringify({ canvas: 'black', frame: 'hoop' }),
+    });
+    const shareNow = async () => {
+      const got = pl.waitForEvent('download', { timeout: 15_000 });
+      await pl.getByTestId('share').click();
+      return got.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
+    };
+    await pl.getByTestId('home-works').click();
+    await pl.getByTestId('works-tab-finished').click();
+    await pl.getByTestId('work-w-e2e-looks').click();
+    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    const hoopPng = await shareNow();
+    const hoopLook = hoopPng ? await lookAtShare(hoopPng, first, frameLook('hoop'), canvasLook('black')) : null;
+    await pl.getByTestId('done-settings').click();
+    await pl.getByTestId('set-looks').click();
+    await pl.getByTestId('looks').waitFor({ timeout: 5000 });
+    const tiles = await pl.locator('[data-testid^="look-"]').count();
+    const chosen = (await pl.getByTestId('look-black').innerText()).includes('Сейчас') && (await pl.getByTestId('look-hoop').innerText()).includes('Сейчас');
+    await pl.getByTestId('look-baguette').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    const baguettePng = await shareNow();
+    const baguetteLook = baguettePng ? await lookAtShare(baguettePng, first, frameLook('baguette'), canvasLook('black')) : null;
+    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 9 && chosen && !!baguetteLook?.size && !!baguetteLook.frame,
+      `оформления: «Поделиться» в пяльцах на чёрной канве — ${hoopLook?.frame ? 'да' : 'нет'}, на экране «Оформление» ${tiles} образцов, `
+      + `выбранные — ${chosen ? '«Сейчас»' : 'без «Сейчас»'}, багет — ${baguetteLook?.frame ? 'со скосом и золочением' : 'нет'}`);
+    await ctxLooks.close();
   }
 
   // «Сообщить об ошибке» (0.14.0): для закрытого теста — сколько раз открывали (перезагрузка выше —

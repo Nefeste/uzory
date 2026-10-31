@@ -2,8 +2,9 @@
 // «Канва»). До 0.16.8 шейдер разбирался заново на каждом открытии канвы и собирался видеокартой на первом
 // кадре работы (разбор оформления 31.10.2026, Б9).
 import { FilterMode, MipmapMode, Skia, type SkImage, type SkRuntimeEffect, TileMode } from '@shopify/react-native-skia';
+import { CANVASES } from '../engine/looks';
 import { logError } from '../state/crashlog';
-import { NO_SCENE, SKSL, uniformList } from './shader';
+import { canvasUniforms, NO_SCENE, SKSL, uniformList } from './shader';
 import { rgbaImage } from './textures';
 
 let effect: SkRuntimeEffect | null = null;
@@ -31,7 +32,7 @@ export function warmCanvas(): void {
     m.scale(32, 32);
     const shader = e.makeShaderWithChildren(uniformList({
       w: 2, h: 2, gw: 1, gh: 1, cellPx: 80, near: 1, selected: 0, mosaic: 0, hatch: 0, gap: 0.01,
-      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, ...NO_SCENE,
+      px0: -1, py0: -1, px1: -1, py1: -1, pulseT: -1, ...NO_SCENE, ...canvasUniforms(CANVASES[0]),
     }), [child(cells, FilterMode.Nearest), child(pal, FilterMode.Nearest), child(dig, FilterMode.Linear)], m);
     const paint = Skia.Paint();
     paint.setShader(shader);

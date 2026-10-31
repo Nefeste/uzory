@@ -28,6 +28,7 @@ import { DoneScreen } from './src/screens/DoneScreen';
 import { FileScreen } from './src/screens/FileScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
+import { LooksScreen } from './src/screens/LooksScreen';
 import { MineScreen } from './src/screens/MineScreen';
 import { PictureScreen } from './src/screens/PictureScreen';
 import { PlusScreen } from './src/screens/PlusScreen';
@@ -65,7 +66,8 @@ type Route =
   | { name: 'works'; tab?: WorksTab }
   | { name: 'calendar' }
   | { name: 'plus'; sample: boolean }
-  | { name: 'report'; from: string };
+  | { name: 'report'; from: string }
+  | { name: 'looks' };
 
 /** Экран в стеке: `k` — свой ключ, чтобы два одинаковых экрана подряд не делили состояние. */
 type Entry = Route & { k: number };
@@ -194,7 +196,11 @@ function Root() {
       screen = <FileScreen onBack={back} onReplay={(pattern, workId) => go({ name: 'done', pattern, title: pattern.key, workId })} />;
       break;
     case 'settings':
-      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} onPlus={plus} />;
+      screen = <SettingsScreen onBack={back} onReport={() => go({ name: 'report', from: 'settings' })} onAbout={() => go({ name: 'about' })} onPlus={plus}
+        onLooks={() => go({ name: 'looks' })} />;
+      break;
+    case 'looks':
+      screen = <LooksScreen onBack={back} />;
       break;
     case 'about':
       screen = <AboutScreen onBack={back} />;
