@@ -65,7 +65,8 @@ export interface ShareLayout {
  * описанные вокруг кругов: `frame` — обода, `mat` — ткани; работа в середине, её углы — внутри круга ткани.
  */
 export function shareLayout(w: number, h: number, hoop = false): ShareLayout {
-  const cell = Math.max(1, Math.min(SHARE_CELL_MAX, Math.floor(SHARE_PICTURE_MAX / Math.max(w, h))));
+  // в пяльцах до SHARE_PICTURE_MAX — диагональ работы: она поперёк круга ткани
+  const cell = Math.max(1, Math.min(SHARE_CELL_MAX, Math.floor(SHARE_PICTURE_MAX / (hoop ? Math.hypot(w, h) : Math.max(w, h)))));
   const pw = w * cell;
   const ph = h * cell;
   if (hoop) {
