@@ -448,6 +448,9 @@ export function StitchCanvas(props: Props) {
 
   const { onStroke, onForeign, onPick, onFill, onCamera, onTick, onLive, onScriptDone, script } = props;
   const lastTick = useSharedValue(0);
+  // кисть: текстура клеток пересобирается раз в кадр, а не на каждое событие касания — на огромном
+  // узоре событий за кадр бывает несколько (разбор оформления 31.10.2026, 5.4)
+  const dirty = useSharedValue(false);
 
   // «слои»: картинка цветов пересобирается при стежках и смене нити
   const layersOn = path === 'layers';
@@ -535,7 +538,7 @@ export function StitchCanvas(props: Props) {
       probe.get().stitches += changed;
     }
     if (changed) {
-      refresh();
+      dirty.set(true);
       if (onTick && phase.get() < 0 && t0 - lastTick.get() >= TICK_MS) {
         lastTick.set(t0);
         scheduleOnRN(onTick);
@@ -742,8 +745,12 @@ export function StitchCanvas(props: Props) {
       tx.set(clampX(tx.get() + e.changeX, k, w, vw));
       ty.set(clampY(ty.get() + e.changeY, k, h, vh));
     })
-    .onEnd(() => {
+    .onEnd((e) => {
       'worklet';
+      // канва катится по инерции и останавливается сама, как при сдвиге одним пальцем издалека (5.1)
+      const k = s.get();
+      tx.set(withDecay({ velocity: e.velocityX, clamp: [vw / 2 - w * k, vw / 2] }));
+      ty.set(withDecay({ velocity: e.velocityY, clamp: [vh / 2 - h * k, vh / 2] }));
       if (onCamera) scheduleOnRN(onCamera, { s: s.get(), tx: tx.get(), ty: ty.get() });
     });
 
@@ -897,6 +904,10 @@ export function StitchCanvas(props: Props) {
   // пульсации: иначе кадр пересобирался бы каждый раз, а в покое канва не перерисовывается.
   useFrameCallback((info) => {
     'worklet';
+    if (dirty.get()) {
+      dirty.set(false);
+      refresh();
+    }
     let ps = pulseStart.get();
     // «Где ещё?»: часы в покое стоят, поэтому начало пульсации — от времени этого кадра, а не от часов
     // (разбор оформления 31.10.2026, Б1: от застывших часов пульсация снималась в первый же кадр)
