@@ -9,8 +9,8 @@ import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, buildCard, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
-import { type Card, CONTENT, listCards, readCard, releasable, releasableAt } from '../content/cards';
+import { buildAll, type Built, buildCard, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
+import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
 
@@ -134,18 +134,56 @@ describe('время сборки (docs/specs/2026-09-content-pipeline.md, кр�
   });
 });
 
+/**
+ * Выборка для «двух сборок подряд»: по самой маленькой картинке на каждое сочетание коллекции, вида исходника
+ * (рисунок; старинная схема — без бумаги, на бумаге, на пожелтевшей; снимок — сетка по среднему или
+ * преобладающему цвету), приёмов сборки (сглаживание или упрощение и его сила, мягкое небо, точные краски,
+ * насыщенность и тон, лица, глаза и кресты, свой порог слияния нитей) и версии (нынешняя или прежняя из `was`):
+ * так проверка проходит по каждой ветке сборщика за секунды, а не минуты.
+ */
+function buildSample(list: Built[]): Built[] {
+  const pick = new Map<string, Built>();
+  for (const b of list) {
+    const v = Number(b.pattern.key.split('@')[1]);
+    const p = b.card.drawn ? null : patternSpec(b.card, v);
+    const source = b.card.drawn ? 'drawn' : p?.chart ? `chart${p.canvas ? (p.white_paper ? ':white' : ':paper') : ''}` : `photo:${p?.grid ?? 'mean'}`;
+    const kind = [
+      b.card.collection, source, p?.smooth ? `smooth${p.smooth}` : `simplify${p?.simplify ?? 0}`, p?.soft ? 'soft' : '', p?.exact ? 'exact' : '',
+      p?.chroma !== undefined ? 'chroma' : '', p?.tone !== undefined ? 'tone' : '', p?.focus?.length ? 'focus' : '',
+      p?.eyes?.length || p?.lines?.length ? 'eyes' : '', p?.min_delta !== undefined ? 'delta' : '', v === b.card.v ? '' : 'was',
+    ].join('|');
+    const cur = pick.get(kind);
+    if (!cur || b.pattern.w * b.pattern.h < cur.pattern.w * cur.pattern.h) pick.set(kind, b);
+  }
+  return [...pick.values()];
+}
+
 describe('сборка', () => {
   // полная сборка идёт минуты (картины в четыре клетки на сантиметр, старинные схемы, с 0.16.3 — крупные
-  // пересобранные картинки: 414 картинок и 336 прежних версий — около семи минут у ассистента, 31.10.2026):
-  // первая общая для всех тестов ниже, предел — с запасом на рост набора
+  // пересобранные картинки: 414 картинок и 336 прежних версий — около семи минут у ассистента, 31.10.2026).
+  // Она общая для всех тестов ниже и идёт через кэш узоров (tools/content/cache.ts): в CI его только что
+  // наполнил шаг «Картинки», и здесь она занимает секунды; предел — с запасом, если кэша нет
   let first: ReturnType<typeof buildAll> | null = null;
   const once = () => (first ??= buildAll());
 
+  // Детерминизм и верность кэша: узоры набора — те же, что свежая сборка без кэша. Целиком — когда в PR
+  // поменялся код сборки (UZORY_FULL_BUILD_CHECK=1 ставит .github/workflows/pr.yml: `bun tools/content/cache.ts
+  // --touches`), около семи минут; иначе — выборка по всем веткам сборщика (вопрос владельца 31.10.2026:
+  // две полные сборки здесь занимали 13 из 21,5 минуты проверки PR)
   test('две сборки подряд — один и тот же набор до байта', async () => {
     const a = await once();
-    const b = await buildAll();
     expect(a.failed).toEqual([]);
-    expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
+    if (process.env.UZORY_FULL_BUILD_CHECK === '1') {
+      const b = await buildAll({ cache: false });
+      expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
+      return;
+    }
+    const sample = buildSample([...a.built, ...a.previous]);
+    expect(sample.length).toBeGreaterThan(10);
+    for (const b of sample) {
+      const fresh = await buildCard(b.card, Number(b.pattern.key.split('@')[1]));
+      expect([b.pattern.key, patternDigest(fresh.pattern)]).toEqual([b.pattern.key, patternDigest(b.pattern)]);
+    }
   }, 1_800_000);
 
   test('выпущенные узоры не изменились (tools/test/fixtures/released.json)', async () => {

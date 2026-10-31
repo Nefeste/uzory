@@ -17,6 +17,7 @@ import { addDays, daysBetween } from '../../src/engine/dates';
 import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../../src/engine/pattern';
+import { cacheOn, type CardBuild, cardKey, pruneCache, readCached, writeCached } from './cache';
 import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
 import { detectChart, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
@@ -316,11 +317,29 @@ export function calendarPictures(built: readonly { picture: Picture }[], previou
   return [...built.map((b) => b.picture), ...previous.map((p) => p.picture).filter((p) => !current.has(p.id))];
 }
 
+/** Узор карточки через кэш (tools/content/cache.ts): тот же ключ — тот же узор, без сборки заново. */
+async function cachedCard(card: Card, v: number, on: boolean, stats: { hits: number }): Promise<CardBuild> {
+  if (!on) return buildCard(card, v);
+  const key = cardKey(card, v);
+  const hit = readCached(key);
+  if (hit) {
+    stats.hits++;
+    return hit;
+  }
+  const b = await buildCard(card, v);
+  writeCached(key, b);
+  return b;
+}
+
 /**
  * Набор из карточек. `release` — только то, что можно выпускать (`notInRelease`); `stock` — и картинки
- * «в запас»: их берёт набор недели, а встроенный набор выпуска — нет.
+ * «в запас»: их берёт набор недели, а встроенный набор выпуска — нет. `cache: false` — каждый узор
+ * собирается заново, кэш не читается и не пишется: так «две сборки подряд» (tools/test/content.test.ts)
+ * сверяют кэш со свежей сборкой.
  */
-export async function buildAll(opts: { only?: string; release?: boolean; stock?: boolean } = {}) {
+export async function buildAll(opts: { only?: string; release?: boolean; stock?: boolean; cache?: boolean } = {}) {
+  const cache = opts.cache ?? cacheOn();
+  const stats = { hits: 0 };
   const meta = parse(readFileSync(join(CONTENT, 'pack.yaml'), 'utf8')) as PackMeta;
   const built: Built[] = [];
   /** прежние версии узоров из `was`: в набор — скрытыми, после всех картинок */
@@ -346,7 +365,7 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
     const t0 = performance.now();
     try {
       if (!out) {
-        const { pattern, log, focus } = await buildCard(card);
+        const { pattern, log, focus } = await cachedCard(card, card.v, cache, stats);
         const ms = performance.now() - t0;
         const checked = checkPattern(pattern, card, focus);
         if (checked.errors.length) {
@@ -357,7 +376,7 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
       }
       for (const old of olds) {
         const t1 = performance.now();
-        const was = await buildCard(card, old);
+        const was = await cachedCard(card, old, cache, stats);
         const wasChecked = checkPattern(was.pattern, card, was.focus, old);
         if (wasChecked.errors.length) {
           failed.push({ path: card.path, errors: wasChecked.errors.map((e) => `v${old}: ${e}`) });
@@ -378,12 +397,13 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
   const calendar = autoCalendar(calendarPictures(built, previous), from, { season, day, fixed: readFixedDays(from) });
   // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
-  return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0) };
+  if (cache) pruneCache();
+  return { meta, built, previous, failed, skipped, bytes, calendar, ms: [...built, ...previous].reduce((sum, b) => sum + b.ms, 0), cached: stats.hits };
 }
 
 function report(r: Awaited<ReturnType<typeof buildAll>>): string {
   const lines: string[] = [`# Сборка картинок: ${r.meta.id}`, ''];
-  lines.push(`Картинок в наборе: ${r.built.length}; прежних версий узоров (для начатых работ): ${r.previous.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с.`, '');
+  lines.push(`Картинок в наборе: ${r.built.length}; прежних версий узоров (для начатых работ): ${r.previous.length}; с ошибками: ${r.failed.length}; не в выпуск: ${r.skipped.length}; сборка узоров — ${(r.ms / 1000).toFixed(0)} с${r.cached ? `, из них ${r.cached} узоров — из кэша (tools/content/cache.ts): их время сборки не меряется` : ''}.`, '');
   // к выпуску 1.0 — на 120 дней вперёд от дня выхода (docs/specs/2026-09-v1.md, ворота, п. 4)
   if (r.calendar.length) lines.push(`Календарь картинок дня: ${r.calendar.length} дн., ${r.calendar[0].date} — ${r.calendar[r.calendar.length - 1].date}.`, '');
   if (r.failed.length) {

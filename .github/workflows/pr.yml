@@ -23,8 +23,9 @@ jobs:
   checks:
     name: Типы, линтер и тесты
     runs-on: ubuntu-24.04
-    # сборка картинок с 0.16.3 — около семи минут (крупные пересобранные картинки, issue 121), а тесты
-    # собирают набор ещё дважды («две сборки подряд»): вместе — около 25 минут
+    # сборка картинок с 0.16.3 — около семи минут (крупные пересобранные картинки, issue 121). Тесты берут её
+    # узоры из кэша (tools/content/cache.ts) и собирают заново только выборку; весь набор заново («две сборки
+    # подряд», ещё около семи минут) — когда PR меняет код сборки. Предел — с запасом на этот случай
     timeout-minutes: 45
     steps:
       - name: Что изменилось
@@ -36,14 +37,19 @@ jobs:
           set -euo pipefail
           FILES="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
           printf '%s\n' "$FILES"
+          printf '%s\n' "$FILES" > "$RUNNER_TEMP/changed.txt"
           if [ -n "$FILES" ] && ! printf '%s\n' "$FILES" | grep -qvE '^(docs|research)/'; then
             echo "docs=yes" >> "$GITHUB_OUTPUT"
             echo "Только документы (docs/, research/): сборка картинок, типы, линтер и тесты пропущены — эти файлы не читает ни один тест." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "docs=no" >> "$GITHUB_OUTPUT"
           fi
+      # глубина 2: у слияния PR с main первый родитель — main, по нему шаг «Код сборки узоров менялся?»
+      # сверяет зависимости в package-lock.json
       - uses: actions/checkout@v5
         if: steps.scope.outputs.docs != 'yes'
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v5
         if: steps.scope.outputs.docs != 'yes'
         with:
@@ -59,6 +65,17 @@ jobs:
       - name: Картинки — сборка и проверки
         if: steps.scope.outputs.docs != 'yes'
         run: bun tools/content/build.ts
+      # код сборки узоров — файлы, которые tools/content/build.ts импортирует, и зависимости в
+      # package-lock.json (поднятая версия приложения — не в счёт): PR его меняет — тесты собирают весь
+      # набор заново без кэша, иначе — выборку по всем веткам сборщика. Не смог ответить — шаг падает
+      # (присваивание под bash -e), а не уходит молча в выборку
+      - name: Код сборки узоров менялся?
+        id: builder
+        if: steps.scope.outputs.docs != 'yes'
+        run: |
+          FULL="$(bun tools/content/cache.ts --touches --base HEAD^1 < "$RUNNER_TEMP/changed.txt")"
+          echo "код сборки узоров менялся: $FULL"
+          echo "full=$FULL" >> "$GITHUB_OUTPUT"
       - name: Типы приложения
         if: steps.scope.outputs.docs != 'yes'
         run: npx tsc --noEmit
@@ -70,6 +87,8 @@ jobs:
         run: npm run lint
       - name: Тесты
         if: steps.scope.outputs.docs != 'yes'
+        env:
+          UZORY_FULL_BUILD_CHECK: ${{ steps.builder.outputs.full == 'yes' && '1' || '0' }}
         run: bun test tools/test
       - name: Отчёт сборки картинок
         if: always() && steps.scope.outputs.docs != 'yes'
