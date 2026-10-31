@@ -141,17 +141,13 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
               <Button kind="secondary" label={T.home.library} onPress={onLibrary} testID="home-library" />
               <Button kind="secondary" label={T.home.works} onPress={onWorks} testID="home-works" />
               <Button kind="secondary" label={T.home.calendar} onPress={onCalendar} testID="home-calendar" />
+              {/* «Свой узор» — для игроков, на телефоне и в вебе (решение владельца 31.10.2026, issue 118) */}
+              {PHOTO_PICK ? <Button kind="secondary" label={T.home.mine} onPress={onMine} testID="home-mine" /> : null}
             </View>
             {CHECKS ? (
               <View style={styles.checks}>
                 <Txt dim bold style={styles.kicker}>{T.home.check}</Txt>
                 <Txt dim style={styles.note}>{T.home.checkNote}</Txt>
-                {PHOTO_PICK ? (
-                  <Card onPress={onMine} testID="home-mine">
-                    <Txt bold style={styles.h3}>{T.home.mine}</Txt>
-                    <Txt dim>{T.home.mineNote}</Txt>
-                  </Card>
-                ) : null}
                 <Card onPress={onSheet} testID="home-sheet">
                   <Txt bold style={styles.h3}>{T.home.sheet}</Txt>
                   <Txt dim>{T.home.sheetNote}</Txt>

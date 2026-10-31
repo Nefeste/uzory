@@ -19,6 +19,8 @@ export interface Player {
   hints: HintId[];
   /** когда на «Готово» показывали строку «Узоры+» — не чаще раза в сутки (src/engine/plus.ts) */
   plusOfferShownOn?: string;
+  /** день первого своего узора — бесплатного; дальше новые — по «Узорам+» (src/engine/plus.ts, `mineAccess`) */
+  mineFreeUsed?: string;
 }
 
 /** Запись из хранилища — в порядок: чужое и испорченное отбрасывается, не хватает — сегодня. */
@@ -32,6 +34,7 @@ export function normalizePlayer(raw: unknown, today: string): Player {
   }
   const hints = Array.isArray(r.hints) ? HINTS.filter((h) => (r.hints as unknown[]).includes(h)) : [];
   const offered = date(r.plusOfferShownOn);
+  const mineFree = date(r.mineFreeUsed);
   return {
     // часы перевели назад до первого запуска — календарь всё равно начинается с первого запуска
     installed,
@@ -40,5 +43,6 @@ export function normalizePlayer(raw: unknown, today: string): Player {
     firstDone: r.firstDone === true,
     hints,
     ...(offered ? { plusOfferShownOn: offered } : {}),
+    ...(mineFree ? { mineFreeUsed: mineFree } : {}),
   };
 }

@@ -133,7 +133,9 @@ function Root() {
       break;
     case 'mine':
       screen = (
-        <MineScreen onBack={back} owner onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
+        // карточка для библиотеки — инструмент владельца, только в закрытой веб-версии
+        <MineScreen onBack={back} owner={Platform.OS === 'web'} onPlus={plus}
+          onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
           onDone={(pattern, title, workId) => go({ name: 'done', pattern, title, workId, listed: true })} />
       );
       break;

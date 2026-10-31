@@ -1,18 +1,24 @@
 // «Свой узор» (docs/specs/2026-09-custom.md): снимок → кадр → размер и нити → узор той же
-// сборкой, что у библиотеки, с приговором «подходит» или «не подходит» и советом.
-// В 0.1 — только в веб-версии: выбор файла на телефоне — в 1.1.
+// сборкой, что у библиотеки, с приговором «подходит» или «не подходит» и советом. На телефоне —
+// снимок из галереи (src/state/photo.ts), в вебе — файл. Первый свой узор — бесплатно, дальше новые —
+// по «Узорам+» (решение владельца 31.10.2026, issue 118, вариант В; `mineAccess`); начатые дошиваются.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, type MineBuild } from '../engine/build/mine';
 import type { Simplify } from '../engine/build/simplify';
 import { estimateMinutes, type Pattern } from '../engine/pattern';
+import { mineAccess } from '../engine/plus';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
+import { billing } from '../state/billing';
 import { logError } from '../state/crashlog';
 import { deleteMine, listMine, loadMine, type MineEntry, mineKey, saveMine } from '../state/mine';
 import { downloadFiles, type Photo, PhotoError, pickPhoto, textBlob } from '../state/photo';
+import { usePlayer } from '../state/player';
+import { useGate, usePlus } from '../state/plus';
 import { useSettings } from '../state/settings';
 import { loadIndex, type WorkEntry } from '../state/works';
+import { INTERNAL } from '../version';
 import { Button, Card, FONT_MAX, Screen, SectionTitle, Segmented, Txt } from '../ui/components';
 import { CropBox } from '../ui/CropBox';
 import { FONTS } from '../ui/theme';
@@ -29,16 +35,23 @@ let draft: Draft | null = null;
 /** Сборка — через столько после последней правки: рамку тянут, а узор не пересобирается на каждый сдвиг. */
 const DEBOUNCE_MS = 250;
 
-export function MineScreen({ onBack, onStitch, onDone, owner }: {
+export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   onBack: () => void;
   /** открыть канву: узор, название, работа (нет — новая) */
   onStitch: (pattern: Pattern, title: string, workId?: string) => void;
   /** «Готовая работа»: экран «Готово» с последней законченной работой узора */
   onDone: (pattern: Pattern, title: string, workId: string) => void;
+  /** «Подробнее» о «Узорах+»: первый свой узор уже был */
+  onPlus: () => void;
   /** закрытая веб-версия: карточка для библиотеки */
   owner: boolean;
 }) {
   const { theme } = useSettings();
+  const gate = useGate();
+  const { open: plus } = usePlus();
+  const { player, today, update } = usePlayer();
+  const access = mineAccess({ gate, plus, freeUsed: !!player.mineFreeUsed });
+  const canBuy = billing.available || INTERNAL;
   const { width, height } = useWindowDimensions();
   const wide = width >= 960;
   const [photo, setPhoto] = useState<Photo | null>(() => draft?.photo ?? null);
@@ -106,7 +119,7 @@ export function MineScreen({ onBack, onStitch, onDone, owner }: {
       setTitle(T.mine.defaultName(new Date()));
     } catch (e) {
       if (!(e instanceof PhotoError)) logError('mine', e, 'pick');
-      setError(T.mine.badFile);
+      setError(Platform.OS === 'web' ? T.mine.badFile : T.mine.badPhoto);
     }
   };
 
@@ -117,13 +130,15 @@ export function MineScreen({ onBack, onStitch, onDone, owner }: {
   const sizeKey = (Object.keys(MINE_SIZES) as SizeKey[]).find((k) => MINE_SIZES[k] === side);
 
   const stitch = async () => {
-    if (!built || building || built.verdict.level === 'bad') return;
+    if (!built || building || built.verdict.level === 'bad' || access === 'locked') return;
     setSaving(true);
     setError(null);
     try {
       const name = title.trim() || T.mine.defaultName(new Date());
       // сохранённый узор получает свой ключ и больше не меняется: следующее «Вышивать» — другой узор
       const { pattern } = await saveMine(built.pattern, name, Date.now());
+      // первый свой узор там, где «Узоры+» запирают, — бесплатный; следующий новый — по подписке
+      if (gate && !player.mineFreeUsed) update({ mineFreeUsed: today });
       void refresh();
       onStitch(pattern, name);
     } catch (e) {
@@ -135,7 +150,7 @@ export function MineScreen({ onBack, onStitch, onDone, owner }: {
   };
 
   const exportCard = () => {
-    if (!photo || !built) return;
+    if (!photo?.jpeg || !built) return;
     const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, now: new Date() });
     downloadFiles([{ name: `${card.id}.yaml`, data: textBlob(card.yaml) }, { name: `${card.id}.jpg`, data: photo.jpeg }]);
   };
@@ -172,7 +187,7 @@ export function MineScreen({ onBack, onStitch, onDone, owner }: {
                 <Button small kind="secondary" label={T.mine.whole} onPress={() => setCrop([0, 0, 1, 1])} testID="mine-whole" />
                 <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} testID="mine-other" />
               </View>
-              <Txt dim style={styles.small}>{T.mine.hint}</Txt>
+              <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
               {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
             </View>
             <View style={[styles.col, wide && styles.colWide, wide && styles.colRight]}>
@@ -215,9 +230,22 @@ export function MineScreen({ onBack, onStitch, onDone, owner }: {
               <SectionTitle>{T.mine.name}</SectionTitle>
               <TextInput value={title} onChangeText={setTitle} maxLength={60} maxFontSizeMultiplier={FONT_MAX} testID="mine-name"
                 style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface, fontFamily: FONTS.body }]} />
-              <Button label={T.mine.stitch} onPress={() => void stitch()} disabled={!built || building || saving || built.verdict.level === 'bad'}
-                style={styles.go} testID="mine-stitch" />
-              {owner ? (
+              {access === 'locked' ? (
+                // первый свой узор уже был: новый — в «Узорах+»; «Мои узоры» ниже дошиваются и без неё
+                <View style={[styles.locked, { borderColor: theme.border }]} testID="mine-locked">
+                  <Txt bold>{T.mine.locked}</Txt>
+                  <Txt dim style={styles.small}>{T.mine.lockedNote}</Txt>
+                  {canBuy ? <Button label={T.plus.more} onPress={onPlus} style={styles.go} testID="mine-more" />
+                    : <Txt dim style={styles.small}>{T.plus.onlyRustore}</Txt>}
+                </View>
+              ) : (
+                <>
+                  <Button label={T.mine.stitch} onPress={() => void stitch()} disabled={!built || building || saving || built.verdict.level === 'bad'}
+                    style={styles.go} testID="mine-stitch" />
+                  {access === 'free' ? <Txt dim style={styles.small} testID="mine-free">{T.mine.free}</Txt> : null}
+                </>
+              )}
+              {owner && photo.jpeg ? (
                 <>
                   <Button kind="ghost" small label={T.mine.card} onPress={exportCard} disabled={!built} testID="mine-card" />
                   <Txt dim style={styles.small}>{T.mine.cardNote}</Txt>
@@ -272,6 +300,7 @@ const styles = StyleSheet.create({
   verdict: { borderLeftWidth: 4, paddingLeft: 10, paddingVertical: 4, gap: 2 },
   input: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   go: { marginTop: 8 },
+  locked: { marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 12, gap: 6 },
   list: { gap: 10 },
   item: { flexDirection: 'row', gap: 12, padding: 10 },
   itemImg: { width: 110, height: 88, backgroundColor: '#e2e3da', borderRadius: 4 },

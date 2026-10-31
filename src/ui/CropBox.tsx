@@ -1,40 +1,27 @@
 // Рамка кадра поверх снимка (docs/specs/2026-09-custom.md, «Кадр»): рамку двигают мышью или
-// пальцем, тянут за угол справа внизу, колёсиком — ближе и дальше у курсора. Это и есть
-// «лупа»: рядом сразу узор этого кадра.
+// пальцем, тянут за угол справа внизу; колёсиком у курсора и щипком двумя пальцами — ближе и
+// дальше. Это и есть «лупа»: рядом сразу узор этого кадра. Сама математика рамки —
+// src/engine/build/crop.ts.
 import { useEffect, useRef } from 'react';
 import { type GestureResponderEvent, Image, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
+import { CROP_ASPECT, CROP_MIN, pinchCrop, shiftCrop, zoomCrop } from '../engine/build/crop';
 import type { Crop } from '../engine/build/mine';
 
-/** Самая узкая рамка — такая доля снимка по стороне. */
-export const CROP_MIN = 0.04;
-/** Рамка не длиннее стольких своих ширин: у малого узора (40 клеток) короткая сторона — от 8. */
-export const CROP_ASPECT = 5;
-
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
-
-/** Сдвигает рамку, не выпуская за снимок. */
-function shift([l, t, r, b]: Crop, dx: number, dy: number): Crop {
-  const w = r - l;
-  const h = b - t;
-  const nl = clamp(l + dx, 0, 1 - w);
-  const nt = clamp(t + dy, 0, 1 - h);
-  return [nl, nt, nl + w, nt + h];
-}
-
-/** Рамка ближе или дальше в `f` раз; точка (ax, ay) снимка остаётся на месте. */
-export function zoomCrop([l, t, r, b]: Crop, ax: number, ay: number, f: number): Crop {
-  const w = clamp((r - l) * f, CROP_MIN, 1);
-  const h = clamp((b - t) * f, CROP_MIN, 1);
-  const nl = ax - (ax - l) * (w / (r - l));
-  const nt = ay - (ay - t) * (h / (b - t));
-  return shift([nl, nt, nl + w, nt + h], 0, 0);
-}
 
 // у мыши — свой вид курсора над рамкой и углом (только веб)
 const MOVE = Platform.OS === 'web' ? ({ cursor: 'move' } as unknown as ViewStyle) : null;
 const RESIZE = Platform.OS === 'web' ? ({ cursor: 'nwse-resize' } as unknown as ViewStyle) : null;
+// угол виден маленьким, а ловит палец на 14 точек вокруг: 18 точек — мимо пальца
+const HANDLE_SLOP = { top: 14, left: 14, right: 14, bottom: 14 };
 
-type Drag = { mode: 'move' | 'resize'; x: number; y: number; crop: Crop };
+type Drag = { mode: 'move' | 'resize'; x: number; y: number; crop: Crop } | { mode: 'pinch'; span: number; crop: Crop };
+
+/** Расстояние между двумя пальцами; палец один — 0. */
+function span(e: GestureResponderEvent): number {
+  const t = e.nativeEvent.touches;
+  return t && t.length >= 2 ? Math.hypot(t[0].pageX - t[1].pageX, t[0].pageY - t[1].pageY) : 0;
+}
 
 export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   uri: string;
@@ -52,17 +39,30 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   const dh = Math.max(1, Math.round(height * k));
   // перетаскивание: откуда начали и какой была рамка — только в обработчиках событий
   const drag = useRef<Drag | null>(null);
-  const grant = (mode: Drag['mode'], e: GestureResponderEvent) => {
-    drag.current = { mode, x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, crop };
+  const grant = (mode: 'move' | 'resize', e: GestureResponderEvent) => {
+    const two = span(e);
+    drag.current = two > 0 ? { mode: 'pinch', span: two, crop } : { mode, x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, crop };
   };
   const onMove = (e: GestureResponderEvent) => {
     const d = drag.current;
     if (!d) return;
+    // второй палец — щипок: рамка ближе или дальше вокруг своей середины
+    const two = span(e);
+    if (two > 0) {
+      if (d.mode === 'pinch') onChange(pinchCrop(d.crop, d.span, two));
+      else drag.current = { mode: 'pinch', span: two, crop };
+      return;
+    }
+    if (d.mode === 'pinch') {
+      // палец остался один — дальше он двигает рамку, от того места, где она теперь
+      drag.current = { mode: 'move', x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, crop };
+      return;
+    }
     const dx = (e.nativeEvent.pageX - d.x) / dw;
     const dy = (e.nativeEvent.pageY - d.y) / dh;
     const [l, t, r, b] = d.crop;
     if (d.mode === 'move') {
-      onChange(shift(d.crop, dx, dy));
+      onChange(shiftCrop(d.crop, dx, dy));
       return;
     }
     // угол: не уже CROP_MIN и не вытянуть больше CROP_ASPECT : 1 (в точках снимка)
@@ -79,6 +79,8 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   };
   const yes = () => true;
   const no = () => false;
+  // два пальца мимо рамки — тоже щипок: снимок берёт касание, только когда пальцев два
+  const twoFingers = (e: GestureResponderEvent) => span(e) > 0;
 
   // колёсико мыши и щипок на тачпаде (он приходит колёсиком с Ctrl) — рамка у курсора
   const box = useRef<View>(null);
@@ -102,7 +104,9 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
   const fw = (r - l) * dw;
   const fh = (b - t) * dh;
   return (
-    <View ref={box} style={{ width: dw, height: dh }} testID="mine-photo">
+    <View ref={box} style={{ width: dw, height: dh }} testID="mine-photo"
+      onStartShouldSetResponder={twoFingers} onMoveShouldSetResponder={twoFingers} onResponderTerminationRequest={no}
+      onResponderGrant={(e) => grant('move', e)} onResponderMove={onMove} onResponderRelease={onRelease}>
       <Image source={{ uri }} style={{ width: dw, height: dh }} />
       <View pointerEvents="none" style={[styles.shade, { left: 0, top: 0, width: dw, height: fy }]} />
       <View pointerEvents="none" style={[styles.shade, { left: 0, top: fy + fh, width: dw, height: Math.max(0, dh - fy - fh) }]} />
@@ -113,7 +117,7 @@ export function CropBox({ uri, width, height, maxW, maxH, crop, onChange }: {
         style={[styles.frame, MOVE, { left: fx, top: fy, width: fw, height: fh }]} testID="mine-frame">
         <View onStartShouldSetResponder={yes} onMoveShouldSetResponder={yes} onResponderTerminationRequest={no}
           onResponderGrant={(e) => grant('resize', e)} onResponderMove={onMove} onResponderRelease={onRelease}
-          style={[styles.handle, RESIZE]} testID="mine-handle" />
+          hitSlop={HANDLE_SLOP} style={[styles.handle, RESIZE]} testID="mine-handle" />
       </View>
     </View>
   );

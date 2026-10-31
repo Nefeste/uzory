@@ -1065,6 +1065,33 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
 
+  // «Свой узор» «как в 1.0» (решение владельца 31.10.2026, issue 118, вариант В): первый — бесплатно, и
+  // под «Вышивать» об этом строка; после него у нового узора вместо «Вышивать» — «Подробнее», а сам он
+  // в «Моих узорах» открывается. Выше, в сборке 0.x для проверки, всё открыто и бесплатный не тратился
+  {
+    const ctxMine = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const pm = await ctxMine.newPage();
+    pm.on('pageerror', (e) => errors.push(e.message));
+    await pm.goto(base);
+    await seedWorks(pm, [], { 'uzory.settings.v1': JSON.stringify({ previewLock: true }) });
+    await pm.getByTestId('home-mine').click();
+    const pick = pm.waitForEvent('filechooser');
+    await pm.getByTestId('mine-pick').click();
+    await (await pick).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
+    await pm.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
+    const freeLine = await pm.getByTestId('mine-free').innerText().catch(() => '');
+    await pm.getByTestId('mine-stitch').click();
+    await pm.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pm.getByTestId('back').click();
+    await pm.getByTestId('mine-locked').waitFor({ timeout: 10_000 }).catch(() => {});
+    const locked = (await pm.getByTestId('mine-locked').count()) === 1 && (await pm.getByTestId('mine-stitch').count()) === 0
+      && (await pm.getByTestId('mine-more').count()) === 1;
+    const kept = (await pm.locator('[data-testid^="mine-open-"]').count()) === 1;
+    check(/бесплатно/.test(freeLine) && locked && kept,
+      `«Свой узор» как в 1.0: у первого — «${freeLine}»; у следующего — ${locked ? '«Подробнее» вместо «Вышивать»' : 'не заперто'}; первый ${kept ? 'в «Моих узорах»' : 'не в «Моих узорах»'}`);
+    await ctxMine.close();
+  }
+
   // «Сообщить об ошибке» (0.14.0): для закрытого теста — сколько раз открывали (перезагрузка выше —
   // второй запуск), сколько раз игра оборвалась и сколько картинок закончено
   await page.getByTestId('home-settings').click();
