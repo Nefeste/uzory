@@ -94,6 +94,15 @@ export function SettingsScreen({ onBack, onReport, onAbout, onPlus }: { onBack: 
           <ToggleRow label={T.settings.music} note={T.settings.musicNote} value={settings.music}
             onChange={(v) => update({ music: v })} testID="set-music" />
         ) : null}
+        <View style={styles.block}>
+          <Txt style={styles.label}>{T.settings.ambience}</Txt>
+          <Segmented value={settings.ambience} onChange={(v) => update({ ambience: v })} testID="set-ambience"
+            options={[
+              { id: 'off', label: T.settings.ambiences.off }, { id: 'rain', label: T.settings.ambiences.rain },
+              { id: 'fire', label: T.settings.ambiences.fire },
+            ]} />
+          <Txt dim style={styles.note}>{T.settings.ambienceNote}</Txt>
+        </View>
         <ToggleRow label={T.settings.sound} note={T.settings.soundNote} value={settings.sound}
           onChange={(v) => update({ sound: v })} testID="set-sound" />
         {/* вибрации в браузере нет */}

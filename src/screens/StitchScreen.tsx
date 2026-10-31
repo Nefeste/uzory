@@ -20,6 +20,7 @@ import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
 import { play, soundsReady } from '../state/sound';
+import { type Ambience, ambienceEnter, ambienceLeave, ambienceSet } from '../state/ambience';
 import { openWork, startWork, type WorkSession } from '../state/works';
 import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
@@ -109,12 +110,18 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
   // музыка — только на этом экране: ждёт первого стежка, уходит вместе с экраном (src/state/music.ts)
   useEffect(() => {
     musicEnter();
+    ambienceEnter(settings.ambience);
     if (settings.sound) soundsReady();
-    return musicLeave;
+    return () => {
+      musicLeave();
+      ambienceLeave();
+    };
     // звуки готовятся один раз при входе; включённый потом звук создаст их на первом стежке
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => musicEnabled(settings.music), [settings.music]);
+  // фон — сразу, без первого стежка: он не мелодия, а комната вокруг
+  useEffect(() => ambienceSet(settings.ambience), [settings.ambience]);
 
   // подсказки: одной строкой, пока их не выключили и пока на канве нет другой строки
   const percent = session ? session.state.percent : 0;
@@ -281,6 +288,12 @@ export function StitchScreen({ pattern, title, workId, pic, onBack, onDone, onSt
                     <ToggleRow label={T.stitch.music} value={settings.music} testID="menu-music"
                       onChange={(v) => { update({ music: v }); if (v) musicStart(); else musicEnabled(false); }} />
                   ) : null}
+                  <Txt dim style={styles.panelLabel}>{T.stitch.ambience}</Txt>
+                  <Segmented<Ambience> value={settings.ambience} onChange={(v) => update({ ambience: v })} testID="menu-ambience"
+                    options={[
+                      { id: 'off', label: T.settings.ambiences.off }, { id: 'rain', label: T.settings.ambiences.rain },
+                      { id: 'fire', label: T.settings.ambiences.fire },
+                    ]} />
                   {onSettings ? <Button kind="ghost" label={T.stitch.settings} onPress={() => { setPanel(null); onSettings(); }} testID="menu-settings" /> : null}
                 </>
               ) : (

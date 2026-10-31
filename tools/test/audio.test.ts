@@ -41,13 +41,17 @@ describe('звуки', () => {
     for (const [f, make] of Object.entries(SOUNDS)) expect(wav(make()).equals(read(f).b)).toBe(true);
   });
 
-  test('стежок короткий: при кисти он звучит до 20 раз в секунду', () => {
-    const { x } = read('stitch.wav');
-    expect(x.length / RATE).toBeLessThan(0.1);
-    // и почти весь — в первые 50 мс
-    const early = x.slice(0, Math.round(0.05 * RATE)).reduce((s, v) => s + v * v, 0);
-    const all = x.reduce((s, v) => s + v * v, 0);
-    expect(early / all).toBeGreaterThan(0.9);
+  test('каждый стежок короткий: при кисти он звучит до 20 раз в секунду', () => {
+    const stitches = files.filter((f) => f.startsWith('stitch'));
+    expect(stitches.length).toBeGreaterThanOrEqual(4);
+    for (const f of stitches) {
+      const { x } = read(f);
+      expect(x.length / RATE, f).toBeLessThan(0.1);
+      // и почти весь — в первые 50 мс
+      const early = x.slice(0, Math.round(0.05 * RATE)).reduce((s, v) => s + v * v, 0);
+      const all = x.reduce((s, v) => s + v * v, 0);
+      expect(early / all, f).toBeGreaterThan(0.9);
+    }
   });
 
   test('игра берёт все звуки из assets/audio', () => {

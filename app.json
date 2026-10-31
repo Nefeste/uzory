@@ -3,7 +3,7 @@
     "name": "Узоры",
     "slug": "uzory",
     "scheme": "uzory",
-    "version": "0.16.9",
+    "version": "0.16.10",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

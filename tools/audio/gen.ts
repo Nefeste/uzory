@@ -83,30 +83,56 @@ export function fadeOut(x: Float32Array, sec: number): Float32Array {
 
 /**
  * Стежок: мягкий шорох — игла проходит лён (короткий щелчок около 4,5 кГц) и тянется нить
- * (шум около 2,2 кГц, гаснет за 30 мс). Короткий и тихий: при кисти он звучит до 20 раз в
- * секунду (docs/08-game-design.md, «Звук и музыка»).
+ * (шум в своей полосе, гаснет за 25–40 мс). Короткий и тихий: при кисти он звучит до 20 раз в
+ * секунду (docs/08-game-design.md, «Звук и музыка»). Стежков — несколько: разное зерно, полоса и
+ * длина, у одного — без иглы; игра берёт их вперемешку, и кисть не звучит одним и тем же щелчком
+ * (разбор оформления 31.10.2026, 4.1).
  */
-export function makeStitch(): Float32Array {
-  const n = len(0.09).length;
-  const needle = biquad(noise(n, 'needle'), 'bp', 4500, 1.2);
-  const thread = biquad(biquad(noise(n, 'thread'), 'bp', 2200, 0.6), 'lp', 5000, 0.7);
+export function makeStitch(v: { seed: string; hz: number; tau: number; needle: number; sec: number }): Float32Array {
+  const n = len(v.sec).length;
+  const needle = biquad(noise(n, `needle${v.seed}`), 'bp', 4500, 1.2);
+  const thread = biquad(biquad(noise(n, `thread${v.seed}`), 'bp', v.hz, 0.6), 'lp', 5000, 0.7);
   const out = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const t = i / RATE;
     const a = Math.min(1, t / 0.004);
-    out[i] = 0.5 * Math.exp(-t / 0.0025) * needle[i] + a * Math.exp(-t / 0.03) * thread[i];
+    out[i] = v.needle * Math.exp(-t / 0.0025) * needle[i] + a * Math.exp(-t / v.tau) * thread[i];
   }
   return fadeOut(normalize(out, 0.45), 0.02);
 }
 
-/** Обертоны колокольчика: основной тон держится, верхние, не кратные ему, гаснут быстро. */
-const BELL: [number, number, number][] = [[1, 1, 0.5], [2.01, 0.18, 0.22], [2.76, 0.22, 0.09], [5.4, 0.05, 0.03]];
+/** Варианты стежка: полоса нити 1,9–2,6 кГц, длина 70–90 мс; у третьего — без щелчка иглы. */
+export const STITCHES = [
+  { seed: '', hz: 2200, tau: 0.03, needle: 0.5, sec: 0.09 },
+  { seed: '-2', hz: 1900, tau: 0.035, needle: 0.4, sec: 0.085 },
+  { seed: '-3', hz: 2400, tau: 0.025, needle: 0, sec: 0.07 },
+  { seed: '-4', hz: 2600, tau: 0.028, needle: 0.6, sec: 0.08 },
+] as const;
+
+/**
+ * Удар по колокольчику: короткий шумовой щелчок в полосе 3–6 кГц, 2 мс — у звона появляется
+ * «касание», и он звучит не электронно (разбор оформления, 4.3).
+ */
+function strike(out: Float32Array, at: number, gain: number, seed: string) {
+  const s0 = Math.round(at * RATE);
+  const n = Math.round(0.012 * RATE);
+  const hit = biquad(noise(n, `strike${seed}`), 'bp', 4500, 0.9);
+  for (let i = 0; i < n && s0 + i < out.length; i++) out[s0 + i] += gain * Math.exp(-(i / RATE) / 0.002) * hit[i];
+}
+
+/**
+ * Обертоны колокольчика: основной тон держится, верхние, не кратные ему, гаснут быстро; вторая гармоника
+ * чуть расстроена (на 4 цента) — живой звон, а не синус.
+ */
+const BELL: [number, number, number][] = [[1, 1, 0.5], [2.0046, 0.18, 0.22], [2.76, 0.22, 0.09], [5.4, 0.05, 0.03]];
 
 /** Нить закончена: тихий звон — две ноты колокольчика вверх, до и соль третьей октавы. */
 export function makeThread(): Float32Array {
   const out = len(1.0);
   note(out, 0, 1046.5, 0.8, BELL);
+  strike(out, 0, 0.35, 'thread-1');
   note(out, 0.11, 1568.0, 0.7, BELL);
+  strike(out, 0.11, 0.3, 'thread-2');
   return fadeOut(normalize(out, 0.45), 0.2);
 }
 
@@ -114,12 +140,15 @@ export function makeThread(): Float32Array {
 export function makeDone(): Float32Array {
   const out = len(1.9);
   const warm: [number, number, number][] = [[1, 1, 0.8], [2.0, 0.25, 0.35], [3.0, 0.08, 0.15], [2.76, 0.06, 0.08]];
-  [1046.5, 1318.5, 1568.0, 2093.0].forEach((hz, i) => note(out, i * 0.16, hz, i === 3 ? 0.9 : 0.75, warm, 0.006));
+  [1046.5, 1318.5, 1568.0, 2093.0].forEach((hz, i) => {
+    note(out, i * 0.16, hz, i === 3 ? 0.9 : 0.75, warm, 0.006);
+    strike(out, i * 0.16, 0.25, `done-${i}`);
+  });
   return fadeOut(normalize(out, 0.5), 0.35);
 }
 
 export const SOUNDS: Record<string, () => Float32Array> = {
-  'stitch.wav': makeStitch,
+  ...Object.fromEntries(STITCHES.map((v, i) => [i ? `stitch-${i + 1}.wav` : 'stitch.wav', () => makeStitch(v)])),
   'thread.wav': makeThread,
   'done.wav': makeDone,
 };
