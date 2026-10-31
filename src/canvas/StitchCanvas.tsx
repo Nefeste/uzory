@@ -142,6 +142,20 @@ function nowMs(): number {
   return p && p.now ? p.now() : Date.now();
 }
 
+/**
+ * Время касаний в вебе — когда они случились, а не когда браузер их обработал. Пока он рисует тяжёлый
+ * кадр (программный WebGL рисует большую канву сотни миллисекунд), второе касание ждёт в очереди, и по
+ * часам обработки двойное касание распадалось на два одиночных: так падала заливка в сценарии на
+ * раннере GitHub (31.10.2026). Время события — те же часы, что `performance.now()`; слушатели — на
+ * окне, на погружении, поэтому успевают раньше жестов. На телефоне жесты идут на UI-потоке, кадр его
+ * не держит — там часы обработки.
+ */
+const input = { down: -1e9, up: -1e9 };
+if (WEB && typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', (e) => { input.down = e.timeStamp; }, { capture: true, passive: true });
+  window.addEventListener('pointerup', (e) => { input.up = e.timeStamp; }, { capture: true, passive: true });
+}
+
 function stitchCell(b: Uint8Array, cell: number, thread: number, any: boolean): boolean {
   'worklet';
   const o = cell * 4;
@@ -592,7 +606,9 @@ export function StitchCanvas(props: Props) {
       b.firstCell = hitCell(e.x, e.y, k, tx.get(), ty.get(), w, h);
       if (b.far) return;
       const cell = b.firstCell;
-      if (cell >= 0 && fillOn.get() && onFill && t - b.lastTapT < DOUBLE_TAP_MS && cell === b.lastTapCell && bytes.get()[cell * 4] === b.thread) {
+      // двойное касание — по времени самих касаний (в вебе — время события, см. `input`)
+      const tapT = WEB ? input.down : t;
+      if (cell >= 0 && fillOn.get() && onFill && tapT - b.lastTapT < DOUBLE_TAP_MS && cell === b.lastTapCell && bytes.get()[cell * 4] === b.thread) {
         b.lastTapT = -1e9;
         scheduleOnRN(onFill, cell);
       }
@@ -658,7 +674,7 @@ export function StitchCanvas(props: Props) {
         if (bytes.get()[o + 1] === 0 && bytes.get()[o] !== 255 && bytes.get()[o] !== b.thread) scheduleOnRN(onForeign, b.firstCell);
       }
       if (!b.moved) {
-        b.lastTapT = nowMs();
+        b.lastTapT = WEB ? input.up : nowMs();
         b.lastTapCell = b.firstCell;
       }
       if (nowMs() - b.startT < TWO_FINGER_MS) b.hold = true;
