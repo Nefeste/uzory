@@ -3,7 +3,7 @@
 // десятая линия толще, справа лист подклеен и сетка сдвинута, вокруг поле без сетки и рамка.
 import { describe, expect, test } from 'bun:test';
 import { deltaOK, linear, linearToLab, rgbToLab } from '../../src/engine/color';
-import { type ChartCells, detectChart, paperCells, sampleChart, whitePaperCells, whiten } from '../content/chart';
+import { type ChartCells, detectChart, edgePaper, fillHulls, paperCells, sampleChart, whitePaperCells, whiten } from '../content/chart';
 import type { Raster } from '../content/image';
 import { CHART_H as H, CHART_PAPER as PAPER, CHART_W as W, chartPaint as paint, chartRaster as drawChart, hy, vx } from './helpers';
 
@@ -130,3 +130,55 @@ describe('старинная схема: бумага посреди рисун�
 function linearToSrgb(x: number): number {
   return x <= 0.0031308 ? x * 12.92 : 1.055 * x ** (1 / 2.4) - 0.055;
 }
+
+describe('лист на ровной бумаге: бумага от края (canvas_edge, 01.11.2026)', () => {
+  // лист 30 × 20 на бумаге: тёмный контур цветка с белым лепестком внутри — того же тона, что бумага; пятно
+  // на бумаге; карман бумаги между двумя стеблями
+  const W = 30, H = 20;
+  const PAPER = 0xe2d5c7, INK = 0x8a2a3a, STAIN = 0xc9b49a;
+  function kind(i: number, j: number): 'ink' | 'petal' | 'stain' | 'pocket' | 'paper' {
+    const ring = i >= 3 && i <= 12 && j >= 3 && j <= 12;
+    const inside = i >= 5 && i <= 10 && j >= 5 && j <= 10;
+    if (inside) return 'petal';
+    if (ring) return 'ink';
+    if (i === 27 && j === 10) return 'stain';
+    // два стебля сверху донизу и перемычки сверху и снизу — карман 6 × 12 между ними
+    if (i === 17 || i === 24 || ((j === 4 || j === 17) && i >= 17 && i <= 24)) return 'ink';
+    if (i > 17 && i < 24 && j > 4 && j < 17) return 'pocket';
+    return 'paper';
+  }
+  const rgb = new Float64Array(W * H * 3);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const k = kind(i, j);
+      const hex = k === 'ink' ? INK : k === 'stain' ? STAIN : PAPER;
+      for (let c = 0; c < 3; c++) rgb[(j * W + i) * 3 + c] = linear((hex >> (16 - 8 * c)) & 255);
+    }
+  }
+  const g = { w: W, h: H, rgb };
+  const count = (paper: Uint8Array, what: ReturnType<typeof kind>) => {
+    let n = 0;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (kind(i, j) === what && paper[j * W + i]) n++;
+    return n;
+  };
+
+  test('лепесток внутри контура вышивается, пятно — бумага, карман без поля — вышивается', () => {
+    const paper = edgePaper(g, PAPER, 0.06);
+    expect([count(paper, 'petal'), count(paper, 'ink'), count(paper, 'stain'), count(paper, 'pocket')]).toEqual([0, 0, 1, 0]);
+    expect(count(paper, 'paper')).toBeGreaterThan(300);
+  });
+
+  test('canvas_pockets: карман не меньше порога — бумага, лепесток 6 × 6 меньше — вышивается', () => {
+    const paper = edgePaper(g, PAPER, 0.06, 40);
+    expect([count(paper, 'petal'), count(paper, 'pocket')]).toEqual([0, 72]);
+  });
+
+  test('заливка контура (fill): бумага внутри оболочки рисунка в рамке — вышивается', () => {
+    // лепесток открыт сверху: без заливки он сходится с бумагой у края
+    const open = new Uint8Array(W * H);
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) open[j * W + i] = kind(i, j) === 'petal' || kind(i, j) === 'paper' ? 1 : 0;
+    fillHulls(open, W, H, [[2, 2, 14, 14]]);
+    expect(count(open, 'petal')).toBe(0);
+    expect(count(open, 'paper')).toBeGreaterThan(300);
+  });
+});

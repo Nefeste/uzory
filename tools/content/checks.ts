@@ -25,6 +25,6 @@ export function checkPattern(p: Pattern, card: Card, focus?: Uint8Array, v = car
     exact: !!card.pattern?.exact,
     ...(focus ? { focus } : {}),
     ...(skip ? { skip } : {}),
-    ...(minDelta !== undefined ? { minDelta } : {}),
+    ...(minDelta != null ? { minDelta } : {}),
   });
 }

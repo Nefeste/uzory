@@ -20,7 +20,7 @@ import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../..
 import { cacheOn, type CardBuild, cardKey, pruneCache, readCached, writeCached } from './cache';
 import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
-import { detectChart, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
+import { detectChart, EDGE_DELTA, edgePaper, fillHulls, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
 import { decode, type Grid } from './image';
 import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
@@ -98,6 +98,17 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     // снимок: цвет клетки — средний по её площади или преобладающий; насыщенность — до палитры;
     // та же сетка, что у «Своего узора» в приложении
     grid = photoGrid(raster, p);
+    // бумага листа — от края кадра (canvas_edge, с 01.11.2026): светлое и тёмное внутри рисунка вышивается
+    if (canvas !== undefined && p.canvas_edge) {
+      const paper = edgePaper(grid, canvas, p.canvas_delta ?? EDGE_DELTA, p.canvas_pockets ?? 0);
+      // заливка контура: рамки в долях снимка → клетки сетки кадра
+      if (p.fill?.length) {
+        const [cx0, cy0, cx1, cy1] = p.crop ?? [0, 0, 1, 1];
+        const cell = (v: number, a: number, b: number, n: number) => Math.max(0, Math.min(n, Math.round(((v - a) / (b - a)) * n)));
+        fillHulls(paper, grid.w, grid.h, p.fill.map(([x0, y0, x1, y1]) => [cell(x0, cx0, cx1, grid.w), cell(y0, cy0, cy1, grid.h), cell(x1, cx0, cx1, grid.w), cell(y1, cy0, cy1, grid.h)]));
+      }
+      grid = { ...grid, paper };
+    }
   }
   // лица — рамки важных частей снимка: своя маленькая палитра (src/engine/build/focus.ts); главное
   // снимка из «Своего узора» (овал, src/engine/build/main.ts) — так же
@@ -105,7 +116,7 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   const opts = {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     // главному «Своего узора» — половина нитей, как в приложении (src/engine/build/focus.ts, MAIN_SHARE)
-    ...(focus ? { focus, ...(p.main ? { focusCount: mainThreads(p.threads) } : {}) } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
+    ...(focus ? { focus, ...(p.main ? { focusCount: mainThreads(p.threads) } : {}) } : {}), ...(p.min_delta != null ? { minDelta: p.min_delta } : {}),
     // мягкое небо: на больших ровных местах граница оттенков — волной (src/engine/build/soft.ts)
     ...(p.soft ? { soft: softField(grid, card.id) } : {}),
   };

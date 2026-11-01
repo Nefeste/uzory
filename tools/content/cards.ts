@@ -57,6 +57,15 @@ export interface Card {
     /** схема на белой бумаге, скан пожелтел: цвета — относительно бумаги рядом (chart.ts, whiten) */
     white_paper?: boolean;
     /**
+     * снимок листа на ровном фоне: фон — только бумага, связанная с краем кадра (chart.ts, edgePaper;
+     * с 01.11.2026); canvas_delta тогда — порог бумаги от края, без поля — EDGE_DELTA
+     */
+    canvas_edge?: boolean;
+    /** с canvas_edge: карманы фона между стеблями не меньше стольких клеток — тоже бумага (edgePaper) */
+    canvas_pockets?: number;
+    /** с canvas_edge: рамки в долях снимка — внутри бумага между краями рисунка вышивается (chart.ts, fillHulls) */
+    fill?: [number, number, number, number][];
+    /**
      * печатная схема ровными красками: одиночные клетки и шахматка — замысел, чистка их не
      * трогает, а проверка одиночных и мелких пятен — предупреждение (docs/09-content.md, §6)
      */
@@ -103,9 +112,10 @@ export interface Card {
     /**
      * порог различимости нитей вместо порога размера по числу клеток (MIN_DELTA): у листа с бумагой узор
      * малый по клеткам, а сетка — средняя, и порог малой сливает лепестки с листьями. Не ниже порога
-     * размера по стороне сетки: до 70 клеток — 0,045 (docs/09-content.md, §6; с 16.10.2026)
+     * размера по стороне сетки: до 70 клеток — 0,045 (docs/09-content.md, §6; с 16.10.2026). null — у прежней
+     * версии в was: порог размера, как было до поля
      */
-    min_delta?: number;
+    min_delta?: number | null;
     /**
      * глаза: рамка вокруг каждого, доли снимка, как crop; в рамке сборка находит глаз и вышивает его
      * нитью узора (src/engine/build/eyes.ts; с 15.10.2026). Пусто — глаз нет, как без поля
@@ -179,7 +189,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'main', 'background', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'canvas_edge', 'canvas_pockets', 'fill', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'main', 'background', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -212,6 +222,15 @@ function patternErrors(p: PatternSpec): string[] {
     errors.push(`pattern.canvas_holes ${String(p.canvas_holes)}: целое 0…50 и только у схемы с canvas, не на белой бумаге`);
   }
   if (p.white_paper !== undefined && (p.white_paper !== true || !p.chart || !p.canvas)) errors.push('pattern.white_paper: true и только у схемы с canvas');
+  // false — у прежней версии в was: до бумаги от края лист собирался одним порогом цвета
+  if (p.canvas_edge !== undefined && (typeof p.canvas_edge !== 'boolean' || p.chart || !p.canvas)) errors.push('pattern.canvas_edge: true или false, только у снимка с canvas');
+  if (p.fill !== undefined && (!Array.isArray(p.fill) || p.fill.length > 8 || !p.fill.every((q) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3]) || (p.fill.length > 0 && !p.canvas_edge))) {
+    // пустой список — у прежней версии в was: до заливки контура
+    errors.push(`pattern.fill ${JSON.stringify(p.fill)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, только с canvas_edge`);
+  }
+  if (p.canvas_pockets !== undefined && (!Number.isInteger(p.canvas_pockets) || p.canvas_pockets < 0 || p.canvas_pockets > 500 || (p.canvas_pockets > 0 && !p.canvas_edge))) {
+    errors.push(`pattern.canvas_pockets ${String(p.canvas_pockets)}: целое 0…500 и только с canvas_edge`);
+  }
   if (p.exact !== undefined && (p.exact !== true || !p.chart)) errors.push('pattern.exact: true и только у схемы (chart)');
   if (p.simplify !== undefined && ((p.simplify !== 0 && p.simplify !== 1 && p.simplify !== 2) || p.chart)) errors.push(`pattern.simplify ${String(p.simplify)}: 0, 1 или 2, и не у схемы — её клетки и так замысел`);
   if (p.smooth !== undefined && ((p.smooth !== 0 && p.smooth !== 1 && p.smooth !== 2) || p.chart || (p.smooth && p.simplify))) {
@@ -224,7 +243,7 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.px !== undefined && (!Number.isInteger(p.px) || p.px < 2 || p.px > 8 || p.chart || p.smooth === 2)) {
     errors.push(`pattern.px ${String(p.px)}: целое 2…8, не у схемы и не со smooth: 2 — сдвиг среднего сам уменьшает снимок`);
   }
-  if (p.min_delta !== undefined) {
+  if (p.min_delta !== undefined && p.min_delta !== null) {
     // размер по стороне сетки: ниже его порога различимости нельзя, выше порога малой — незачем
     const bySide = (['S', 'M', 'L', 'XL'] as const).find((c) => p.size <= SIZES[c].side) ?? 'XL';
     const low = MIN_DELTA[bySide];
