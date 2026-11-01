@@ -66,6 +66,24 @@ export interface Card {
     /** с canvas_edge: рамки в долях снимка — внутри бумага между краями рисунка вышивается (chart.ts, fillHulls) */
     fill?: [number, number, number, number][];
     /**
+     * с canvas_edge: рамки в долях снимка, где ничего не вышивается, — чистая бумага: пятна и тень у края
+     * листа, отпечаток соседней страницы («артефакты» — отбор владельца 01.11.2026; chart.ts, clearRects;
+     * с 0.24.2). Пусто — как без поля
+     */
+    clear?: [number, number, number, number][];
+    /**
+     * заплатка: рамки в долях снимка, где исходник закрашивается цветом своих краёв поперёк короткой
+     * стороны — белая полоса поперёк стебля («посередине убрать белую полосу» — отбор владельца
+     * 01.11.2026; image.ts, patchRaster; с 0.24.2). Не у схемы. Пусто — как без поля
+     */
+    patch?: [number, number, number, number][];
+    /**
+     * окраска: многоугольник в долях снимка и цвет — внутри исходник получает этот цвет, а светлота — его
+     * плюс тени и блики исходника: клюв селезня, слившийся с травой, — коричневый («сделать его коричневым» —
+     * отбор владельца 01.11.2026; image.ts, paintRaster; с 0.24.2). Не у схемы. Пусто — как без поля
+     */
+    paint?: { color: string; points: [number, number][] }[];
+    /**
      * печатная схема ровными красками: одиночные клетки и шахматка — замысел, чистка их не
      * трогает, а проверка одиночных и мелких пятен — предупреждение (docs/09-content.md, §6)
      */
@@ -189,7 +207,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'canvas_edge', 'canvas_pockets', 'fill', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'main', 'background', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'canvas_edge', 'canvas_pockets', 'fill', 'clear', 'patch', 'paint', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'main', 'background', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -227,6 +245,18 @@ function patternErrors(p: PatternSpec): string[] {
   if (p.fill !== undefined && (!Array.isArray(p.fill) || p.fill.length > 8 || !p.fill.every((q) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3]) || (p.fill.length > 0 && !p.canvas_edge))) {
     // пустой список — у прежней версии в was: до заливки контура
     errors.push(`pattern.fill ${JSON.stringify(p.fill)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, только с canvas_edge`);
+  }
+  // чистая бумага и заплатка — до восьми рамок; пустой список — у прежней версии в was: как без поля
+  const rects = (q: unknown) => Array.isArray(q) && q.length <= 8 && q.every((r) => Array.isArray(r) && r.length === 4 && r.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && r[0] < r[2] && r[1] < r[3]);
+  if (p.clear !== undefined && (!rects(p.clear) || (p.clear.length > 0 && !p.canvas_edge))) {
+    errors.push(`pattern.clear ${JSON.stringify(p.clear)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, только с canvas_edge`);
+  }
+  if (p.patch !== undefined && (!rects(p.patch) || (p.patch.length > 0 && !!p.chart))) {
+    errors.push(`pattern.patch ${JSON.stringify(p.patch)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
+  }
+  const polygon = (q: unknown) => Array.isArray(q) && q.length >= 3 && q.length <= 24 && q.every((pt) => Array.isArray(pt) && pt.length === 2 && pt.every((x) => typeof x === 'number' && x >= 0 && x <= 1));
+  if (p.paint !== undefined && (!Array.isArray(p.paint) || p.paint.length > 8 || !p.paint.every((x) => typeof x === 'object' && x !== null && parseHex(String(x.color)) !== null && polygon(x.points)) || (p.paint.length > 0 && !!p.chart))) {
+    errors.push(`pattern.paint ${JSON.stringify(p.paint)}: до восьми { color: "#rrggbb", points: [[x, y], …] } — от 3 до 24 точек в долях снимка, и не у схемы`);
   }
   if (p.canvas_pockets !== undefined && (!Number.isInteger(p.canvas_pockets) || p.canvas_pockets < 0 || p.canvas_pockets > 500 || (p.canvas_pockets > 0 && !p.canvas_edge))) {
     errors.push(`pattern.canvas_pockets ${String(p.canvas_pockets)}: целое 0…500 и только с canvas_edge`);

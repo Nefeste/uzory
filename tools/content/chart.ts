@@ -614,6 +614,16 @@ export function fillHulls(paper: Uint8Array, w: number, h: number, rects: readon
   }
 }
 
+/**
+ * Чистая бумага (`clear`, с 0.24.2): в рамках ничего не вышивается — пятна и тень у края листа, бледный
+ * отпечаток соседней страницы («артефакты» — отбор владельца 01.11.2026). Рамки — в клетках сетки.
+ */
+export function clearRects(paper: Uint8Array, w: number, h: number, rects: readonly [number, number, number, number][]): void {
+  for (const [x0, y0, x1, y1] of rects) {
+    for (let y = Math.max(0, y0); y < Math.min(h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) paper[y * w + x] = 1;
+  }
+}
+
 /** Выпуклая оболочка точек (монотонная цепь Эндрю), против часовой стрелки. */
 function convexHull(pts: [number, number][]): [number, number][] {
   if (pts.length < 3) return pts;
