@@ -44,6 +44,11 @@ export interface CheckOptions {
   /** важные части снимка — лица (./focus.ts): их нити могут быть вчетверо реже */
   focus?: Uint8Array;
   /**
+   * главное своего узора (./main.ts): одиночки и мелкие пятна в нём не считаются — глаза, блики и
+   * ноздри там замысел (../stats.ts, `skip`)
+   */
+  skip?: Uint8Array;
+  /**
    * порог различимости вместо порога размера (MIN_DELTA): у листа с бумагой узор малый по клеткам,
    * а сетка — средняя (карточка, `pattern.min_delta`; docs/09-content.md, §6)
    */
@@ -55,7 +60,7 @@ export function checkPatternWith(p: Pattern, o: CheckOptions = {}): Checked {
   const warnings: string[] = [];
   const bad = patternError(p);
   if (bad) errors.push(bad);
-  const stats = patternStats(p, !!o.diagonal);
+  const stats = patternStats(p, !!o.diagonal, o.skip);
   const size = sizeClass(p);
   const lim = SIZES[size];
   const n = p.threads.length;

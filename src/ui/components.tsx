@@ -80,8 +80,9 @@ function webThumb(color: string): Partial<SwitchProps> {
 }
 
 /** Переключатель на несколько вариантов; ширина варианта растёт с длиной подписи. */
+/** Переключатель из нескольких; `value: null` — не выбран ни один (свой размер «Своего узора»). */
 export function Segmented<K extends string>({ value, options, onChange, testID }: {
-  value: K; options: { id: K; label: string }[]; onChange: (v: K) => void; testID?: string;
+  value: K | null; options: { id: K; label: string }[]; onChange: (v: K) => void; testID?: string;
 }) {
   const { theme } = useSettings();
   return (

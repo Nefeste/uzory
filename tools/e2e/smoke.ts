@@ -983,23 +983,49 @@ try {
   await page.getByTestId('mine-pick').click();
   const sent = requests.length;
   await (await chooser).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
-  await page.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
-  const meta0 = await page.getByTestId('mine-meta').innerText();
-  check(/^70 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
-  // колёсико над снимком — рамка ближе, узор другой
+  // сразу после выбора — экран кадра (0.19.0): снимок на весь экран, внизу — превью узора этого кадра
+  await page.getByTestId('mine-frame-screen').waitFor({ timeout: 30_000 });
+  await page.getByTestId('mine-frame-preview').waitFor({ timeout: 30_000 });
+  // колёсико над снимком — рамка ближе; мышью за уголок — рамка уже
   const photoBox = (await page.getByTestId('mine-photo').boundingBox())!;
   await page.mouse.move(photoBox.x + photoBox.width / 2, photoBox.y + photoBox.height / 2);
   for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -120);
   const frame = (await page.getByTestId('mine-frame').boundingBox())!;
   check(frame.width < photoBox.width * 0.8, 'колёсико приблизило рамку');
+  await page.mouse.move(frame.x + frame.width - 2, frame.y + frame.height - 2);
+  await page.mouse.down();
+  await page.mouse.move(frame.x + frame.width - 42, frame.y + frame.height - 32, { steps: 6 });
+  await page.mouse.up();
+  const shrunk = (await page.getByTestId('mine-frame').boundingBox())!;
+  check(Math.abs(frame.width - shrunk.width - 40) < 3 && Math.abs(frame.x - shrunk.x) < 2,
+    `за уголок рамка стала уже на ${Math.round(frame.width - shrunk.width)} точек, левый край на месте`);
+  await page.getByTestId('mine-frame-done').click();
+  await page.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
+  const meta0 = await page.getByTestId('mine-meta').innerText();
+  // размер сразу — «большая», 120 клеток (решение владельца 01.11.2026)
+  check(/^120 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
+  // превью узора — картинка этой сборки (до 0.19.0 из памяти превью оставалось первым: ключ у
+  // несохранённого узора один, `mine@1`)
+  const previewSrc = async () => (await page.getByTestId('mine-preview').locator('img').first().getAttribute('src')) ?? '';
+  const preview0 = await previewSrc();
   // малая: узор пересобирается, приговор — и для неё
   await page.getByTestId('mine-size-S').click();
   await page.waitForFunction(() => /^40 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
   const verdictS = await page.getByTestId('mine-verdict').innerText();
   check(/Подходит|Не подходит/.test(verdictS), `приговор малой: ${verdictS.replace(/\n/g, ' — ')}`);
-  // весь снимок, средняя: цвет клетки — преобладающий, и лес не рассыпается даже без упрощения
-  // (по среднему цвету клетки мелких пятен было 3,3 % — «не подходит»; по умолчанию — «немного»)
+  const previewS = await previewSrc();
+  check(preview0.length > 0 && previewS.length > 0 && previewS !== preview0, `превью малой — новое, не прежней большой (${preview0.length} и ${previewS.length} знаков)`);
+  // свой размер — числом и по «Применить» (0.19.0): переключатель размеров не выбирает ни одной заготовки
+  await page.getByTestId('mine-side').fill('300');
+  await page.getByTestId('mine-apply').click();
+  await page.waitForFunction(() => /^300 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 60_000 });
+  const chosen = await page.locator('[data-testid^="mine-size-"][aria-selected="true"]').count();
+  check(chosen === 0 && await page.getByTestId('mine-apply').isDisabled(), `свой размер 300 — собран по «Применить», заготовка не выбрана (${chosen})`);
+  // весь снимок (на экране кадра), средняя: цвет клетки — преобладающий, и лес не рассыпается даже без
+  // упрощения (по среднему цвету клетки мелких пятен было 3,3 % — «не подходит»; по умолчанию — «немного»)
+  await page.getByTestId('mine-frame-edit').click();
   await page.getByTestId('mine-whole').click();
+  await page.getByTestId('mine-frame-done').click();
   await page.getByTestId('mine-size-M').click();
   await page.waitForFunction(() => /^70 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
   // «Собираю узор…» появляется сразу после правки и уходит с новым узором
@@ -1015,6 +1041,33 @@ try {
   const zontiki = await simplify(0);
   check(!/Не подходит/.test(zontiki) && !(await page.getByTestId('mine-stitch').isDisabled()),
     `«Зонтики в парке» без упрощения: ${zontiki.split('\n')[0]} — по преобладающему цвету клетки лес не рассыпается`);
+  // главное (0.19.0): золотой овал посередине кадра; мышью его двигают; фон «не вышивать» — вышивается
+  // только овал, и узор подходит: одиночки главного приговор не считает
+  const metaAll = await page.getByTestId('mine-meta').innerText();
+  await page.getByTestId('mine-frame-edit').click();
+  await page.getByTestId('mine-main-toggle').click();
+  const oval = (await page.getByTestId('mine-main').boundingBox())!;
+  const ovalAt = { x: oval.x + oval.width / 2, y: oval.y + oval.height / 2 };
+  await page.mouse.move(ovalAt.x, ovalAt.y);
+  await page.mouse.down();
+  await page.mouse.move(ovalAt.x + 30, ovalAt.y + 12, { steps: 6 });
+  await page.mouse.up();
+  const moved = (await page.getByTestId('mine-main').boundingBox())!;
+  check(Math.abs(moved.x - oval.x - 30) < 3 && Math.abs(moved.y - oval.y - 12) < 3,
+    `главное — овал ${Math.round(oval.width)} × ${Math.round(oval.height)}, мышью сдвинулся на ${Math.round(moved.x - oval.x)} × ${Math.round(moved.y - oval.y)}`);
+  await page.screenshot({ path: join(OUT, '09-mine-frame.png') });
+  await page.getByTestId('mine-frame-done').click();
+  await page.getByTestId('mine-background-none').click();
+  const alone = await rebuilt();
+  const metaAlone = await page.getByTestId('mine-meta').innerText();
+  check(!/Не подходит/.test(alone) && metaAlone !== metaAll && !(await page.getByTestId('mine-stitch').isDisabled()),
+    `фон «не вышивать»: ${metaAlone} (было ${metaAll}) — ${alone.split('\n')[0]}`);
+  await page.screenshot({ path: join(OUT, '09-mine-main.png') });
+  await page.getByTestId('mine-frame-edit').click();
+  await page.getByTestId('mine-main-toggle').click();
+  await page.getByTestId('mine-main').waitFor({ state: 'detached' });
+  await page.getByTestId('mine-frame-done').click();
+  await rebuilt();
   // пёстрая листва — пятна пяти зелёных чуть крупнее клетки (как в tools/test/mine.test.ts): без
   // упрощения рассыпается на мелкие пятна — «не подходит»; «сильно» выравнивает пятна — подходит.
   // Четыре точки на клетку средней: с 0.18.2 кадр до сетки усредняется до 4 × 4 точек на клетку, и
@@ -1033,7 +1086,10 @@ try {
   const chooser2 = page.waitForEvent('filechooser');
   await page.getByTestId('mine-other').click();
   await (await chooser2).setFiles(leavesFile);
+  await page.getByTestId('mine-frame-screen').waitFor({ timeout: 30_000 });
+  await page.getByTestId('mine-frame-done').click();
   const plain = await rebuilt();
+  check((await previewSrc()) !== previewS, 'другой снимок — и превью узора другое');
   check(/Не подходит/.test(plain) && await page.getByTestId('mine-stitch').isDisabled(), `пёстрая листва без упрощения: ${plain.split('\n')[0]}, «Вышивать» неактивна`);
   const verdict = await simplify(2);
   check(!/Не подходит/.test(verdict) && !(await page.getByTestId('mine-stitch').isDisabled()), `упрощение «сильно»: ${verdict.split('\n')[0]}`);
@@ -1097,6 +1153,7 @@ try {
     const pick = pm.waitForEvent('filechooser');
     await pm.getByTestId('mine-pick').click();
     await (await pick).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
+    await pm.getByTestId('mine-frame-done').click({ timeout: 30_000 });
     await pm.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
     const freeLine = await pm.getByTestId('mine-free').innerText().catch(() => '');
     await pm.getByTestId('mine-stitch').click();

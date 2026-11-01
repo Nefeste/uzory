@@ -23,10 +23,13 @@ const GRID_FROM = 4;
 /**
  * «done» — готовая работа; «muted» — ещё не начатая: приглушённым цветом, с лёгкой сеткой на крупных
  * клетках (решение владельца 31.10.2026, issue 130, вариант Б; docs/08-game-design.md, «Превью»); со
- * `stitched` — начатая: вышитое полным цветом, остальное — приглушённым.
+ * `stitched` — начатая: вышитое полным цветом, остальное — приглушённым. `fresh` — не брать превью из
+ * памяти и не класть в неё: несохранённый «Свой узор» — каждый раз новый узор под одним ключом `mine@1`
+ * (MINE_SEED, src/engine/build/mine.ts), и с 0.4.0 до 0.19.0 его превью из памяти так и оставалось
+ * первым — «другой снимок, а узор старый» (проверка владельца на 0.18.1).
  */
-export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitched?: Uint8Array): string | null {
-  const key = stitched ? null : `${p.key}|${mode}|${side}`;
+export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitched?: Uint8Array, fresh = false): string | null {
+  const key = stitched || fresh ? null : `${p.key}|${mode}|${side}`;
   if (key && cache.has(key)) return cache.get(key)!;
   const uri = render(p, mode, side, stitched);
   if (key) {

@@ -24,13 +24,17 @@ export interface PatternStats {
 
 /**
  * `diagonal` — соседи и по диагонали: у нарисованных орнаментов косые линии в клетку —
- * замысел, а не «конфетти» (docs/09-content.md, §6).
+ * замысел, а не «конфетти» (docs/09-content.md, §6). `skip` — клетки, чьи одиночки и мелкие
+ * пятна не считаются, а нить из одних таких одиночек — не «одинокая»: главное своего узора
+ * (src/engine/build/main.ts) — глаза, блики и ноздри там замысел; доли — от всех вышиваемых клеток.
  */
-export function patternStats(p: Pattern, diagonal = false): PatternStats {
+export function patternStats(p: Pattern, diagonal = false, skip?: Uint8Array): PatternStats {
   const { w, h, cells } = p;
   const n = p.threads.length;
   const counts = new Array<number>(n).fill(0);
   const nonSingle = new Array<number>(n).fill(0);
+  // клеток нити вне `skip`: нить только из клеток `skip` одинокой не бывает
+  const counted = new Array<number>(n).fill(0);
   let total = 0;
   let singles = 0;
   for (let i = 0; i < cells.length; i++) {
@@ -38,6 +42,7 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
     if (t === CANVAS) continue;
     total++;
     counts[t]++;
+    if (!skip?.[i]) counted[t]++;
     const x = i % w;
     const y = (i - x) / w;
     let same = (x > 0 && cells[i - 1] === t) || (x < w - 1 && cells[i + 1] === t) || (y > 0 && cells[i - w] === t) || (y < h - 1 && cells[i + w] === t);
@@ -46,7 +51,7 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
         || (x > 0 && y < h - 1 && cells[i + w - 1] === t) || (x < w - 1 && y < h - 1 && cells[i + w + 1] === t);
     }
     if (same) nonSingle[t]++;
-    else singles++;
+    else if (!skip?.[i]) singles++;
   }
   // связные области одной нити
   const comp = new Int32Array(cells.length).fill(-1);
@@ -57,11 +62,13 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
     if (cells[i] === CANVAS || comp[i] >= 0) continue;
     const t = cells[i];
     let size = 0;
+    let outside = 0;
     stack.push(i);
     comp[i] = regions;
     while (stack.length) {
       const j = stack.pop()!;
       size++;
+      if (!skip?.[j]) outside++;
       const x = j % w;
       const y = (j - x) / w;
       for (let dy = -1; dy <= 1; dy++) {
@@ -75,7 +82,7 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
         }
       }
     }
-    if (size <= 3) small += size;
+    if (size <= 3) small += outside;
     regions++;
   }
   const labs = p.threads.map((t) => rgbToLab(t.rgb));
@@ -88,7 +95,7 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
     }
   }
   const lonely: number[] = [];
-  for (let t = 0; t < n; t++) if (counts[t] > 0 && nonSingle[t] === 0) lonely.push(t);
+  for (let t = 0; t < n; t++) if (counted[t] > 0 && nonSingle[t] === 0) lonely.push(t);
   return {
     cells: total,
     singles: total ? (singles * 100) / total : 0,
@@ -100,3 +107,4 @@ export function patternStats(p: Pattern, diagonal = false): PatternStats {
     counts,
   };
 }
+

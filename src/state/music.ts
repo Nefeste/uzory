@@ -171,6 +171,24 @@ export function musicEnabled(on: boolean) {
   }
 }
 
+/**
+ * «Следующая пьеса» в меню канвы (просьба владельца 01.11.2026): нынешняя затихает, следующая входит
+ * после короткой тишины, как по кругу. Музыка была выключена или ещё не начиналась — начинается.
+ */
+export function musicNext() {
+  if (!hasMusic) return;
+  enabled = true;
+  if (!here) return;
+  if (!live || !player) {
+    live = true;
+    if (player) next();
+    else resume();
+    return;
+  }
+  if (gap) return;
+  fadeTo(0, FADE_OUT_MS, next);
+}
+
 /** Включили в меню канвы — человек на экране вышивания и хочет слышать: начинается сразу. */
 export function musicStart() {
   enabled = true;

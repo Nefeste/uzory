@@ -27,7 +27,8 @@ import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { findEyes, findLines, paintEyes } from '../../src/engine/build/eyes';
 import { focusMask } from '../../src/engine/build/focus';
-import { photoGrid } from '../../src/engine/build/photo';
+import { unionMask } from '../../src/engine/build/main';
+import { mainMask, photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 import { buildGuarded } from '../../src/engine/build/smooth';
 import { softField } from '../../src/engine/build/soft';
@@ -98,8 +99,9 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     // та же сетка, что у «Своего узора» в приложении
     grid = photoGrid(raster, p);
   }
-  // лица — рамки важных частей снимка: своя маленькая палитра (src/engine/build/focus.ts)
-  const focus = !p.chart && p.focus?.length ? focusMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.focus) : undefined;
+  // лица — рамки важных частей снимка: своя маленькая палитра (src/engine/build/focus.ts); главное
+  // снимка из «Своего узора» (овал, src/engine/build/main.ts) — так же
+  const focus = p.chart ? undefined : unionMask(p.focus?.length ? focusMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.focus) : undefined, mainMask(p, grid));
   const opts = {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
     ...(focus ? { focus } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),

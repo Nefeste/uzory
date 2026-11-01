@@ -17,7 +17,7 @@ import type { Pattern } from '../engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
 import { useLooks } from '../state/looks';
-import { hasMusic, musicEnabled, musicEnter, musicLeave, musicStart, musicStitch } from '../state/music';
+import { hasMusic, musicEnabled, musicEnter, musicLeave, musicNext, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
 import { play, soundsReady } from '../state/sound';
@@ -37,7 +37,7 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, onBack, onDone, onStarted, onSettings }: {
+export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, onBack, onDone, onStarted, onSettings, onLooks }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
@@ -51,6 +51,8 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   /** новая работа записана: вернувшись из настроек, экран откроет её, а не начнёт ещё одну */
   onStarted?: (workId: string) => void;
   onSettings?: () => void;
+  /** «Канва и рамка» в меню — экран «Оформление» (владелец 01.11.2026: в настройках его ещё найти надо) */
+  onLooks?: () => void;
 }) {
   const { settings, update, theme } = useSettings();
   // канва оформления (src/state/looks.ts); фон до первого кадра — её же поле
@@ -298,12 +300,16 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
                     <ToggleRow label={T.stitch.music} value={settings.music} testID="menu-music"
                       onChange={(v) => { update({ music: v }); if (v) musicStart(); else musicEnabled(false); }} />
                   ) : null}
+                  {hasMusic && settings.music ? (
+                    <Button kind="ghost" small label={T.stitch.nextTrack} onPress={musicNext} testID="menu-next-track" />
+                  ) : null}
                   <Txt dim style={styles.panelLabel}>{T.stitch.ambience}</Txt>
                   <Segmented<Ambience> value={settings.ambience} onChange={(v) => update({ ambience: v })} testID="menu-ambience"
                     options={[
                       { id: 'off', label: T.settings.ambiences.off }, { id: 'rain', label: T.settings.ambiences.rain },
                       { id: 'fire', label: T.settings.ambiences.fire },
                     ]} />
+                  {onLooks ? <Button kind="ghost" label={T.stitch.looks} onPress={() => { setPanel(null); onLooks(); }} testID="menu-looks" /> : null}
                   {onSettings ? <Button kind="ghost" label={T.stitch.settings} onPress={() => { setPanel(null); onSettings(); }} testID="menu-settings" /> : null}
                 </>
               ) : (

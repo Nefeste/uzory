@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CROP_MIN, pinchCrop, shiftCrop, zoomCrop } from '../../src/engine/build/crop';
+import { CROP_MIN, dragFrame, gripAt, insideOval, mainHandle, pinchCrop, scaleRect, shiftCrop, zoomCrop } from '../../src/engine/build/crop';
 import type { Crop } from '../../src/engine/build/mine';
 import { normalizePlayer } from '../../src/engine/player';
 import { mineAccess } from '../../src/engine/plus';
@@ -69,22 +69,51 @@ describe('рамка кадра', () => {
   });
 });
 
-describe('рамка кадра на телефоне (0.18.2)', () => {
-  // на Android прокрутка экрана забирала палец, едва он сдвигался: обработчик захвата не отвечал true
-  // (blockNativeResponder системы касаний React Native), и рамка стояла, а экран ехал — 0.18.1 у владельца
-  const src = readFileSync(join(import.meta.dir, '../../src/ui/CropBox.tsx'), 'utf8');
+describe('экран кадра (0.19.0): что берёт палец и куда двигается рамка', () => {
+  // на 0.18.x рамка стояла в прокрутке экрана, и на Android палец у угла и два пальца ей так и не дались
+  // (владелец 01.11.2026); теперь кадр — свой экран без прокрутки, жесты — react-native-gesture-handler,
+  // как у канвы, а решения — чистые функции src/engine/build/crop.ts
+  const crop: Crop = [0.1, 0.1, 0.9, 0.9];
+  const main: Crop = [0.3, 0.2, 0.7, 0.8];
+  const [dw, dh] = [400, 300];
 
-  test('захват касания отвечает true — прокрутка экрана палец не забирает', () => {
-    const grant = src.slice(src.indexOf('const grant = '), src.indexOf('\n  };', src.indexOf('const grant = ')));
-    expect(grant).toContain('return true;');
-    // три обработчика: снимок (два пальца мимо рамки), рамка и угол — все через grant
-    expect(src.match(/onResponderGrant=\{\(e\) => grant\('(move|resize)', e\)\}/g)?.length).toBe(3);
+  test('уголок рамки, уголок овала, овал, рамка — по месту касания; уголок ловит палец вокруг', () => {
+    expect(gripAt(0.9 * dw - 20, 0.9 * dh - 20, crop, null, dw, dh, 34)).toEqual({ target: 'crop', mode: 'resize' });
+    expect(gripAt(0.5 * dw, 0.5 * dh, crop, null, dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
+    // овал: внутри — овал, мимо него в рамке — рамка; его уголок — на краю под 45°
+    expect(gripAt(0.5 * dw, 0.5 * dh, crop, main, dw, dh, 34)).toEqual({ target: 'main', mode: 'move' });
+    expect(gripAt(0.2 * dw, 0.5 * dh, crop, main, dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
+    const [hx, hy] = mainHandle(main);
+    expect(gripAt(hx * dw + 10, hy * dh - 10, crop, main, dw, dh, 34)).toEqual({ target: 'main', mode: 'resize' });
+    expect(insideOval(0.5, 0.5, main)).toBe(true);
+    expect(insideOval(0.31, 0.21, main)).toBe(false);
   });
 
-  test('касание отняли — рамку отпускают, и экран снова прокручивается', () => {
-    expect(src.match(/onResponderTerminate=\{onRelease\}/g)?.length).toBe(3);
-    expect(src.match(/onResponderRelease=\{onRelease\}/g)?.length).toBe(3);
-    const release = src.slice(src.indexOf('const onRelease = '), src.indexOf('\n  };', src.indexOf('const onRelease = ')));
-    expect(release).toContain('onActive?.(false)');
+  test('палец двигает рамку, не выпуская за снимок; угол — не уже CROP_MIN и не длиннее 5 : 1', () => {
+    expect(dragFrame(crop, 'move', 0.05, -0.02, 400, 300).map((x) => +x.toFixed(6))).toEqual([0.15, 0.08, 0.95, 0.88]);
+    expect(dragFrame(crop, 'move', 0.5, 0.5, 400, 300).map((x) => +x.toFixed(6))).toEqual([0.2, 0.2, 1, 1]);
+    // угол: уже — сжимается, не меньше CROP_MIN; вытянуть больше 5 : 1 нельзя
+    expect(dragFrame(crop, 'resize', -0.3, -0.3, 400, 300).map((x) => +x.toFixed(6))).toEqual([0.1, 0.1, 0.6, 0.6]);
+    const thin = dragFrame(crop, 'resize', -2, 0, 400, 300);
+    expect(thin[2] - thin[0]).toBeCloseTo(CROP_MIN, 9);
+    const long = dragFrame([0.1, 0.1, 0.2, 0.2], 'resize', 0.8, 0, 400, 300);
+    expect(((long[2] - long[0]) * 400) / ((long[3] - long[1]) * 300)).toBeCloseTo(5, 6);
+  });
+
+  test('два пальца на овале — овал больше и меньше вокруг своей середины, не за снимок', () => {
+    const big = scaleRect(main, 1.5);
+    expect((big[0] + big[2]) / 2).toBeCloseTo(0.5, 9);
+    expect(big[2] - big[0]).toBeCloseTo(0.6, 9);
+    expect(scaleRect(main, 10)).toEqual([0, 0, 1, 1]);
+    expect(scaleRect(main, 0)).toEqual(main);
+  });
+
+  test('экран кадра — без прокрутки, жесты — как у канвы: один палец и щипок', () => {
+    const src = readFileSync(join(import.meta.dir, '../../src/ui/FrameEditor.tsx'), 'utf8');
+    expect(src).toContain("from 'react-native-gesture-handler'");
+    expect(src).toContain('Gesture.Pan()');
+    expect(src).toContain('Gesture.Pinch()');
+    expect(src).toContain('Gesture.Simultaneous(pan, pinch)');
+    expect(src).not.toContain('ScrollView');
   });
 });

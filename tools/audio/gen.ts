@@ -82,58 +82,51 @@ export function fadeOut(x: Float32Array, sec: number): Float32Array {
 }
 
 /**
- * Стежок — «тук» иглы по канве, натянутой в пяльцах (0.18.2; владелец 31.10.2026: «звук стежков ещё не
- * улучшился»). Натянутая ткань звучит, как маленький барабан: короткий толчок шума проходит через три
- * резонанса круглой мембраны (основной тон, ×1,594 и ×2,136) — выходит глухой «тук» с живой фактурой, у
- * каждого варианта своей. Игла проходит ткань — щелчок 2–5 кГц в 3 мс, нить тянется — тихий шорох после.
- * До 0.18.2 стежок был шумом 2–3 кГц (центр спектра 2,5–2,8 кГц у всех четырёх, половина энергии — в
- * шипящей полосе 2–4 кГц): все четыре звучали одним «тсс». Теперь главное — в полосе 0,5–2 кГц, которую
- * динамик телефона ещё играет, и стежки различимы по высоте — от ре до ре октавой выше: кисть звучит
- * россыпью, а не машинкой.
+ * Стежок: мягкий шорох — игла проходит лён (короткий щелчок около 4,5 кГц) и тянется нить
+ * (шум в своей полосе, гаснет за 25–40 мс). Короткий и тихий: при кисти он звучит часто
+ * (docs/08-game-design.md, «Звук и музыка»). Это стежок 0.3.0 — до байта; «тук» 0.18.2 вышел звонче,
+ * а владелец просил разнообразить этот (01.11.2026): «звук стежков стал другим, более звонким, а нужно
+ * было только разнообразить тот стежок».
  */
-export function makeStitch(v: { seed: string; hz: number; tau: number; needle: number; sec: number }): Float32Array {
+export function makeStitch(v: { seed: string; hz: number; tau: number; needle: number; sec: number } = STITCH): Float32Array {
   const n = len(v.sec).length;
-  // толчок: шум, гаснущий за 1,5 мс, — им «ударяют» по мембране
-  const kick = noise(n, `kick${v.seed}`);
-  for (let i = 0; i < n; i++) kick[i] *= Math.exp(-i / RATE / 0.0015);
-  const body = new Float32Array(n);
-  // резонанс звенит τ = Q / (π·f): добротность — из времени затухания моды; верхние гаснут быстрее.
-  // Каждая мода — по своему пику: случайный толчок иначе раскачал бы одну, и стежок звучал бы писком
-  const peakOf = (x: Float32Array) => x.reduce((m, y) => Math.max(m, Math.abs(y)), 0) || 1;
-  for (const [mul, gain, tauK] of [[1, 1, 1], [1.594, 0.7, 0.7], [2.136, 0.45, 0.5]]) {
-    const hz = v.hz * mul;
-    const ring = biquad(kick, 'bp', hz, Math.PI * hz * v.tau * tauK);
-    const k = gain / peakOf(ring);
-    for (let i = 0; i < n; i++) body[i] += k * ring[i];
-  }
-  const needle = biquad(noise(n, `needle${v.seed}`), 'hp', 2200, 0.7);
-  const thread = biquad(biquad(noise(n, `thread${v.seed}`), 'bp', 1600, 0.7), 'lp', 3500, 0.7);
-  const bodyPeak = peakOf(body);
+  const needle = biquad(noise(n, `needle${v.seed}`), 'bp', 4500, 1.2);
+  const thread = biquad(biquad(noise(n, `thread${v.seed}`), 'bp', v.hz, 0.6), 'lp', 5000, 0.7);
   const out = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const t = i / RATE;
-    const a = t < 0.001 ? 0.5 - 0.5 * Math.cos((Math.PI * t) / 0.001) : 1;
-    const tick = v.needle * Math.exp(-t / 0.003) * needle[i];
-    // нить: тихий шорох, нарастает за 10 мс и гаснет
-    const pull = 0.1 * (1 - Math.exp(-t / 0.01)) * Math.exp(-t / 0.03) * thread[i];
-    out[i] = a * (body[i] / bodyPeak + tick + pull);
+    const a = Math.min(1, t / 0.004);
+    out[i] = v.needle * Math.exp(-t / 0.0025) * needle[i] + a * Math.exp(-t / v.tau) * thread[i];
   }
-  return fadeOut(normalize(out, 0.45), 0.015);
+  return fadeOut(normalize(out, 0.45), 0.02);
+}
+
+/** Стежок 0.3.0: полоса нити 2,2 кГц, 90 мс, со щелчком иглы. */
+export const STITCH = { seed: '', hz: 2200, tau: 0.03, needle: 0.5, sec: 0.09 } as const;
+
+/**
+ * Тот же звук на другой высоте: пересчёт с шагом `k` (больше 1 — выше и короче), между отсчётами —
+ * прямая. Шорох остаётся шорохом, только чуть светлее или глуше.
+ */
+export function pitched(x: Float32Array, k: number): Float32Array {
+  if (k === 1) return x;
+  const n = Math.floor((x.length - 1) / k);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i * k;
+    const j = Math.floor(t);
+    const f = t - j;
+    out[i] = x[j] * (1 - f) + x[j + 1] * f;
+  }
+  return fadeOut(out, 0.005);
 }
 
 /**
- * Варианты стежка: основной тон — ре, ми, соль, ля, си второй октавы и ре третьей (пентатоника — любые
- * два подряд не режут слух); основной тон гаснет за 12–16 мс — «тук», а не щелчок и не писк; щелчок
- * иглы у каждого свой, у двух — почти без него. Длина 70–80 мс.
+ * Варианты стежка — один и тот же шорох на шести высотах, на 3–9 % ниже и выше: игра берёт их
+ * вперемешку и чуть громче или тише, а при кисти — через неровные промежутки (src/engine/tick.ts),
+ * и кисть не звучит одним и тем же щелчком (разбор оформления 31.10.2026, 4.1).
  */
-export const STITCHES = [
-  { seed: '', hz: 587, tau: 0.016, needle: 0.7, sec: 0.08 },
-  { seed: '-2', hz: 659, tau: 0.015, needle: 0.5, sec: 0.08 },
-  { seed: '-3', hz: 784, tau: 0.014, needle: 0.2, sec: 0.075 },
-  { seed: '-4', hz: 880, tau: 0.014, needle: 0.6, sec: 0.075 },
-  { seed: '-5', hz: 988, tau: 0.013, needle: 0.15, sec: 0.07 },
-  { seed: '-6', hz: 1175, tau: 0.012, needle: 0.5, sec: 0.07 },
-] as const;
+export const STITCH_PITCH = [1, 0.94, 0.97, 1.03, 1.06, 1.09] as const;
 
 /**
  * Удар по колокольчику: короткий шумовой щелчок в полосе 3–6 кГц, 2 мс — у звона появляется
@@ -174,7 +167,7 @@ export function makeDone(): Float32Array {
 }
 
 export const SOUNDS: Record<string, () => Float32Array> = {
-  ...Object.fromEntries(STITCHES.map((v, i) => [i ? `stitch-${i + 1}.wav` : 'stitch.wav', () => makeStitch(v)])),
+  ...Object.fromEntries(STITCH_PITCH.map((k, i) => [i ? `stitch-${i + 1}.wav` : 'stitch.wav', () => pitched(makeStitch(), k)])),
   'thread.wav': makeThread,
   'done.wav': makeDone,
 };

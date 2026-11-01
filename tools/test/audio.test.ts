@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BRUSH_SOFT, BRUSH_SOFT_MS, newTicks, STITCH_GAP, STITCH_SPREAD, stitchTick } from '../../src/engine/tick';
-import { RATE, SOUNDS, STITCHES, wav } from '../audio/gen';
+import { makeStitch, pitched, RATE, SOUNDS, STITCH_PITCH, wav } from '../audio/gen';
 
 const DIR = join(import.meta.dir, '..', '..', 'assets', 'audio');
 
@@ -80,13 +80,21 @@ describe('звуки', () => {
     }
   });
 
-  test('стежок — «тук», а не «тсс»: центр спектра ниже 2 кГц, и варианты различимы по высоте (0.18.2)', () => {
-    // до 0.18.2 все четыре стежка были шумом с центром спектра 2,5–2,9 кГц — одно «тсс» на четыре файла
-    const centers = files.filter((f) => f.startsWith('stitch')).map((f) => centroid(read(f).x));
-    for (const c of centers) expect(c).toBeLessThan(2000);
-    expect(Math.max(...centers) / Math.min(...centers)).toBeGreaterThan(1.4);
-    // основные тона — пентатоника на октаву: ре, ми, соль, ля, си, ре
-    expect(STITCHES.map((v) => v.hz)).toEqual([587, 659, 784, 880, 988, 1175]);
+  test('стежки — один и тот же шорох 0.3.0 на шести высотах (владелец 01.11.2026: «разнообразить тот стежок»)', () => {
+    // первый — прежний стежок до байта; остальные — он же, пересчитанный выше или ниже на 3–9 %
+    expect(STITCH_PITCH[0]).toBe(1);
+    expect(wav(makeStitch()).equals(read('stitch.wav').b)).toBe(true);
+    const base = centroid(read('stitch.wav').x);
+    STITCH_PITCH.forEach((k, i) => {
+      if (!i) return;
+      expect(Math.abs(k - 1)).toBeGreaterThanOrEqual(0.03);
+      expect(Math.abs(k - 1)).toBeLessThanOrEqual(0.09 + 1e-9);
+      const x = read(`stitch-${i + 1}.wav`).x;
+      expect(wav(pitched(makeStitch(), k)).equals(read(`stitch-${i + 1}.wav`).b)).toBe(true);
+      // тот же шорох: длина — ровно в k раз короче или длиннее, центр спектра — недалеко от прежнего
+      expect((read('stitch.wav').x.length - 1) / x.length).toBeCloseTo(k, 2);
+      expect(Math.abs(centroid(x) / base - 1)).toBeLessThan(0.15);
+    });
   });
 
   test('кисть — неровная россыпь, а не машинка: 7–12 стежков в секунду через разные промежутки', () => {

@@ -150,7 +150,7 @@ function Root() {
         <StitchScreen
           pattern={route.pattern} title={route.title} workId={route.workId} onBack={back}
           onStarted={(workId) => patch(route.k, { workId })}
-          onSettings={() => go({ name: 'settings' })}
+          onSettings={() => go({ name: 'settings' })} onLooks={() => go({ name: 'looks' })}
           onDone={(workId) => setStack((s) => [...s.slice(0, -1), entry({ name: 'done', pattern: route.pattern, title: route.title, workId })])}
         />
       );
@@ -163,7 +163,7 @@ function Root() {
           pattern={pattern} title={pic.title} workId={route.workId} onBack={back}
           pic={pic} mystery={route.mystery}
           onStarted={(workId) => patch(route.k, { workId })}
-          onSettings={() => go({ name: 'settings' })}
+          onSettings={() => go({ name: 'settings' })} onLooks={() => go({ name: 'looks' })}
           onDone={(workId) => {
             // первая картинка вышита — на главной с этих пор картинка дня
             if (pic.id === FIRST_PICTURE) player.update({ firstDone: true });
@@ -179,11 +179,11 @@ function Root() {
       screen = route.listed ? (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
           onBack={back} onAgain={pic ? () => go({ name: 'picture', pic: pictureById(pic.id) ?? pic }) : undefined}
-          onSettings={() => go({ name: 'settings' })} onPlus={plus} />
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })} />
       ) : (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
           onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
-          onSettings={() => go({ name: 'settings' })} onPlus={plus} />
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })} />
       );
       break;
     }
