@@ -30,3 +30,4 @@ pattern:
   tone: 0.6
 was:
   1: { size: 300, smooth: 0, soft: false, tone: 0 }   # до правки по «нет» владельца 01.11.2026 — для начатых работ
+approved: 2026-11-01

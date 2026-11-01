@@ -17,7 +17,7 @@ Color by number as cross-stitch: folk ornaments, paintings, old Russia. No ads
 Uzory is color by number made to feel like cross-stitch. Every picture is a chart on linen canvas with numbered cells. Pick a thread and stitch — tap a cell or brush your finger across the canvas. From afar your work looks like real embroidery, and when it is finished the game replays how it was stitched, stitch by stitch.
 
 WHAT TO STITCH
-• More than two hundred and eighty pictures — from small five-minute patterns to a large painting and old photographs for several evenings.
+• More than three hundred pictures — from small five-minute patterns to a large painting and old photographs for several evenings.
 • Ornaments inspired by Russian folk embroidery: eight-pointed stars, rhombs, rosettes, towel borders.
 • Russia in Colour — photographs by Sergei Prokudin-Gorsky taken more than a hundred years ago, each with a short story.
 • Old charts — patterns from real embroidery sheets of 1850–1890.

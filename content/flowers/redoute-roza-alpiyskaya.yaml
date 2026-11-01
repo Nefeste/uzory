@@ -26,3 +26,4 @@ pattern:
 was:
   1: { size: 70, simplify: 1, smooth: 0, canvas_edge: false, crop: [0.1, 0.08, 0.92, 0.88], canvas_pockets: 0 }   # узор закрытой веб-версии — для начатых на нём работ
   2: { canvas_edge: false, crop: [0.1, 0.08, 0.92, 0.88], canvas_pockets: 0 }   # до правки по «нет» владельца 01.11.2026 — для начатых работ
+approved: 2026-11-01
