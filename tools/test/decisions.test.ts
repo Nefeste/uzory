@@ -4,9 +4,14 @@
 // версия же — в тексте: «Название (id@v)».
 // Обратно его разбирает tools/content/decisions.ts: что прислал владелец — то и в карточках.
 import { describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { SIZES } from '../../src/engine/build/checks';
 import { ru } from '../../src/i18n/ru';
-import { cleanNote, decisionGroups, NOTE_MAX, pickKey } from '../../src/state/decisions';
-import { approve, hide, parseDecisions, staleDecisions } from '../content/decisions';
+import { cleanNote, decisionGroups, NOTE_MAX, pickKey, type Tune } from '../../src/state/decisions';
+import { type Card, CONTENT, type PatternSpec, patternSpec, readCard } from '../content/cards';
+import { approve, hide, parseDecisions, parseTune, retune, staleDecisions, tuneChanges } from '../content/decisions';
 
 const rows = [
   { id: 'first-picture', v: 1, title: 'Первая картинка' },
@@ -131,5 +136,80 @@ describe('текст решений → карточки (tools/content/decision
       'hidden: true',
       '',
     ].join('\n'));
+  });
+});
+
+/** Карточка во временной папке коллекции — так её читает tools/content. */
+function cardAt(collection: string, id: string, yaml: string): string {
+  const dir = join(mkdtempSync(join(tmpdir(), 'uzory-tune-')), collection);
+  mkdirSync(dir);
+  writeFileSync(join(dir, `${id}.yaml`), yaml);
+  return join(dir, `${id}.yaml`);
+}
+const real = (collection: string, id: string) => {
+  const file = join(CONTENT, collection, `${id}.yaml`);
+  return { yaml: readFileSync(file, 'utf8'), card: readCard(file).card! };
+};
+/** Поля узора без «как без поля»: упрощение и сглаживание 0 — то же, что их нет. */
+const norm = (p: PatternSpec) => Object.fromEntries(Object.entries(p).filter(([k, v]) => !((k === 'simplify' || k === 'smooth') && !v)));
+const versions = (c: Card) => [...Object.keys(c.was ?? {}).map(Number), c.v];
+
+describe('настройки владельца (0.24.1): «да при таких клетках»', () => {
+  const tunes: Record<string, Tune> = { 'rozetka@1': { size: 450, threads: 40, simplify: 1 }, 'zvezda-alatyr@1': { threads: 24 } };
+
+  test('настройки — в фигурных скобках после картинки, до комментария; только настройки — в группе без отметки', () => {
+    const t = ru.sheet.picksText('0.24.1', '2026-11-02', decisionGroups(rows, { 'rozetka@1': 'yes' }, { 'rozetka@1': 'мелко' }, ru.sheet, tunes));
+    expect(t).toBe([
+      'Узоры 0.24.1 — отбор картинок, 2026-11-02',
+      'Да (1): Розетка (rozetka@1) {клеток 450, нитей 40, упрощение: немного} — «мелко»',
+      'Без отметки, с комментарием (1): Восьмиконечная звезда (zvezda-alatyr@1) {нитей 24}',
+    ].join('\n'));
+    const d = parseDecisions(t);
+    expect(d.items.map((it) => [it.id, it.pick, it.tune, it.note])).toEqual([
+      ['rozetka', 'yes', { size: 450, threads: 40, simplify: 1 }, 'мелко'],
+      ['zvezda-alatyr', null, { threads: 24 }, ''],
+    ]);
+  });
+
+  test('незнакомое слово или число вне пределов — ошибка разбора', () => {
+    expect(() => parseTune('клеток 2000', ru.sheet.tuneWords)).toThrow('вне пределов');
+    // нитей — не больше, чем пропускает карточка «Огромной» (tools/content/cards.ts)
+    expect(parseTune(`нитей ${SIZES.XL.threads[1]}`, ru.sheet.tuneWords)).toEqual({ threads: SIZES.XL.threads[1] });
+    expect(() => parseTune(`нитей ${SIZES.XL.threads[1] + 1}`, ru.sheet.tuneWords)).toThrow('вне пределов');
+    expect(() => parseTune('стежков 40', ru.sheet.tuneWords)).toThrow('не понять');
+    expect(() => parseTune('упрощение: очень', ru.sheet.tuneWords)).toThrow('не понять');
+    expect(parseTune('упрощение: нет', ru.sheet.tuneWords)).toEqual({ simplify: 0 });
+  });
+
+  test('«да» при настройках — новая версия с ними и «да» сразу; прежние версии — те же узоры', () => {
+    // «Георгин»: версия 4 со сглаживанием, три прежних в was, «да» у версии 2 (approved_v)
+    const { yaml, card } = real('nature', 'georgin');
+    const out = retune(yaml, card, { size: 360, threads: 40, simplify: 1 }, { pick: 'yes', date: '2026-11-02', text: 'клеток 360, нитей 40, упрощение: немного' });
+    const after = readCard(cardAt('nature', 'georgin', out.yaml));
+    expect(after.errors).toEqual([]);
+    const c = after.card!;
+    expect(c.v).toBe(card.v + 1);
+    for (const v of versions(card)) expect(norm(patternSpec(c, v))).toEqual(norm(patternSpec(card, v)));
+    expect([c.pattern!.size, c.pattern!.threads, c.pattern!.simplify, c.pattern!.smooth]).toEqual([360, 40, 1, undefined]);
+    expect([c.approved, c.approved_v]).toEqual(['2026-11-02', undefined]);
+  });
+
+  test('без «да» у карточки с «да» — прежняя версия остаётся в выпуске (approved_v), новая — на отбор', () => {
+    const { yaml, card } = real('cities', 'brevenchatyy-dom');
+    expect(card.approved_v).toBeUndefined();
+    const out = retune(yaml, card, { size: 300 }, { pick: 'no', date: '2026-11-02', text: 'клеток 300' });
+    const after = readCard(cardAt('cities', 'brevenchatyy-dom', out.yaml));
+    expect(after.errors).toEqual([]);
+    expect([after.card!.v, after.card!.pattern!.size, after.card!.approved_v]).toEqual([card.v + 1, 300, card.v]);
+    for (const v of versions(card)) expect(norm(patternSpec(after.card!, v))).toEqual(norm(patternSpec(card, v)));
+  });
+
+  test('как в карточке — новой версии нет («да» — нынешней); у старинной схемы клетки и упрощение — нельзя', () => {
+    const { yaml, card } = real('nature', 'georgin');
+    expect(tuneChanges(card, { size: card.pattern!.size, threads: card.pattern!.threads })).toEqual({ set: {}, old: {} });
+    expect(retune(yaml, card, { size: card.pattern!.size }, { pick: 'yes', date: '2026-11-02', text: '' })).toEqual(approve(yaml, '2026-11-02'));
+    const scheme = real('schemes', 'berlin-girlyanda-roz');
+    expect(tuneChanges(scheme.card, { size: 200 })).toContain('старинной схемы');
+    expect(() => retune(scheme.yaml, scheme.card, { simplify: 2 }, { pick: 'yes', date: '2026-11-02', text: '' })).toThrow('старинной схемы');
   });
 });

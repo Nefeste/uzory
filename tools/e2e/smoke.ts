@@ -27,6 +27,7 @@ import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
 import { hash32 } from '../../src/engine/seed';
 import { newKeyPair } from '../../src/engine/sign';
+import { TUNE_SIDE, TUNE_THREADS } from '../../src/state/decisions';
 import { APP_VERSION } from '../../src/version';
 import { utf8Encode } from '../../src/engine/utf8';
 import { buildAll } from '../content/build';
@@ -959,6 +960,36 @@ try {
     && clip.includes('Нет (1): Розетка (rozetka@1) — «мелко, не видно лепестков»')
     && clip.includes('Без отметки, с комментарием (1): Восьмиконечная звезда (zvezda-alatyr@1) — «темнее фон»')
     && !clip.includes('Позже'), `отбор в листе: ${picked}; решения с комментариями — в буфере обмена`);
+  // «Настроить узор» (0.24.1; владелец 01.11.2026: «вот столько клеток если сделать, то рисунок принимается»): у
+  // первой картинки «России в цвете» — клеток и нитей больше, упрощение «сильно»; в тексте решений — в фигурных
+  // скобках после картинки; «Как сейчас» — настройки сняты (дальше сценарий сверяет отметки, как были)
+  const tuneId = built.filter((b) => b.card.collection === 'russia' && !b.picture.hidden).sort((a, b) => a.picture.order - b.picture.order)[0]?.card.id ?? '';
+  await page.getByTestId('sheet-coll-russia').click();
+  await page.getByTestId(`tune-open-${tuneId}`).waitFor({ timeout: 5000 }).catch(() => {});
+  await page.getByTestId(`tune-open-${tuneId}`).click();
+  const cellsField = page.getByTestId(`tune-cells-${tuneId}`);
+  const threadsField = page.getByTestId(`tune-threads-${tuneId}`);
+  const cellsNow = Number(await cellsField.inputValue());
+  const threadsNow = Number(await threadsField.inputValue());
+  // в пределах листа: больше, а у самого края — меньше
+  const cellsWant = cellsNow + 50 <= TUNE_SIDE[1] ? cellsNow + 50 : cellsNow - 50;
+  const threadsWant = threadsNow + 4 <= TUNE_THREADS[1] ? threadsNow + 4 : threadsNow - 4;
+  await cellsField.fill(String(cellsWant));
+  await cellsField.press('Enter');
+  await threadsField.fill(String(threadsWant));
+  await threadsField.press('Enter');
+  await page.getByTestId(`tune-simplify-${tuneId}-2`).click();
+  const tuneLine = await page.getByTestId(`tune-text-${tuneId}`).innerText().catch(() => '');
+  await page.getByTestId('sheet-copy').click();
+  await page.waitForTimeout(300);
+  const clipTuned = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
+  const wantTune = `клеток ${cellsWant}, нитей ${threadsWant}, упрощение: сильно`;
+  await page.getByTestId(`tune-reset-${tuneId}`).click();
+  await page.waitForTimeout(300);
+  const tuneGone = (await page.getByTestId(`tune-text-${tuneId}`).count()) === 0;
+  await page.getByTestId('sheet-coll-all').click();
+  check(!!tuneId && cellsNow > 0 && tuneLine.includes(wantTune) && new RegExp(`\\(${tuneId}@\\d+\\) \\{${wantTune}\\}`).test(clipTuned) && tuneGone,
+    `«Настроить узор» у «${tuneId}»: {${wantTune}} — в тексте решений; «Как сейчас» — настройки сняты`);
   await page.getByTestId('sheet-filter-unmarked').click();
   await page.waitForTimeout(300);
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-zvezda-alatyr').count()) === 1,

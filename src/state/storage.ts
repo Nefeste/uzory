@@ -48,6 +48,8 @@ export const KEYS = {
   picks: 'uzory.picks.v2',
   /** комментарии владельца к картинкам листа: версия картинки (id@v) → что поправить (src/state/picks.ts, только 0.x) */
   notes: 'uzory.notes.v2',
+  /** настройки, при которых владелец согласен: версия картинки (id@v) → клеток, нитей, упрощение (src/state/picks.ts, 0.24.1) */
+  tunes: 'uzory.tunes.v1',
   /** подписка «Узоры+»: последний ответ RuStore Pay и когда спрашивали (src/state/plus.tsx) */
   plus: 'uzory.plus.v1',
   /** оформления навсегда: купленные товары из последнего ответа RuStore Pay (src/state/looks.ts, 0.18.1) */
