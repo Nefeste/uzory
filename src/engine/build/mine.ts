@@ -6,7 +6,7 @@ import { type Checked, checkPatternWith, DARK_L, DARK_SHARE } from './checks';
 import { mainThreads } from './focus';
 import type { Raster } from './grid';
 import { type BuildLog, buildPattern } from './palette';
-import type { Background } from './main';
+import { type Background, mainRects, ovalMask } from './main';
 import { mainMask, photoGrid } from './photo';
 import { type Simplify, SIMPLIFY_CLEAN } from './simplify';
 
@@ -72,8 +72,8 @@ export interface MineOptions {
   side: number;
   threads: number;
   simplify?: Simplify;
-  /** главное — овал, вписанный в рамку (доли снимка, как кадр; ./main.ts) */
-  main?: Crop;
+  /** главное — овал, вписанный в рамку (доли снимка, как кадр; ./main.ts), или несколько — по лицам (с 0.24.0) */
+  main?: Crop | readonly Crop[];
   /** фон вне главного: одной нитью или не вышивать; без поля — как есть */
   background?: Background;
 }
@@ -94,7 +94,9 @@ export function buildMine(r: Raster, o: MineOptions): MineBuild {
   // (советы вышивальщиц и справка WinStitch, разбор статей 31.10.2026: «не стирать значимые одиночки»)
   const checked = checkPatternWith(pattern, focus ? { focus, skip: focus } : {});
   const pxPerCell = Math.min(((o.crop[2] - o.crop[0]) * r.width) / grid.w, ((o.crop[3] - o.crop[1]) * r.height) / grid.h);
-  return { pattern, log, checked, verdict: verdictOf(pattern, checked, pxPerCell, focus ? maskSpan(focus, grid.w) : undefined), pxPerCell };
+  // «главному мало клеток» — по самому узкому овалу: у каждого лица своё
+  const span = o.main ? Math.min(...mainRects(o.main).map((m) => { const k = ovalMask(o.crop, grid.w, grid.h, m); return k ? maskSpan(k, grid.w) : Infinity; })) : undefined;
+  return { pattern, log, checked, verdict: verdictOf(pattern, checked, pxPerCell, focus && span !== undefined && Number.isFinite(span) ? span : undefined), pxPerCell };
 }
 
 /**
@@ -162,7 +164,14 @@ const round = (x: number) => Number(x.toFixed(4));
  * Карточка библиотеки для своего снимка владельца (docs/09-content.md, §2, «Свои снимки»):
  * кадр, размер и нити — из инструмента; коллекция, место и дата съёмки — дописать руками.
  */
-export function libraryCard(o: { title: string; crop: Crop; side: number; threads: number; simplify?: Simplify; main?: Crop; background?: Background; now: Date }): { id: string; yaml: string } {
+/** Овалы главного в карточке: один — рамкой, несколько — списком рамок. */
+const mainYaml = (main: Crop | readonly Crop[]) => {
+  const list = mainRects(main);
+  const one = (m: Crop) => `[${m.map(round).join(', ')}]`;
+  return list.length === 1 ? one(list[0]) : `[${list.map(one).join(', ')}]`;
+};
+
+export function libraryCard(o: { title: string; crop: Crop; side: number; threads: number; simplify?: Simplify; main?: Crop | readonly Crop[]; background?: Background; now: Date }): { id: string; yaml: string } {
   const id = slugOf(o.title);
   const day = `${dd(o.now.getDate())}.${dd(o.now.getMonth() + 1)}.${o.now.getFullYear()}`;
   const yaml = [
@@ -186,7 +195,7 @@ export function libraryCard(o: { title: string; crop: Crop; side: number; thread
     `  chroma: ${MINE_GRID.chroma}            # насыщенность`,
     `  px: ${MINE_GRID.px}                 # точек на клетку: кадр до сетки усредняется, как в «Своём узоре»`,
     ...(o.simplify ? [`  simplify: ${o.simplify}       # упрощение: 1 — немного, 2 — сильно`] : []),
-    ...(o.main ? [`  main: [${o.main.map(round).join(', ')}]   # главное — овал в этой рамке, доли снимка`] : []),
+    ...(o.main ? [`  main: ${mainYaml(o.main)}   # главное — овал в этой рамке, доли снимка (несколько — списком)`] : []),
     ...(o.main && o.background ? [`  background: ${o.background}    # фон вне главного: one — одной нитью, none — не вышивать`] : []),
     '',
   ].join('\n');

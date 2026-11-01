@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CROP_MIN, dragFrame, gripAt, insideOval, mainHandle, pinchCrop, scaleRect, shiftCrop, zoomCrop } from '../../src/engine/build/crop';
+import { CROP_MIN, dragFrame, gripAt, insideOval, mainHandle, ovalAt, pinchCrop, scaleRect, shiftCrop, zoomCrop } from '../../src/engine/build/crop';
 import type { Crop } from '../../src/engine/build/mine';
 import { normalizePlayer } from '../../src/engine/player';
 import { mineAccess } from '../../src/engine/plus';
@@ -78,15 +78,24 @@ describe('экран кадра (0.19.0): что берёт палец и куд
   const [dw, dh] = [400, 300];
 
   test('уголок рамки, уголок овала, овал, рамка — по месту касания; уголок ловит палец вокруг', () => {
-    expect(gripAt(0.9 * dw - 20, 0.9 * dh - 20, crop, null, dw, dh, 34)).toEqual({ target: 'crop', mode: 'resize' });
-    expect(gripAt(0.5 * dw, 0.5 * dh, crop, null, dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
+    expect(gripAt(0.9 * dw - 20, 0.9 * dh - 20, crop, [], dw, dh, 34)).toEqual({ target: 'crop', mode: 'resize' });
+    expect(gripAt(0.5 * dw, 0.5 * dh, crop, [], dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
     // овал: внутри — овал, мимо него в рамке — рамка; его уголок — на краю под 45°
-    expect(gripAt(0.5 * dw, 0.5 * dh, crop, main, dw, dh, 34)).toEqual({ target: 'main', mode: 'move' });
-    expect(gripAt(0.2 * dw, 0.5 * dh, crop, main, dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
+    expect(gripAt(0.5 * dw, 0.5 * dh, crop, [main], dw, dh, 34)).toEqual({ target: 'main', mode: 'move', index: 0 });
+    expect(gripAt(0.2 * dw, 0.5 * dh, crop, [main], dw, dh, 34)).toEqual({ target: 'crop', mode: 'move' });
     const [hx, hy] = mainHandle(main);
-    expect(gripAt(hx * dw + 10, hy * dh - 10, crop, main, dw, dh, 34)).toEqual({ target: 'main', mode: 'resize' });
+    expect(gripAt(hx * dw + 10, hy * dh - 10, crop, [main], dw, dh, 34)).toEqual({ target: 'main', mode: 'resize', index: 0 });
     expect(insideOval(0.5, 0.5, main)).toBe(true);
     expect(insideOval(0.31, 0.21, main)).toBe(false);
+  });
+
+  test('несколько овалов (0.24.0, «Найти лица»): палец берёт меньший из накрывших и ближайший уголок', () => {
+    const face: Crop = [0.45, 0.4, 0.55, 0.55];
+    expect(gripAt(0.5 * dw, 0.47 * dh, crop, [main, face], dw, dh, 34)).toEqual({ target: 'main', mode: 'move', index: 1 });
+    expect(gripAt(0.5 * dw, 0.7 * dh, crop, [main, face], dw, dh, 34)).toEqual({ target: 'main', mode: 'move', index: 0 });
+    const [fx, fy] = mainHandle(face);
+    expect(gripAt(fx * dw, fy * dh, crop, [main, face], dw, dh, 34).index).toBe(1);
+    expect(ovalAt(0.2, 0.15, [main, face])).toBe(-1);
   });
 
   test('палец двигает рамку, не выпуская за снимок; угол — не уже CROP_MIN и не длиннее 5 : 1', () => {

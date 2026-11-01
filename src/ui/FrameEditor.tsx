@@ -7,37 +7,53 @@
 // src/engine/build/crop.ts. Узор здесь не собирается (владелец 01.11.2026: «пока человек ещё не выделил
 // рамку и не выбрал овал, при каждом мини-изменении происходит пересчёт предпросмотра, на телефоне это
 // медленно»): сначала рамка и главное, сборка — один раз, по «Собрать узор».
-import { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
-import { dragFrame, type FrameGrip, gripAt, insideOval, pinchCrop, scaleRect, zoomCrop } from '../engine/build/crop';
+import { dragFrame, type FrameGrip, gripAt, ovalAt, pinchCrop, scaleRect, zoomCrop } from '../engine/build/crop';
+import { FACE_MAX } from '../engine/build/faces';
 import type { Crop } from '../engine/build/mine';
 import { T } from '../i18n';
+import { AUTO_MAIN } from '../state/faces';
+import { useSettings } from '../state/settings';
 import { Button, Screen, Txt } from './components';
 import { FrameView } from './FrameView';
 
 /** Уголок ловит палец на столько точек вокруг: сам он — 26. */
 const GRAB = 34;
-/** Место под подсказку и кнопки внизу экрана, точек. */
-const BELOW = 260;
+/**
+ * Место под подсказку и кнопки внизу экрана, точек; с «Найти лица» и «Найти главное» (сборки 0.x) — на ряд
+ * кнопок больше. Прокрутки на экране кадра нет (0.19.0: на Android она отнимала палец у рамки).
+ */
+const BELOW = AUTO_MAIN ? 300 : 260;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
-export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, onToggleMain, onWhole, onDone }: {
+/** «Найти лица» и «Найти главное»: что искали и что вышло — ищем, нашлось столько (0 — ни одного), не вышло. */
+type Search = { kind: 'faces' | 'salient'; n: 'busy' | 'error' | number } | null;
+
+export function FrameEditor({ uri, width, height, crop, onCrop, mains, onMains, onAddMain, onWhole, onFaces, onSalient, onDone }: {
   uri: string;
   /** размер снимка, точек */
   width: number;
   height: number;
   crop: Crop;
   onCrop: (c: Crop) => void;
-  main: Crop | null;
-  onMain: (c: Crop) => void;
-  onToggleMain: () => void;
+  /** овалы главного; с 0.24.0 — несколько (issue 146) */
+  mains: readonly Crop[];
+  onMains: (m: Crop[]) => void;
+  /** новый овал посередине кадра */
+  onAddMain: () => void;
   onWhole: () => void;
+  /** «Найти лица» — овал на каждое лицо в кадре (src/state/faces.ts); ответ — сколько нашлось */
+  onFaces: () => Promise<number>;
+  /** «Найти главное» — овалы на самое заметное в кадре; ответ — сколько нашлось */
+  onSalient: () => Promise<number>;
   /** кадр готов — к узору: он соберётся по этому кадру и главному */
   onDone: () => void;
 }) {
+  const { theme } = useSettings();
   const { width: ww, height: wh } = useWindowDimensions();
   const k = Math.min((ww - 32) / width, Math.max(160, wh - BELOW - 120) / height);
   const dw = Math.max(1, Math.round(width * k));
@@ -45,20 +61,52 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
 
   // что взял палец и какой была рамка — общие значения жестов (react-native-reanimated), не состояние экрана
   const grip = useSharedValue<{ g: FrameGrip; start: Crop } | null>(null);
-  const pinchAt = useSharedValue<{ target: FrameGrip['target']; start: Crop } | null>(null);
-  const emit = (target: FrameGrip['target'], c: Crop) => (target === 'main' ? onMain(c) : onCrop(c));
+  const pinchAt = useSharedValue<{ target: FrameGrip['target']; index: number; start: Crop } | null>(null);
+  // какой овал трогали последним — он ярче прочих, его убирает «Убрать овал»
+  const [sel, setSel] = useState(0);
+  const [search, setSearch] = useState<Search>(null);
+  const busy = search?.n === 'busy';
+  const alive = useRef(true);
+  useEffect(() => () => {
+    alive.current = false;
+  }, []);
+  const find = (kind: 'faces' | 'salient') => {
+    if (busy) return;
+    setSearch({ kind, n: 'busy' });
+    (kind === 'faces' ? onFaces : onSalient)().then((n) => {
+      if (!alive.current) return;
+      setSearch({ kind, n });
+      setSel(0);
+    }, () => alive.current && setSearch({ kind, n: 'error' }));
+  };
+  const emit = (target: FrameGrip['target'], c: Crop, index = 0) => {
+    if (target === 'crop') return onCrop(c);
+    onMains(mains.map((m, i) => (i === index ? c : m)));
+  };
+  // новый овал — сразу выбранный: его и двигают, и убирают, если поставили зря
+  const addMain = () => {
+    setSel(mains.length);
+    setSearch(null);
+    onAddMain();
+  };
+  const removeMain = () => {
+    onMains(mains.filter((_, i) => i !== Math.min(sel, mains.length - 1)));
+    setSel(0);
+    setSearch(null);
+  };
 
   const pan = Gesture.Pan()
     .runOnJS(true)
     .maxPointers(1)
     .minDistance(0)
     .onBegin((e) => {
-      const g = gripAt(e.x, e.y, crop, main, dw, dh, GRAB);
-      grip.set({ g, start: g.target === 'main' && main ? main : crop });
+      const g = gripAt(e.x, e.y, crop, mains, dw, dh, GRAB);
+      if (g.target === 'main' && g.index !== undefined) setSel(g.index);
+      grip.set({ g, start: g.target === 'main' && g.index !== undefined ? mains[g.index] : crop });
     })
     .onUpdate((e) => {
       const d = grip.get();
-      if (d) emit(d.g.target, dragFrame(d.start, d.g.mode, e.translationX / dw, e.translationY / dh, width, height));
+      if (d) emit(d.g.target, dragFrame(d.start, d.g.mode, e.translationX / dw, e.translationY / dh, width, height), d.g.index);
     })
     .onFinalize(() => {
       grip.set(null);
@@ -66,15 +114,16 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
   const pinch = Gesture.Pinch()
     .runOnJS(true)
     .onStart((e) => {
-      // пальцы на овале — овал больше и меньше; иначе — рамка ближе и дальше
-      const onOval = !!main && insideOval(e.focalX / dw, e.focalY / dh, main);
-      pinchAt.set({ target: onOval ? 'main' : 'crop', start: onOval && main ? main : crop });
+      // пальцы на овале — этот овал больше и меньше; иначе — рамка ближе и дальше
+      const at = ovalAt(e.focalX / dw, e.focalY / dh, mains);
+      if (at >= 0) setSel(at);
+      pinchAt.set({ target: at >= 0 ? 'main' : 'crop', index: at, start: at >= 0 ? mains[at] : crop });
       grip.set(null);
     })
     .onUpdate((e) => {
       const p = pinchAt.get();
       if (!p) return;
-      emit(p.target, p.target === 'main' ? scaleRect(p.start, e.scale) : pinchCrop(p.start, 1, e.scale));
+      emit(p.target, p.target === 'main' ? scaleRect(p.start, e.scale) : pinchCrop(p.start, 1, e.scale), p.index);
     })
     .onFinalize(() => {
       pinchAt.set(null);
@@ -103,18 +152,37 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
       <View style={styles.body} testID="mine-frame-screen">
         <GestureDetector gesture={gesture}>
           <View collapsable={false}>
-            <FrameView ref={box} uri={uri} dw={dw} dh={dh} crop={crop} main={main} big testID="mine-photo" />
+            <FrameView ref={box} uri={uri} dw={dw} dh={dh} crop={crop} mains={mains} sel={Math.min(sel, mains.length - 1)} big testID="mine-photo" />
           </View>
         </GestureDetector>
         <View style={styles.below}>
           <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
           <View style={styles.row}>
             <Button small kind="secondary" label={T.mine.whole} onPress={onWhole} testID="mine-whole" />
-            <Button small kind={main ? 'ghost' : 'secondary'} label={main ? T.mine.mainOff : T.mine.mainOn} onPress={onToggleMain} testID="mine-main-toggle" />
+            {!mains.length ? <Button small kind="secondary" label={T.mine.mainOn} onPress={addMain} testID="mine-main-toggle" /> : null}
+            {AUTO_MAIN ? (
+              <>
+                <Button small kind="secondary" label={busy && search?.kind === 'faces' ? T.mine.facesBusy : T.mine.faces} onPress={() => find('faces')} disabled={busy} testID="mine-faces" />
+                <Button small kind="secondary" label={busy && search?.kind === 'salient' ? T.mine.salientBusy : T.mine.salient} onPress={() => find('salient')} disabled={busy} testID="mine-salient" />
+              </>
+            ) : null}
+            {/* круг — родной: крутится, даже пока поиск считает */}
+            {busy ? <ActivityIndicator color={theme.accent} testID="mine-find-busy" /> : null}
+            {mains.length && mains.length < FACE_MAX ? <Button small kind="ghost" label={T.mine.mainMore} onPress={addMain} testID="mine-main-more" /> : null}
+            {mains.length ? <Button small kind="ghost" label={mains.length > 1 ? T.mine.mainRemoveOne : T.mine.mainOff} onPress={removeMain} testID="mine-main-off" /> : null}
           </View>
-          {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
+          {/* одна строка: что нашлось, иначе — как обращаться с овалами, иначе — что узор соберётся по кнопке; три
+              строки сразу уводили «Собрать узор» за край невысокого экрана */}
+          {search && search.n !== 'busy' ? (
+            <Txt dim style={styles.small} testID={search.kind === 'faces' ? 'mine-faces-result' : 'mine-salient-result'}>
+              {search.kind === 'faces'
+                ? (search.n === 'error' ? T.mine.facesError : T.mine.facesFound(search.n))
+                : (search.n === 'error' ? T.mine.salientError : T.mine.salientFound(search.n))}
+            </Txt>
+          ) : (
+            <Txt dim style={styles.small}>{mains.length > 1 ? T.mine.mainsNote : mains.length ? T.mine.mainNote : T.mine.frameLater}</Txt>
+          )}
           <Button label={T.mine.frameBuild} onPress={onDone} testID="mine-frame-build" />
-          <Txt dim style={styles.small}>{T.mine.frameLater}</Txt>
         </View>
       </View>
     </Screen>
