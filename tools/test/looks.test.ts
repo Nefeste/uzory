@@ -1,10 +1,11 @@
-// Оформления (решение владельца 31.10.2026, issue 116, вариант Б; src/engine/looks.ts): канвы и рамки навсегда,
-// кремовая канва и тёмное дерево — у всех; без покупки игра выглядит, как до оформлений, до точки.
+// Оформления (решение владельца 31.10.2026, issue 116, вариант Б; src/engine/looks.ts): рамки навсегда, тёмное
+// дерево — у всех. Канва с 0.20.0 (владелец 01.11.2026: «делай канву фоном узора») — бесплатно и у каждой работы
+// своя, по умолчанию — подходящая узору; у узора без невышитого фона игра выглядит, как прежде, до точки.
 import { describe, expect, test } from 'bun:test';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import {
-  ALL_LOOKS, CANVASES, canvasLook, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, isFree, LOOK_PRODUCTS, lookOwned, luminance, ownedOf, productOf,
-  shownLooks,
+  ALL_LOOKS, CANVAS_LOST, CANVASES, canvasLook, clothRgb, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, isCanvasId, isFree, LOOK_PRODUCTS, lookOwned,
+  luminance, ownedOf, productOf, shownFrame, suitedCanvas, workCanvas,
 } from '../../src/engine/looks';
 import { FAKE_DETAIL, FAKE_LOOK_PRICES, fakeBilling } from '../../src/state/fakeBilling';
 import { renderFrame } from '../canvas/ck';
@@ -18,14 +19,16 @@ describe('каталог оформлений', () => {
     expect(frameLook(FREE_FRAME)).toMatchObject({ kind: 'bevel', light: '#8b6d52', dark: '#4e3b2b' });
   });
 
-  test('пять канв и четыре рамки; товары — по одному на платное оформление и «Все оформления»', () => {
+  test('пять канв и четыре рамки; товары — по одному на платную рамку и «Все оформления», канв среди них нет', () => {
     expect(CANVASES.map((c) => c.id)).toEqual(['cream', 'white', 'linen', 'black', 'blue']);
     expect(FRAMES.map((f) => f.id)).toEqual(['walnut', 'baguette', 'birch', 'hoop']);
-    expect(LOOK_PRODUCTS).toEqual([
-      'uzory_look_white', 'uzory_look_linen', 'uzory_look_black', 'uzory_look_blue',
-      'uzory_look_baguette', 'uzory_look_birch', 'uzory_look_hoop', ALL_LOOKS,
-    ]);
+    expect(LOOK_PRODUCTS).toEqual(['uzory_look_baguette', 'uzory_look_birch', 'uzory_look_hoop', ALL_LOOKS]);
     expect(new Set(LOOK_PRODUCTS).size).toBe(LOOK_PRODUCTS.length);
+  });
+
+  test('ткань кремовой канвы в превью — прежний цвет превью до точки (src/render/preview.ts)', () => {
+    expect(clothRgb(canvasLook(FREE_CANVAS))).toBe(0xf3f0e6);
+    expect(clothRgb(canvasLook('black'))).toBe(0x262628);
   });
 
   test('дырочки темнее нити канвы, невышитое издалека — светлее: у светлых и у чёрной', () => {
@@ -36,35 +39,90 @@ describe('каталог оформлений', () => {
     expect(luminance(canvasLook('black').cloth)).toBeLessThan(0.05);
   });
 
-  test('незнакомое оформление (будущая версия, испорченная настройка) — бесплатное', () => {
+  test('незнакомое оформление (будущая версия, испорченная запись) — кремовая канва и бесплатная рамка', () => {
     expect(canvasLook('velvet').id).toBe(FREE_CANVAS);
+    expect(isCanvasId('velvet')).toBe(false);
+    expect(isCanvasId('linen')).toBe(true);
     expect(frameLook(undefined).id).toBe(FREE_FRAME);
   });
 });
 
-describe('есть ли оформление у игрока', () => {
-  test('бесплатные — у всех; сборка для проверки — все', () => {
-    expect(lookOwned('cream', [], false)).toBe(true);
+describe('есть ли рамка у игрока', () => {
+  test('тёмное дерево — у всех; сборка для проверки — все', () => {
     expect(lookOwned('walnut', [], false)).toBe(true);
-    expect(lookOwned('black', [], false)).toBe(false);
-    expect(lookOwned('black', [], true)).toBe(true);
+    expect(lookOwned('hoop', [], false)).toBe(false);
+    expect(lookOwned('hoop', [], true)).toBe(true);
+    expect(isFree('walnut')).toBe(true);
     expect(isFree('hoop')).toBe(false);
   });
 
-  test('купленное отдельно — только оно; «Все оформления» — все', () => {
-    expect(lookOwned('black', [productOf('black')], false)).toBe(true);
-    expect(lookOwned('blue', [productOf('black')], false)).toBe(false);
-    for (const id of [...CANVASES.map((c) => c.id), ...FRAMES.map((f) => f.id)]) expect(lookOwned(id, [ALL_LOOKS], false)).toBe(true);
+  test('купленная отдельно — только она; «Все оформления» — все рамки', () => {
+    expect(lookOwned('hoop', [productOf('hoop')], false)).toBe(true);
+    expect(lookOwned('birch', [productOf('hoop')], false)).toBe(false);
+    for (const f of FRAMES) expect(lookOwned(f.id, [ALL_LOOKS], false)).toBe(true);
   });
 
-  test('показывается выбранное, если оно есть; иначе бесплатное — и после возврата денег', () => {
-    expect(shownLooks({ canvas: 'black', frame: 'hoop' }, [productOf('black')], false)).toMatchObject({ canvas: { id: 'black' }, frame: { id: 'walnut' } });
-    expect(shownLooks({ canvas: 'black', frame: 'hoop' }, [], false)).toMatchObject({ canvas: { id: 'cream' }, frame: { id: 'walnut' } });
-    expect(shownLooks({ canvas: 'black', frame: 'hoop' }, [], true)).toMatchObject({ canvas: { id: 'black' }, frame: { id: 'hoop' } });
+  test('показывается выбранная, если она есть; иначе бесплатная — и после возврата денег', () => {
+    expect(shownFrame('hoop', [productOf('hoop')], false).id).toBe('hoop');
+    expect(shownFrame('hoop', [productOf('birch')], false).id).toBe('walnut');
+    expect(shownFrame('hoop', [], false).id).toBe('walnut');
+    expect(shownFrame('hoop', [], true).id).toBe('hoop');
+    expect(shownFrame('velvet', [ALL_LOOKS], false).id).toBe('walnut');
   });
 });
 
-describe('канва оформления в шейдере', () => {
+describe('канва — фон узора (0.20.0)', () => {
+  /** Узор `w` × `h` из строк: «.» — невышитый фон, буква — нить из `legend`. */
+  const draw = (rows: string[], legend: Record<string, number>): Pattern => {
+    const keys = Object.keys(legend);
+    const cells = Uint8Array.from(rows.join('').split(''), (ch) => (ch === '.' ? CANVAS : keys.indexOf(ch)));
+    return { key: 'canvas-test@1', w: rows[0].length, h: rows.length, threads: keys.map((k) => ({ rgb: legend[k], name: k })), cells } as Pattern;
+  };
+  const ring = (inner: string, edge: string) => [
+    '........', `..${edge.repeat(4)}..`, `.${edge}${inner.repeat(4)}${edge}.`, `.${edge}${inner.repeat(4)}${edge}.`, `..${edge.repeat(4)}..`, '........',
+  ];
+
+  test('узор без невышитых клеток — на кремовой, как было', () => {
+    expect(suitedCanvas(draw(['kk', 'kk'], { k: 0xb3162f }))).toBe('cream');
+  });
+
+  test('кумач, мёд и ель по краю фона — кремовая', () => {
+    expect(suitedCanvas(draw(ring('l', 'k'), { k: 0xb3162f, l: 0xd9a441 }))).toBe('cream');
+    expect(suitedCanvas(draw(ring('k', 'e'), { k: 0xb3162f, e: 0x1f3c34 }))).toBe('cream');
+  });
+
+  test('бежевый край — белая: на кремовой бежевое теряется', () => {
+    // лисичка «Детям»: бежевое — заметная часть края
+    expect(suitedCanvas(draw(ring('r', 'b'), { r: 0xc8642a, b: 0xe2d2b4 }))).toBe('white');
+  });
+
+  test('немного светлого у края — кремовая остаётся: кайма бумаги старинной схемы', () => {
+    // край — 20 касаний с фоном, у бледной клетки из них 2: десятая часть — меньше CANVAS_LOST
+    const rows = ['........', '..gggg..', '.gkkkkg.', '.gkkkkm.', '..gggg..', '........'];
+    expect(2 / 20).toBeLessThan(CANVAS_LOST);
+    expect(suitedCanvas(draw(rows, { g: 0x4f7a3a, k: 0xb3162f, m: 0xdfdad2 }))).toBe('cream');
+  });
+
+  test('белый край — на светлой канве, где он виден; чёрную сама игра не выбирает', () => {
+    // белая кошка «Своего узора» с фоном «не вышивать»: край — белый мех с серыми тенями
+    expect(suitedCanvas(draw(ring('g', 'w'), { g: 0x9a9a9a, w: 0xfbfbf8 }))).toBe('linen');
+    // бледный край, теряется на любой светлой канве: светлая всё равно, а не чёрная, на которой он виден
+    const pale = draw(['..........', '..wwwddd..', '.mkkkkkkm.', '.mkkkkkkm.', '..wwwddd..', '..........'],
+      { w: 0xfbfbf8, d: 0xd8cbb0, m: 0xdfdad2, k: 0xb3162f });
+    const c = suitedCanvas(pale);
+    expect(c).not.toBe('black');
+    expect(luminance(canvasLook(c).cloth)).toBeGreaterThan(0.3);
+  });
+
+  test('канва работы — записанная у неё; нет или незнакомая — подходящая узору', () => {
+    const fox = draw(ring('r', 'b'), { r: 0xc8642a, b: 0xe2d2b4 });
+    expect(workCanvas('blue', fox).id).toBe('blue');
+    expect(workCanvas(undefined, fox).id).toBe('white');
+    expect(workCanvas('velvet', fox).id).toBe('white');
+  });
+});
+
+describe('канва в шейдере', () => {
   // 4 × 3: клетки канвы по краям, две нити посередине
   const p: Pattern = {
     key: 'looks-test@1', w: 4, h: 3, threads: [{ rgb: 0xc8102e, name: 'красная' }, { rgb: 0x2e4a1e, name: 'зелёная' }],
@@ -77,7 +135,7 @@ describe('канва оформления в шейдере', () => {
     return [f.pixels[o], f.pixels[o + 1], f.pixels[o + 2]];
   };
 
-  test('клетка канвы издалека — ровно цвет канвы оформления; за краем узора — темнее, в пяльцах — та же ткань', async () => {
+  test('клетка канвы издалека — ровно цвет канвы работы; за краем узора — темнее, в пяльцах — та же ткань', async () => {
     const width = (p.w + 2) * s;
     const height = (p.h + 2) * s;
     for (const c of CANVASES) {
@@ -94,9 +152,13 @@ describe('канва оформления в шейдере', () => {
 
 describe('покупка навсегда (0.18.1)', () => {
   test('купленное из хранилища и от магазина — только наши товары, без повторов, в порядке каталога', () => {
-    expect(ownedOf([ALL_LOOKS, 'uzory_look_black', 'uzory_look_black', 'coins_100', 7])).toEqual(['uzory_look_black', ALL_LOOKS]);
-    expect(ownedOf('uzory_look_black')).toEqual([]);
+    expect(ownedOf([ALL_LOOKS, 'uzory_look_hoop', 'uzory_look_hoop', 'coins_100', 7])).toEqual(['uzory_look_hoop', ALL_LOOKS]);
+    expect(ownedOf('uzory_look_hoop')).toEqual([]);
     expect(ownedOf(null)).toEqual([]);
+  });
+
+  test('канвы — больше не товары: прежняя покупка канвы из сборки для проверки забывается', () => {
+    expect(ownedOf(['uzory_look_black', 'uzory_look_white', ALL_LOOKS])).toEqual([ALL_LOOKS]);
   });
 
   /** заглушка сценария с записью в памяти — как ./billing.web.ts с хранилищем браузера */
@@ -110,9 +172,9 @@ describe('покупка навсегда (0.18.1)', () => {
     expect(await b.lookPrices()).toEqual(FAKE_LOOK_PRICES);
     expect(FAKE_LOOK_PRICES.map((p) => p.price)).not.toContain('99 ₽');
     expect(await b.looks()).toEqual([]);
-    expect(await b.buyLook(productOf('black'))).toEqual({ ok: true, owned: [productOf('black')] });
-    expect(await b.buyLook(ALL_LOOKS)).toEqual({ ok: true, owned: [productOf('black'), ALL_LOOKS] });
-    expect(await b.looks()).toEqual([productOf('black'), ALL_LOOKS]);
+    expect(await b.buyLook(productOf('baguette'))).toEqual({ ok: true, owned: [productOf('baguette')] });
+    expect(await b.buyLook(ALL_LOOKS)).toEqual({ ok: true, owned: [productOf('baguette'), ALL_LOOKS] });
+    expect(await b.looks()).toEqual([productOf('baguette'), ALL_LOOKS]);
   });
 
   test('заглушка: отказ, сбой с ответом RuStore, нет сети и нет RuStore — так магазин и отвечает', async () => {

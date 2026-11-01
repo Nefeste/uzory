@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { warmCanvas } from './src/canvas/effect';
 import type { CollectionId } from './src/engine/library';
+import type { CanvasId } from './src/engine/looks';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
 import { installCrashHandlers } from './src/state/crashlog';
@@ -50,7 +51,7 @@ keepSplash();
 
 type Route =
   | { name: 'home' }
-  | { name: 'stitch'; pic: PackPicture; workId?: string; mystery?: boolean }
+  | { name: 'stitch'; pic: PackPicture; workId?: string; mystery?: boolean; canvas?: CanvasId }
   | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
   | { name: 'mine' }
   /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
@@ -161,7 +162,7 @@ function Root() {
       screen = (
         <StitchScreen
           pattern={pattern} title={pic.title} workId={route.workId} onBack={back}
-          pic={pic} mystery={route.mystery}
+          pic={pic} mystery={route.mystery} canvas={route.canvas}
           onStarted={(workId) => patch(route.k, { workId })}
           onSettings={() => go({ name: 'settings' })} onLooks={() => go({ name: 'looks' })}
           onDone={(workId) => {
@@ -217,7 +218,7 @@ function Root() {
       screen = <CollectionScreen id={route.id} onBack={back} onOpen={(pic) => go({ name: 'picture', pic })} />;
       break;
     case 'picture':
-      screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId) => go({ name: 'stitch', pic, workId })} onPlus={plus} />;
+      screen = <PictureScreen pic={route.pic} onBack={back} onStitch={(pic, workId, canvas) => go({ name: 'stitch', pic, workId, canvas })} onPlus={plus} />;
       break;
     case 'works':
       screen = (

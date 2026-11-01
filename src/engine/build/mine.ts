@@ -3,6 +3,7 @@
 import { rgbToLab } from '../color';
 import type { Pattern } from '../pattern';
 import { type Checked, checkPatternWith, DARK_L, DARK_SHARE } from './checks';
+import { mainThreads } from './focus';
 import type { Raster } from './grid';
 import { type BuildLog, buildPattern } from './palette';
 import type { Background } from './main';
@@ -41,7 +42,7 @@ export function defaultThreads(side: number): number {
  * остальное — подходит, но: `nearConfetti` — у порога, `dark` — тёмная картинка,
  * `blurry` — снимок мелкий для размера, `flat` — почти одноцветная.
  */
-export type Issue = 'singles' | 'small' | 'lonely' | 'nearConfetti' | 'dark' | 'blurry' | 'flat';
+export type Issue = 'singles' | 'small' | 'lonely' | 'nearConfetti' | 'dark' | 'blurry' | 'flat' | 'smallMain';
 
 export interface Verdict {
   level: 'ok' | 'warn' | 'bad';
@@ -87,15 +88,39 @@ export function buildMine(r: Raster, o: MineOptions): MineBuild {
   const spec = { crop: o.crop, size: o.side, ...MINE_GRID, simplify: level, ...(o.main ? { main: o.main, ...(o.background ? { background: o.background } : {}) } : {}) };
   const grid = photoGrid(r, spec);
   const focus = mainMask(spec, grid);
-  const { pattern, log } = buildPattern(grid, { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[level], ...(focus ? { focus } : {}) });
+  // главному — половина нитей (./focus.ts, MAIN_SHARE; с 0.20.0)
+  const { pattern, log } = buildPattern(grid, { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[level], ...(focus ? { focus, focusCount: mainThreads(o.threads) } : {}) });
   // главное: одиночки и мелкие пятна в нём — замысел (глаза, блики, ноздри), в приговор не идут
   // (советы вышивальщиц и справка WinStitch, разбор статей 31.10.2026: «не стирать значимые одиночки»)
   const checked = checkPatternWith(pattern, focus ? { focus, skip: focus } : {});
   const pxPerCell = Math.min(((o.crop[2] - o.crop[0]) * r.width) / grid.w, ((o.crop[3] - o.crop[1]) * r.height) / grid.h);
-  return { pattern, log, checked, verdict: verdictOf(pattern, checked, pxPerCell), pxPerCell };
+  return { pattern, log, checked, verdict: verdictOf(pattern, checked, pxPerCell, focus ? maskSpan(focus, grid.w) : undefined), pxPerCell };
 }
 
-export function verdictOf(p: Pattern, checked: Checked, pxPerCell: number): Verdict {
+/**
+ * Главному мало клеток, если овал уже стольких (с 0.20.0; разбор статей 31.10.2026: «для лица 40 и 70
+ * клеток мало» — в отзыве на Pattern Maker при 150 крестиках на всю картину глаза «слиплись», лицу крупным
+ * планом вышивальщицы дают 140 × 190). Лицо «Грузинки» в овале шириной около 40 клеток на 120 — глаза, брови,
+ * нос и губы в две-четыре клетки; уже — глаз становится одной клеткой.
+ */
+export const MAIN_MIN = 40;
+
+/** Меньшая сторона овала в клетках: по ширине и по высоте — сколько столбцов и строк он занимает. */
+export function maskSpan(mask: Uint8Array, w: number): number {
+  let x0 = w, x1 = -1, y0 = Infinity, y1 = -1;
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i]) continue;
+    const x = i % w, y = Math.floor(i / w);
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return x1 < 0 ? 0 : Math.min(x1 - x0 + 1, y1 - y0 + 1);
+}
+
+/** `mainSpan` — меньшая сторона овала главного в клетках; нет главного — нет. */
+export function verdictOf(p: Pattern, checked: Checked, pxPerCell: number, mainSpan?: number): Verdict {
   const s = checked.stats;
   const bad: Issue[] = [];
   const warn: Issue[] = [];
@@ -107,6 +132,7 @@ export function verdictOf(p: Pattern, checked: Checked, pxPerCell: number): Verd
   if (dark > DARK_SHARE) warn.push('dark');
   if (pxPerCell < MINE_BLURRY) warn.push('blurry');
   if (p.threads.length <= 2) warn.push('flat');
+  if (mainSpan !== undefined && mainSpan < MAIN_MIN) warn.push('smallMain');
   return { level: bad.length ? 'bad' : warn.length ? 'warn' : 'ok', issues: [...bad, ...warn] };
 }
 

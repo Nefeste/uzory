@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Raster } from '../../src/engine/build/grid';
 import { type Checked, checkPatternWith } from '../../src/engine/build/checks';
-import { buildMine, type Crop, defaultThreads, type Issue, libraryCard, MINE_GRID, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
+import {
+  buildMine, type Crop, defaultThreads, type Issue, libraryCard, MAIN_MIN, maskSpan, MINE_GRID, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf,
+} from '../../src/engine/build/mine';
 import { focusMask } from '../../src/engine/build/focus';
 import { unionMask } from '../../src/engine/build/main';
 import { buildPattern } from '../../src/engine/build/palette';
@@ -131,6 +133,21 @@ describe('свой узор', () => {
     expect(v.issues).toContain('small');
   });
 
+  test('главному мало клеток (0.20.0): овал уже MAIN_MIN — совет; шире — без него', () => {
+    const w = 30, h = 20;
+    const cells = Uint8Array.from({ length: w * h }, (_, i) => ((i % w) < 10 ? 0 : (i % w) < 20 ? 1 : 2));
+    const p = { key: 'mine-thirds@1', w, h, threads: [{ rgb: 0x8c2a1e, name: 'a' }, { rgb: 0x2e5e3a, name: 'b' }, { rgb: 0xf2c230, name: 'c' }], cells };
+    const checked = checkPatternWith(p);
+    expect(verdictOf(p, checked, 5).issues).not.toContain('smallMain');
+    expect(verdictOf(p, checked, 5, MAIN_MIN - 1)).toEqual({ level: 'warn', issues: ['smallMain'] });
+    expect(verdictOf(p, checked, 5, MAIN_MIN).issues).not.toContain('smallMain');
+    // меньшая сторона овала: 3 столбца × 2 строки → 2
+    const mask = new Uint8Array(w * h);
+    for (const [x, y] of [[4, 5], [5, 5], [6, 5], [5, 6]]) mask[y * w + x] = 1;
+    expect(maskSpan(mask, w)).toBe(2);
+    expect(maskSpan(new Uint8Array(w * h), w)).toBe(0);
+  });
+
   test('тёмный, мелкий и одноцветный снимки — подходят, но с советом', () => {
     const dark = buildMine(photo(400, 300, (x, y) => (scene(x, y) >> 2) & 0x3f3f3f), { crop: [0, 0, 1, 1], side: 70, threads: 16 });
     expect(dark.verdict.issues).toContain('dark');
@@ -177,6 +194,7 @@ describe('свой узор', () => {
       dark: 'кадр светлее',
       blurry: 'Меньше клеток',
       flat: 'другой кадр',
+      smallMain: 'Больше клеток или кадр теснее',
     };
     for (const [issue, words] of Object.entries(advice)) expect(T.mine.issues[issue as Issue]).toContain(words);
   });

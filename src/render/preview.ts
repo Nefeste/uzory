@@ -4,9 +4,11 @@
 import { ImageFormat } from '@shopify/react-native-skia';
 import { rgbaImage } from '../canvas/textures';
 import { mix, muted } from '../engine/color';
+import { CANVASES, clothRgb } from '../engine/looks';
 import { CANVAS, type Pattern } from '../engine/pattern';
 
-const CLOTH = 0xf3f0e6;
+/** Невышитая клетка превью — ткань кремовой канвы, 0xf3f0e6, как до 0.20.0 (tools/test/looks.test.ts). */
+const CLOTH = clothRgb(CANVASES[0]);
 
 /** Готовые превью без вышитых клеток — в памяти: библиотека листается туда и обратно. */
 const cache = new Map<string, string | null>();
@@ -26,12 +28,13 @@ const GRID_FROM = 4;
  * `stitched` — начатая: вышитое полным цветом, остальное — приглушённым. `fresh` — не брать превью из
  * памяти и не класть в неё: несохранённый «Свой узор» — каждый раз новый узор под одним ключом `mine@1`
  * (MINE_SEED, src/engine/build/mine.ts), и с 0.4.0 до 0.19.0 его превью из памяти так и оставалось
- * первым — «другой снимок, а узор старый» (проверка владельца на 0.18.1).
+ * первым — «другой снимок, а узор старый» (проверка владельца на 0.18.1). `cloth` — ткань канвы работы
+ * (0xRRGGBB, с 0.20.0): невышитый фон узора — её цвет; нет — кремовая.
  */
-export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitched?: Uint8Array, fresh = false): string | null {
-  const key = stitched || fresh ? null : `${p.key}|${mode}|${side}`;
+export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitched?: Uint8Array, fresh = false, cloth = CLOTH): string | null {
+  const key = stitched || fresh ? null : `${p.key}|${mode}|${side}|${cloth}`;
   if (key && cache.has(key)) return cache.get(key)!;
-  const uri = render(p, mode, side, stitched);
+  const uri = render(p, mode, side, stitched, cloth);
   if (key) {
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
     cache.set(key, uri);
@@ -39,11 +42,11 @@ export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitc
   return uri;
 }
 
-function render(p: Pattern, mode: 'done' | 'muted', side: number, stitched?: Uint8Array): string | null {
+function render(p: Pattern, mode: 'done' | 'muted', side: number, stitched: Uint8Array | undefined, cloth: number): string | null {
   const colors = p.threads.map((t) => (mode === 'done' ? t.rgb : muted(t.rgb)));
   const color = (i: number) => {
     const t = p.cells[i];
-    return t === CANVAS ? CLOTH : stitched?.[i] ? p.threads[t].rgb : colors[t];
+    return t === CANVAS ? cloth : stitched?.[i] ? p.threads[t].rgb : colors[t];
   };
   // ещё не вышитая клетка — с линией сетки по правому и нижнему краю
   const open = (i: number) => mode !== 'done' && p.cells[i] !== CANVAS && !stitched?.[i];

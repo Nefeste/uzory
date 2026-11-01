@@ -251,6 +251,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
         {!photo ? (
           <Card style={styles.intro}>
             <Txt>{T.mine.intro}</Txt>
+            <Txt dim testID="mine-tips">{T.mine.tips}</Txt>
             {opening ? <Opening /> : <Button label={T.mine.pick} onPress={() => void pick()} testID="mine-pick" />}
             {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
           </Card>

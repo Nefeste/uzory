@@ -1,12 +1,12 @@
-// Оформления игрока (решение владельца 31.10.2026, issue 116, вариант Б; src/engine/looks.ts): что выбрано в
-// настройках, что куплено и что из этого показывать. Где оформления запираются — как «Узоры+» (`useGate`):
+// Оформления игрока (решение владельца 31.10.2026, issue 116, вариант Б; src/engine/looks.ts): какая рамка
+// выбрана в настройках, что куплено и что из этого показывать; канва с 0.20.0 — у работы (src/state/works.ts). Где оформления запираются — как «Узоры+» (`useGate`):
 // сборка для RuStore и все 1.0; в сборках 0.x для проверки открыто всё. Купленное — товары навсегда из
 // последнего ответа RuStore Pay (0.18.1): хранится и действует без сети; спросить заново — при запуске и при
 // возвращении в игру, как о подписке (`useLooksRefresh`), и по «Восстановить покупки» на экране «Оформление».
 // Возврат денег RuStore отдаёт списком без этой покупки — оформление снова заперто.
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-import { type CanvasLook, type FrameLook, ownedOf, shownLooks } from '../engine/looks';
+import { type FrameLook, ownedOf, shownFrame } from '../engine/looks';
 import { billing } from './billing';
 import { useGate } from './plus';
 import { useSettings } from './settings';
@@ -69,8 +69,7 @@ export function useOwnedLooks(): readonly string[] {
 }
 
 export interface Looks {
-  /** что показывать: выбранное, если оно есть у игрока, иначе бесплатное */
-  canvas: CanvasLook;
+  /** какую рамку показывать: выбранную, если она есть у игрока, иначе бесплатную */
   frame: FrameLook;
   /** купленные товары */
   owned: readonly string[];
@@ -82,5 +81,5 @@ export function useLooks(): Looks {
   const { settings } = useSettings();
   const open = !useGate();
   const list = useOwnedLooks();
-  return { ...shownLooks(settings, list, open), owned: list, open };
+  return { frame: shownFrame(settings.frame, list, open), owned: list, open };
 }

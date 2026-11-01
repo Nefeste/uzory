@@ -5,6 +5,7 @@
 // руками. Работы своих узоров — в «Моих узорах».
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { clothRgb, workCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { T } from '../i18n';
@@ -36,7 +37,9 @@ function WorkRow({ work, onOpen, onDone, onRemoved }: Open & { work: WorkEntry; 
     let alive = true;
     void (async () => {
       const stitched = await workStitched(found.pattern, work.id);
-      const uri = stitched ? previewUri(found.pattern, work.finished ? 'done' : 'muted', 240, work.finished ? undefined : stitched) : null;
+      // невышитый фон — ткань канвы работы (с 0.20.0)
+      const cloth = clothRgb(workCanvas(work.canvas, found.pattern));
+      const uri = stitched ? previewUri(found.pattern, work.finished ? 'done' : 'muted', 240, work.finished ? undefined : stitched, false, cloth) : null;
       if (alive) setShown({ uri, broken: !stitched });
     })();
     return () => {

@@ -17,6 +17,7 @@ import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { canStitch } from '../engine/access';
 import { nextPicture } from '../engine/library';
+import { type CanvasId, workCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { offerOnDone } from '../engine/plus';
@@ -34,6 +35,7 @@ import { useSettings } from '../state/settings';
 import { shareFile } from '../state/share';
 import { play } from '../state/sound';
 import { openWork, type WorkSession } from '../state/works';
+import { CanvasPicker } from '../ui/CanvasPicker';
 import { Button, Screen, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
@@ -97,15 +99,16 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   /** строка «Вся библиотека — в „Узоры+“» — экран подписки */
   onPlus: () => void;
   /**
-   * «Канва и рамка» — экран «Оформление»: работа в рамке — здесь, и выбрать и купить другую — отсюда, а не
-   * искать в настройках (владелец 01.11.2026)
+   * «Рамка» — экран рамок: работа в рамке — здесь, и выбрать и купить другую — отсюда, а не искать в
+   * настройках (владелец 01.11.2026)
    */
   onLooks?: () => void;
 }) {
   const { settings, theme } = useSettings();
-  // оформление игрока: канва и рамка (src/state/looks.ts); пяльцы — круг ткани
+  // рамка игрока (src/state/looks.ts); пяльцы — круг ткани. Канва — работы (с 0.20.0, src/state/works.ts)
   const looks = useLooks();
   const frame = looks.frame;
+  const [canvasId, setCanvasId] = useState<CanvasId | null>(null);
   const hoop = frame.kind === 'hoop';
   const { player, today, update: updatePlayer } = usePlayer();
   const plus = usePlus();
@@ -185,6 +188,13 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     setPlaying(false);
   };
 
+  // канва работы: выбранная здесь, записанная у работы или подходящая узору
+  const canvas = workCanvas(canvasId ?? session?.canvas, pattern);
+  const pickCanvas = (id: CanvasId) => {
+    setCanvasId(id);
+    if (session) void session.setCanvas(id);
+  };
+
   const share = async () => {
     if (!session || !font || !titleFont || !textFont || sharing) return;
     setSharing(true);
@@ -192,7 +202,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     try {
       // картинка большой работы рисуется заметное время: сначала — «Готовлю…» на кнопке
       await new Promise((r) => setTimeout(r, 30));
-      const png = shareImage(pattern, session.state.stitched, { mosaic: settings.style === 'mosaic', stitches: settings.shareStitches, canvas: looks.canvas, frame },
+      const png = shareImage(pattern, session.state.stitched, { mosaic: settings.style === 'mosaic', stitches: settings.shareStitches, canvas, frame },
         { title: titleFont, text: textFont, digits: font },
         { title, caption, mark: pic?.author ? T.done.markBased(T.picture.basedOn[pic.collection]) : T.done.mark });
       const name = `uzory-${pattern.key.replace(/@.*$/, '')}.png`;
@@ -237,7 +247,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   const work = (
     <StitchCanvas pattern={pattern} stitched={session?.state.stitched ?? new Uint8Array(0)} selected={-1}
       mosaic={settings.style === 'mosaic'} hatch={false} bigNumbers={false} fill={false} font={font!}
-      width={cw} height={ch} apiRef={api} viewOnly ghost canvas={looks.canvas} evenField={hoop} initial={hoopCam ?? 'fit'} />
+      width={cw} height={ch} apiRef={api} viewOnly ghost canvas={canvas} evenField={hoop} initial={hoopCam ?? 'fit'} />
   );
 
   return (
@@ -291,6 +301,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
             <Button kind="secondary" label={sharing ? T.done.sharing : T.done.share} onPress={() => void share()} disabled={!session || !font || !titleFont || !textFont || sharing}
               testID="share" style={stacked ? undefined : styles.half} />
           </View>
+          {session && !playing ? <CanvasPicker value={canvas.id} onChange={pickCanvas} testID="done-canvas" /> : null}
           {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
           {onLooks ? <Button kind="ghost" small label={T.done.looks} onPress={onLooks} testID="done-looks" /> : null}
           {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
