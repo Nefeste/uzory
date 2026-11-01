@@ -951,11 +951,13 @@ try {
   await page.getByTestId('sheet-filter-all').click();
   await page.getByTestId('pick-zvezda-alatyr-later').click();
   check(markedStays && markedGone, '«Без отметки»: отмеченная картинка остаётся на экране, пока не сменят фильтр');
-  // «Без «да»» — только картинки не для выпуска: запас без «да» есть, первой картинки (с «да») нет
+  // «Без «да»» — только картинки не для выпуска: первая такая в наборе есть, первой картинки (с «да») нет. Какая
+  // она — по набору: «да» владельца меняют состав (01.11.2026 «да» получил и запас)
+  const firstTrial = built.find((b) => b.trial && !b.picture.hidden)?.card.id ?? '';
   await page.getByTestId('sheet-filter-trial').click();
-  await page.getByTestId('sheet-sinij-tsvetok').waitFor({ timeout: 5000 }).catch(() => {});
-  check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-sinij-tsvetok').count()) === 1,
-    '«Без «да»» — только картинки не для выпуска');
+  await page.getByTestId(`sheet-${firstTrial}`).waitFor({ timeout: 5000 }).catch(() => {});
+  check(!!firstTrial && (await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId(`sheet-${firstTrial}`).count()) === 1,
+    `«Без «да»» — только картинки не для выпуска: «${firstTrial}» есть, первой картинки нет`);
   // «На отборе» (0.21.1; владелец 01.11.2026) — пересобранные без «да»: у картинки в наборе есть прежняя
   // версия узора; запаса и музейных без прежних версий нет. Список рисуется не весь сразу: все нарисованные
   // карточки — из этих, а «Показано» — ровно столько, сколько их в наборе
