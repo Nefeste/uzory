@@ -9,8 +9,8 @@ import { Kurale_400Regular } from '@expo-google-fonts/kurale/400Regular';
 import { Onest_500Medium } from '@expo-google-fonts/onest/500Medium';
 import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { type Camera, MARGIN_DP, MAX_DP } from '../canvas/camera';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
@@ -19,10 +19,13 @@ import { canStitch } from '../engine/access';
 import { nextPicture } from '../engine/library';
 import { type CanvasId, workCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
-import type { Pattern } from '../engine/pattern';
+import { CANVAS, type Pattern } from '../engine/pattern';
 import { offerOnDone } from '../engine/plus';
+import { stageLayout } from '../engine/scene';
+import { signCells, signDone, withSign } from '../engine/signature';
 import { replayMs, stitchOrder } from '../engine/work';
 import { T } from '../i18n';
+import { sceneImage } from '../render/scene';
 import { shareImage } from '../render/share';
 import { billing } from '../state/billing';
 import { useCatalog } from '../state/catalog';
@@ -40,12 +43,6 @@ import { Button, Screen, Txt } from '../ui/components';
 import { DIGIT_FONT } from '../ui/fonts';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
 
-/** Рамка вокруг работы на экране, dp: дерево со скосом — свет сверху слева, как на канве (разбор 6.4). */
-const FRAME_DP = 8;
-/** Пяльцы: обод из двух колец вокруг круга ткани, dp. */
-const HOOP_DP = 12;
-/** Рамка с работой — не больше этой доли сцены: вокруг неё лён, а не край экрана. */
-const STAGE_FILL = 0.86;
 /** Звук и вибрация «готово» — один раз на работу, когда она встаёт в рамку: не снова после «Настроек». */
 const celebrated = new Set<string>();
 /**
@@ -81,7 +78,7 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus, onLooks }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus, onLooks, onSign }: {
   pattern: Pattern;
   title: string;
   caption?: string;
@@ -103,6 +100,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
    * настройках (владелец 01.11.2026)
    */
   onLooks?: () => void;
+  /** «Подписать работу» (0.21.0) — инициалы и год крестиком под работой, на своей маленькой канве */
+  onSign?: () => void;
 }) {
   const { settings, theme } = useSettings();
   // рамка игрока (src/state/looks.ts); пяльцы — круг ткани. Канва — работы (с 0.20.0, src/state/works.ts)
@@ -169,7 +168,19 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     if (offer && player.plusOfferShownOn !== today) updatePlayer({ plusOfferShownOn: today });
   }, [offer, player.plusOfferShownOn, today, updatePlayer]);
 
-  const order = session ? stitchOrder(session.strokes) : [];
+  // подпись мастерицы (0.21.0) — строками под узором; «Как вышивалось» кладёт её стежки последними
+  const sign = session?.sign;
+  const shown = useMemo(() => withSign(pattern, sign), [pattern, sign]);
+  const shownStitched = useMemo(() => {
+    if (!session) return new Uint8Array(0);
+    if (shown === pattern) return session.state.stitched;
+    const st = new Uint8Array(shown.cells.length);
+    st.set(session.state.stitched);
+    for (let i = pattern.cells.length; i < st.length; i++) if (shown.cells[i] !== CANVAS) st[i] = 1;
+    return st;
+  }, [session, shown, pattern]);
+  const signed = !!sign && signDone(pattern, sign);
+  const order = session ? [...stitchOrder(session.strokes), ...signCells(pattern, sign).map((cell) => ({ thread: sign!.thread, cell }))] : [];
 
   const replay = () => {
     if (!api.current || !order.length) return;
@@ -202,7 +213,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     try {
       // картинка большой работы рисуется заметное время: сначала — «Готовлю…» на кнопке
       await new Promise((r) => setTimeout(r, 30));
-      const png = shareImage(pattern, session.state.stitched, { mosaic: settings.style === 'mosaic', stitches: settings.shareStitches, canvas, frame },
+      const png = shareImage(shown, shownStitched, { mosaic: settings.style === 'mosaic', stitches: settings.shareStitches, canvas, frame, wall: looks.wall, mat: looks.mat },
         { title: titleFont, text: textFont, digits: font },
         { title, caption, mark: pic?.author ? T.done.markBased(T.picture.basedOn[pic.collection]) : T.done.mark });
       const name = `uzory-${pattern.key.replace(/@.*$/, '')}.png`;
@@ -224,28 +235,24 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
     return nextPicture(pic, dailyId ? pictureById(dailyId) : undefined, list, (p) => !cat.done(p) && canStitch(cat.access(p)));
   };
 
-  // канва — по размеру работы в рамке: поле канвы вокруг узора и есть паспарту. В пяльцах — круг ткани,
-  // узор внутри круга целиком: его диагональ — поперёк круга, с полями
-  let cw = 0;
-  let ch = 0;
-  let hoopCam: Camera | null = null;
-  if (area) {
-    const aw = area.w * STAGE_FILL;
-    const ah = area.h * STAGE_FILL;
-    if (hoop) {
-      const d = Math.max(1, Math.floor(Math.min(aw, ah) - 2 * HOOP_DP));
-      const s = Math.min(MAX_DP, (d - 2 * MARGIN_DP) / Math.hypot(pattern.w, pattern.h));
-      cw = d;
-      ch = d;
-      hoopCam = { s, tx: (d - pattern.w * s) / 2, ty: (d - pattern.h * s) / 2 };
-    } else {
-      const s = Math.min(MAX_DP, (aw - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.w, (ah - 2 * FRAME_DP - 2 * MARGIN_DP) / pattern.h);
-      cw = Math.max(1, Math.floor(pattern.w * s + 2 * MARGIN_DP));
-      ch = Math.max(1, Math.floor(pattern.h * s + 2 * MARGIN_DP));
-    }
-  }
+  // сцена (0.21.0): стена, тень, рама или пяльцы, паспарту, гвоздь — картинкой из src/render/scene.ts под
+  // канвой; раскладка — src/engine/scene.ts. Под узором — подпись мастерицы, если она вышита. В пяльцах узор
+  // внутри круга целиком: его диагональ — поперёк круга, с полями
+  const wall = looks.wall;
+  const L = area ? stageLayout({ w: shown.w, h: shown.h, hoop, mat: looks.mat, hang: wall.id !== 'plain', carved: !!frame.carved }, area.w, area.h, MAX_DP, MARGIN_DP) : null;
+  const cw = L?.cloth.w ?? 0;
+  const ch = L?.cloth.h ?? 0;
+  const hoopCam: Camera | null = L && hoop ? { s: L.s, tx: (cw - shown.w * L.s) / 2, ty: (ch - shown.h * L.s) / 2 } : null;
+  const sceneKey = L && area ? `${area.w}x${area.h} ${frame.id} ${wall.id} ${looks.mat ? 1 : 0} ${shown.w}x${shown.h}` : '';
+  const sceneUri = useMemo(() => (L && area ? sceneImage({
+    width: area.w, height: area.h, k: Math.min(2.5, PixelRatio.get()), frame: L.frame, mat: L.mat, cloth: L.cloth, nail: L.nail,
+    look: frame, wall, withMat: looks.mat,
+  }) : null),
+  // картинка сцены — одна на раскладку и оформление
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [sceneKey]);
   const work = (
-    <StitchCanvas pattern={pattern} stitched={session?.state.stitched ?? new Uint8Array(0)} selected={-1}
+    <StitchCanvas pattern={shown} stitched={shownStitched} selected={-1}
       mosaic={settings.style === 'mosaic'} hatch={false} bigNumbers={false} fill={false} font={font!}
       width={cw} height={ch} apiRef={api} viewOnly ghost canvas={canvas} evenField={hoop} initial={hoopCam ?? 'fit'} />
   );
@@ -255,29 +262,17 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
       right={<Button small kind="ghost" label={T.done.settings} onPress={onSettings} testID="done-settings" />}>
       <View style={styles.body}>
         <View style={[styles.stage, { backgroundColor: theme.bg }]} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-          {area && font && session && cw > 0 ? (
-            hoop ? (
-              // пяльцы: светлый обод из двух колец, внутри — круг ткани; винт — сверху
-              <Animated.View entering={fresh ? FadeIn.duration(450) : undefined} testID="done-frame"
-                style={[styles.hoop, { width: cw + 2 * HOOP_DP, height: ch + 2 * HOOP_DP, borderRadius: cw / 2 + HOOP_DP, backgroundColor: frame.light }]}>
-                <View style={[styles.hoopRing, { borderRadius: cw / 2 + HOOP_DP / 2, borderColor: frame.dark }]} />
-                <View style={{ width: cw, height: ch, borderRadius: cw / 2, overflow: 'hidden' }}>{work}</View>
-                <View style={[styles.inset, { left: HOOP_DP, top: HOOP_DP, right: HOOP_DP, bottom: HOOP_DP, borderRadius: cw / 2 }]} />
-                <View style={[styles.clasp, { left: cw / 2 + HOOP_DP - 15, borderColor: frame.dark }]} />
-              </Animated.View>
-            ) : (
-              <Animated.View entering={fresh ? FadeIn.duration(450) : undefined} testID="done-frame"
-                style={[styles.frame, {
-                  width: cw + 2 * FRAME_DP, height: ch + 2 * FRAME_DP,
-                  borderTopColor: frame.light, borderLeftColor: frame.light, borderBottomColor: frame.dark, borderRightColor: frame.dark,
-                }]}>
-                {work}
-                {/* золочение багета — тонкой полоской по внутреннему краю */}
-                {frame.inner ? <View style={[styles.gilt, { borderColor: frame.inner }]} /> : null}
-                {/* рамка бросает тень на паспарту */}
-                <View style={styles.inset} />
-              </Animated.View>
-            )
+          {area && font && session && L ? (
+            <Animated.View entering={fresh ? FadeIn.duration(450) : undefined} style={styles.scene}>
+              {sceneUri ? <Image source={{ uri: sceneUri }} style={{ position: 'absolute', left: 0, top: 0, width: area.w, height: area.h }} testID="done-scene" /> : null}
+              <View testID="done-frame" style={{ position: 'absolute', left: L.frame.x, top: L.frame.y, width: L.frame.w, height: L.frame.h }}>
+                <View style={{ position: 'absolute', left: L.cloth.x - L.frame.x, top: L.cloth.y - L.frame.y, width: cw, height: ch, borderRadius: hoop ? cw / 2 : 0, overflow: 'hidden' }}>
+                  {work}
+                </View>
+                {/* обод или рама бросает тень на ткань */}
+                <View style={[styles.inset, { left: L.cloth.x - L.frame.x, top: L.cloth.y - L.frame.y, width: cw, height: ch, borderRadius: hoop ? cw / 2 : 0 }]} />
+              </View>
+            </Animated.View>
           ) : <ActivityIndicator style={styles.wait} color={theme.accent} />}
           {playing && order.length ? (
             <View style={[styles.track, { backgroundColor: theme.border }]} testID="replay-bar">
@@ -303,6 +298,9 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
           </View>
           {session && !playing ? <CanvasPicker value={canvas.id} onChange={pickCanvas} testID="done-canvas" /> : null}
           {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
+          {onSign && session && !playing && !signed ? (
+            <Button kind="ghost" small label={sign ? T.done.signMore : T.done.sign} onPress={onSign} testID="done-sign" />
+          ) : null}
           {onLooks ? <Button kind="ghost" small label={T.done.looks} onPress={onLooks} testID="done-looks" /> : null}
           {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
           {onAgain ? <Button label={T.done.again} onPress={onAgain} testID="done-again" /> : null}
@@ -327,14 +325,9 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
 const styles = StyleSheet.create({
   body: { flex: 1 },
   stage: { flex: 1, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  frame: { borderWidth: FRAME_DP, borderRadius: 2, boxShadow: '0px 6px 16px rgba(28, 20, 12, 0.35)' },
-  gilt: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 1.5, pointerEvents: 'none' },
-  hoop: { padding: HOOP_DP, boxShadow: '0px 6px 16px rgba(28, 20, 12, 0.35)' },
-  // шов между внутренним и внешним кольцом пялец
-  hoopRing: { position: 'absolute', left: HOOP_DP / 2, top: HOOP_DP / 2, right: HOOP_DP / 2, bottom: HOOP_DP / 2, borderWidth: 1.5, opacity: 0.55, pointerEvents: 'none' },
-  // винт пялец — латунная планка поверх обода
-  clasp: { position: 'absolute', top: -7, width: 30, height: 16, borderRadius: 4, borderWidth: 1.5, backgroundColor: '#c9b98f', pointerEvents: 'none' },
-  inset: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, pointerEvents: 'none', boxShadow: 'inset 1px 2px 4px rgba(20, 14, 8, 0.45)' },
+  // сцена во всю площадь: картинка стены и рамы, поверх — канва в окне
+  scene: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 },
+  inset: { position: 'absolute', pointerEvents: 'none', boxShadow: 'inset 1px 2px 4px rgba(20, 14, 8, 0.45)' },
   // полоса повтора — у нижнего края сцены, поверх льна: её появление ничего не сдвигает
   track: { position: 'absolute', left: 24, right: 24, bottom: 6, height: 3, borderRadius: 2, overflow: 'hidden' },
   fill: { height: 3 },

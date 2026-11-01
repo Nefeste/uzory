@@ -2,15 +2,21 @@
 // С 0.20.0 (владелец 01.11.2026: «делай канву фоном узора») канва — часть работы, а не товар: пять цветов
 // бесплатно, у каждой работы свой (src/state/works.ts), по умолчанию — подходящий узору (`suitedCanvas`):
 // невышитый фон орнамента, «Детям», старинной схемы и «Своего узора» с фоном «не вышивать» — это ткань
-// канвы. Навсегда продаются рамки на «Готово» и «Поделиться», по 99 ₽, «Все оформления» — 299 ₽; тёмное
-// дерево — у всех. Библиотеку и подписку оформления не трогают. Цвета — sRGB 0…1, как константы шейдера
+// канвы. Навсегда продаются рамки и (с 0.21.0) стены на «Готово» и «Поделиться», по 99 ₽, «Все оформления» —
+// 299 ₽; тёмное дерево и светлый фон без стены — у всех, паспарту и лента на пяльцах — бесплатно (владелец
+// 01.11.2026: «делай А, Б, В, Г и Д» — паспарту, резная рама, пяльцы с лентой, работа на стене, подпись).
+// Библиотеку и подписку оформления не трогают. Цвета — sRGB 0…1, как константы шейдера
 // (src/canvas/shader.ts): кремовая — ровно прежние CLOTH, HOLE и GHOST, поэтому у узора без невышитого
 // фона игра выглядит, как прежде, до точки.
 import { deltaOK, rgbToLab } from './color';
 import { CANVAS, type Pattern } from './pattern';
 
 export type CanvasId = 'cream' | 'white' | 'linen' | 'black' | 'blue';
-export type FrameId = 'walnut' | 'baguette' | 'birch' | 'hoop';
+export type FrameId = 'walnut' | 'baguette' | 'birch' | 'hoop' | 'carved';
+/** Стена за работой на «Готово» и «Поделиться» (с 0.21.0): без стены — светлый фон, как было. */
+export type WallId = 'plain' | 'izba' | 'city' | 'dacha';
+/** То, что продаётся: рамки и стены. */
+export type LookId = FrameId | WallId;
 
 export type Rgb = readonly [number, number, number];
 
@@ -33,6 +39,19 @@ export interface FrameLook {
   dark: string;
   /** тонкая полоска по внутреннему краю: золочение багета; нет — без неё */
   inner?: string;
+  /** резная рама (0.21.0): волокно дерева по граням и розетки по углам */
+  carved?: true;
+  /** пяльцы (0.21.0): лента бантом на винте, её цвет */
+  ribbon?: string;
+}
+
+export interface WallLook {
+  id: WallId;
+  /** основной тон стены и тень швов (брёвна, доски, рисунок обоев) */
+  base: string;
+  shade: string;
+  /** светлый тон: блик на бревне, рисунок обоев, свет из окна */
+  light: string;
 }
 
 /** Тень дырочки — во столько темнее нити канвы, по каналам: как у кремовой, тёплая. */
@@ -71,22 +90,36 @@ export const FRAMES: readonly FrameLook[] = [
   { id: 'walnut', kind: 'bevel', light: '#8b6d52', dark: '#4e3b2b' },
   { id: 'baguette', kind: 'bevel', light: '#e3c47e', dark: '#8c6a27', inner: '#f6e7b8' },
   { id: 'birch', kind: 'bevel', light: '#e6cfa8', dark: '#b2916a' },
-  { id: 'hoop', kind: 'hoop', light: '#dcbb8f', dark: '#9e7c54' },
+  { id: 'hoop', kind: 'hoop', light: '#dcbb8f', dark: '#9e7c54', ribbon: '#b3162f' },
+  { id: 'carved', kind: 'bevel', light: '#8f6743', dark: '#3e2717', inner: '#d6b260', carved: true },
+];
+
+/** Стены (0.21.0): первая — у всех, светлый фон без стены, как до 0.21.0. */
+export const WALLS: readonly WallLook[] = [
+  { id: 'plain', base: '#ecede6', shade: '#ecede6', light: '#ecede6' },
+  { id: 'izba', base: '#b88c5a', shade: '#5a3d22', light: '#d9b47f' },
+  { id: 'city', base: '#9fb3a2', shade: '#7f9583', light: '#c7d4c3' },
+  { id: 'dacha', base: '#e8e1cf', shade: '#b9ae93', light: '#fbf7ec' },
 ];
 
 export const FREE_CANVAS: CanvasId = 'cream';
 export const FREE_FRAME: FrameId = 'walnut';
+export const FREE_WALL: WallId = 'plain';
 
-/** Товары навсегда в консоли RuStore: по одному на платную рамку и «Все оформления». */
+/** Товары навсегда в консоли RuStore: по одному на платную рамку и стену и «Все оформления». */
 export const ALL_LOOKS = 'uzory_looks_all';
-export const productOf = (id: FrameId) => `uzory_look_${id}`;
-/** Все товары оформлений — для вопроса магазину о ценах и покупках. С 0.20.0 канв среди них нет. */
+export const productOf = (id: LookId) => `uzory_look_${id}`;
+/**
+ * Все товары оформлений — для вопроса магазину о ценах и покупках. С 0.20.0 канв среди них нет; с 0.21.0 —
+ * резная рама и три стены.
+ */
 export const LOOK_PRODUCTS: readonly string[] = [
   ...FRAMES.filter((f) => f.id !== FREE_FRAME).map((f) => productOf(f.id)),
+  ...WALLS.filter((w) => w.id !== FREE_WALL).map((w) => productOf(w.id)),
   ALL_LOOKS,
 ];
 
-export const isFree = (id: FrameId) => id === FREE_FRAME;
+export const isFree = (id: LookId) => id === FREE_FRAME || id === FREE_WALL;
 
 /** Сохранённое и ответ магазина → купленные товары: только наши, без повторов, в порядке каталога; чужое — пусто. */
 export function ownedOf(raw: unknown): string[] {
@@ -95,10 +128,10 @@ export function ownedOf(raw: unknown): string[] {
 }
 
 /**
- * Есть ли у игрока рамка: бесплатная — у всех; `open` — сборка не запирает (0.x для проверки); иначе —
+ * Есть ли у игрока рамка или стена: бесплатная — у всех; `open` — сборка не запирает (0.x для проверки); иначе —
  * купленная отдельно или «Все оформления». `owned` — товары из последнего ответа магазина.
  */
-export function lookOwned(id: FrameId, owned: readonly string[], open: boolean): boolean {
+export function lookOwned(id: LookId, owned: readonly string[], open: boolean): boolean {
   return isFree(id) || open || owned.includes(ALL_LOOKS) || owned.includes(productOf(id));
 }
 
@@ -122,6 +155,17 @@ export function frameLook(id: unknown): FrameLook {
 export function shownFrame(chosen: unknown, owned: readonly string[], open: boolean): FrameLook {
   const f = frameLook(chosen);
   return lookOwned(f.id, owned, open) ? f : frameLook(FREE_FRAME);
+}
+
+/** Стена по id; незнакомая — без стены. */
+export function wallLook(id: unknown): WallLook {
+  return WALLS.find((w) => w.id === id) ?? WALLS[0];
+}
+
+/** Какую стену показывать: выбранную, если она есть у игрока, иначе без стены — как рамку. */
+export function shownWall(chosen: unknown, owned: readonly string[], open: boolean): WallLook {
+  const w = wallLook(chosen);
+  return lookOwned(w.id, owned, open) ? w : wallLook(FREE_WALL);
 }
 
 /**

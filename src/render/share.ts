@@ -1,15 +1,17 @@
 // «Поделиться» (docs/08-game-design.md, «Готово»; docs/specs/2026-09-library.md, «Готово»):
 // готовая работа тем же шейдером, что канва, — ровными клетками цвета или, по настройке, стежками
-// выбранного стиля, — в рамке на льняном фоне, под рамкой — название, подпись картины и мелко
-// «Вышито в „Узорах“». Сторона — до 2000 точек.
+// выбранного стиля, — в рамке на льняном фоне или (с 0.21.0) на стене, под рамкой — название, подпись
+// картины и мелко «Вышито в „Узорах“». Рама, паспарту, пяльцы с бантом, стена, гвоздь — та же сцена, что на
+// «Готово» (src/render/scene.ts). Сторона — до 2000 точек.
 // Где что лежит и каких цветов — src/engine/share.ts: по нему же сценарий проверяет картинку.
 import { ImageFormat, Skia, type SkFont, TileMode, FilterMode, MipmapMode } from '@shopify/react-native-skia';
 import { canvasEffect } from '../canvas/effect';
 import { canvasUniforms, NO_SCENE, uniformList } from '../canvas/shader';
 import { cellBytes, digitAtlas, GLYPH_H, GLYPH_W, paletteImage, rgbaImage } from '../canvas/textures';
-import { CANVASES, type CanvasLook, FRAMES, type FrameLook } from '../engine/looks';
+import { CANVASES, type CanvasLook, FRAMES, type FrameLook, WALLS, type WallLook } from '../engine/looks';
 import type { Pattern } from '../engine/pattern';
-import { HOOP_RING, SHARE_COLORS, shareLayout, type ShareRect, shareStitches } from '../engine/share';
+import { SHARE_COLORS, shareLayout, type ShareRect, shareStitches } from '../engine/share';
+import { drawFrame, drawHanging, drawHoop, drawMat, drawShadow, drawWall } from './scene';
 
 export interface ShareText {
   title: string;
@@ -26,6 +28,10 @@ export interface ShareLook {
   /** оформление (src/engine/looks.ts): канва и рамка; нет — кремовая и тёмное дерево */
   canvas?: CanvasLook;
   frame?: FrameLook;
+  /** стена (0.21.0); нет — льняной фон */
+  wall?: WallLook;
+  /** паспарту (0.21.0); нет — с паспарту, как до 0.21.0 */
+  mat?: boolean;
 }
 
 /** PNG готовой работы; Skia не смогла — null. */
@@ -33,8 +39,10 @@ export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
   fonts: { title: SkFont; text: SkFont; digits: SkFont }, text: ShareText): Uint8Array | null {
   const canvas = look.canvas ?? CANVASES[0];
   const frame = look.frame ?? FRAMES[0];
+  const wall = look.wall ?? WALLS[0];
+  const withMat = look.mat !== false;
   const hoop = frame.kind === 'hoop';
-  const L = shareLayout(p.w, p.h, hoop);
+  const L = shareLayout(p.w, p.h, hoop, { mat: withMat, carved: !!frame.carved });
   const { cell, work: wr } = L;
   const surface = Skia.Surface.Make(L.width, L.height);
   const effect = canvasEffect();
@@ -51,47 +59,22 @@ export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
     return pt;
   };
   const rect = (r: ShareRect) => Skia.XYWHRect(r.x, r.y, r.w, r.h);
-  c.drawRect(Skia.XYWHRect(0, 0, L.width, L.height), paint(SHARE_COLORS.background));
+  const cloth = `#${canvas.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
+  drawWall(c, wall, L.width, L.height, L.k, SHARE_COLORS.background);
   const f = L.frame;
   const mt = L.mat;
-  if (hoop) {
-    // пяльцы: светлый обод из двух колец, шов между ними, круг ткани; латунный винт — сверху
-    const cx = f.x + f.w / 2;
-    const cy = f.y + f.h / 2;
-    c.drawCircle(cx, cy, f.w / 2, paint(frame.light));
-    const seam = paint(frame.dark);
-    seam.setStyle(1);
-    seam.setStrokeWidth(3);
-    seam.setAlphaf(0.55);
-    c.drawCircle(cx, cy, f.w / 2 - HOOP_RING / 2, seam);
-    const hex = `#${canvas.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
-    c.drawCircle(cx, cy, mt.w / 2, paint(hex));
-    const clasp = Skia.RRectXY(Skia.XYWHRect(cx - 26, f.y - 12, 52, 28), 6, 6);
-    c.drawRRect(clasp, paint('#c9b98f'));
-    const rim = paint(frame.dark);
-    rim.setStyle(1);
-    rim.setStrokeWidth(3);
-    c.drawRRect(clasp, rim);
-  } else {
-    // рамка со скосом: грани к свету — сверху и слева, в тени — снизу и справа; внутри — бумажное паспарту
-    c.drawRect(rect(f), paint(frame.dark));
-    const lit = Skia.Path.Make();
-    lit.moveTo(f.x, f.y);
-    lit.lineTo(f.x + f.w, f.y);
-    lit.lineTo(mt.x + mt.w, mt.y);
-    lit.lineTo(mt.x, mt.y);
-    lit.lineTo(mt.x, mt.y + mt.h);
-    lit.lineTo(f.x, f.y + f.h);
-    lit.close();
-    c.drawPath(lit, paint(frame.light));
-    c.drawRect(rect(mt), paint(SHARE_COLORS.mat));
-    if (frame.inner) {
-      // золочение багета — тонкой полоской по внутреннему краю рамки
-      const gilt = paint(frame.inner);
-      gilt.setStyle(1);
-      gilt.setStrokeWidth(4);
-      c.drawRect(Skia.XYWHRect(mt.x - 2, mt.y - 2, mt.w + 4, mt.h + 4), gilt);
-    }
+  const onWall = wall.id !== 'plain';
+  if (onWall) {
+    // на стене: тень и гвоздь с бечёвкой (у пялец — лентой); на льняном фоне — как до 0.21.0, без них
+    drawShadow(c, f, hoop, L.k, 0.4);
+    drawHanging(c, { x: f.x + f.w / 2, y: f.y - 23 * L.k }, f, frame, L.k);
+  }
+  if (hoop) drawHoop(c, f, mt, frame, L.k, cloth);
+  else {
+    // рамка со скосом; внутри — бумажное паспарту со скосом или, без него, поле ткани канвы
+    drawFrame(c, f, mt, frame, L.k);
+    if (withMat) drawMat(c, mt, wr, L.k);
+    else c.drawRect(rect(mt), paint(cloth));
   }
 
   // работа — тем же шейдером, что канва: стежками — если включены и клетка крупная, иначе цветом
@@ -111,7 +94,16 @@ export function shareImage(p: Pattern, stitched: Uint8Array, look: ShareLook,
   workPaint.setShader(shader);
   c.drawRect(rect(wr), workPaint);
 
-  // подпись по центру под рамкой
+  // подпись по центру под рамкой; на стене — на светлой табличке
+  if (onWall) {
+    const top = L.title - 56;
+    const bottom = (text.caption ? L.mark : L.markAlone) + 22;
+    const widest = Math.max(fonts.title.getTextWidth(text.title), text.caption ? fonts.text.getTextWidth(text.caption) : 0, fonts.text.getTextWidth(text.mark));
+    const pw = Math.min(L.width - 24, widest + 96);
+    const plaque = paint(SHARE_COLORS.plaque);
+    plaque.setAlphaf(0.94);
+    c.drawRRect(Skia.RRectXY(Skia.XYWHRect((L.width - pw) / 2, top, pw, bottom - top), 14, 14), plaque);
+  }
   const center = (s: string, font: SkFont, y: number, color: string) => {
     const w = font.getTextWidth(s);
     c.drawText(s, (L.width - w) / 2, y, paint(color), font);

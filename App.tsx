@@ -38,6 +38,7 @@ import { ReportScreen } from './src/screens/ReportScreen';
 import { ScrollBenchScreen } from './src/screens/ScrollBenchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
+import { SignScreen } from './src/screens/SignScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
 import { WorksScreen, type WorksTab } from './src/screens/WorksScreen';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
@@ -56,6 +57,7 @@ type Route =
   | { name: 'mine' }
   /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
   | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture; listed?: boolean }
+  | { name: 'sign'; pattern: Pattern; workId: string }
   | { name: 'sheet' }
   | { name: 'bench' }
   | { name: 'scrollBench' }
@@ -180,14 +182,19 @@ function Root() {
       screen = route.listed ? (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
           onBack={back} onAgain={pic ? () => go({ name: 'picture', pic: pictureById(pic.id) ?? pic }) : undefined}
-          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })} />
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })}
+          onSign={() => go({ name: 'sign', pattern: route.pattern, workId: route.workId })} />
       ) : (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
           onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
-          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })} />
+          onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })}
+          onSign={() => go({ name: 'sign', pattern: route.pattern, workId: route.workId })} />
       );
       break;
     }
+    case 'sign':
+      screen = <SignScreen pattern={route.pattern} workId={route.workId} onBack={back} onDone={back} />;
+      break;
     case 'sheet':
       screen = <SheetScreen onBack={back} onOpen={(pic, workId) => go({ name: 'stitch', pic, workId })} />;
       break;

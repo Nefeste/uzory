@@ -4,8 +4,8 @@
 import { describe, expect, test } from 'bun:test';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import {
-  ALL_LOOKS, CANVAS_LOST, CANVASES, canvasLook, clothRgb, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, isCanvasId, isFree, LOOK_PRODUCTS, lookOwned,
-  luminance, ownedOf, productOf, shownFrame, suitedCanvas, workCanvas,
+  ALL_LOOKS, CANVAS_LOST, CANVASES, canvasLook, clothRgb, FRAMES, frameLook, FREE_CANVAS, FREE_FRAME, FREE_WALL, isCanvasId, isFree, LOOK_PRODUCTS, lookOwned,
+  luminance, ownedOf, productOf, shownFrame, shownWall, suitedCanvas, wallLook, WALLS, workCanvas,
 } from '../../src/engine/looks';
 import { FAKE_DETAIL, FAKE_LOOK_PRICES, fakeBilling } from '../../src/state/fakeBilling';
 import { renderFrame } from '../canvas/ck';
@@ -19,11 +19,23 @@ describe('каталог оформлений', () => {
     expect(frameLook(FREE_FRAME)).toMatchObject({ kind: 'bevel', light: '#8b6d52', dark: '#4e3b2b' });
   });
 
-  test('пять канв и четыре рамки; товары — по одному на платную рамку и «Все оформления», канв среди них нет', () => {
+  test('пять канв, пять рамок и четыре стены; товары — по одному на платную рамку и стену и «Все оформления», канв среди них нет', () => {
     expect(CANVASES.map((c) => c.id)).toEqual(['cream', 'white', 'linen', 'black', 'blue']);
-    expect(FRAMES.map((f) => f.id)).toEqual(['walnut', 'baguette', 'birch', 'hoop']);
-    expect(LOOK_PRODUCTS).toEqual(['uzory_look_baguette', 'uzory_look_birch', 'uzory_look_hoop', ALL_LOOKS]);
+    expect(FRAMES.map((f) => f.id)).toEqual(['walnut', 'baguette', 'birch', 'hoop', 'carved']);
+    expect(WALLS.map((w) => w.id)).toEqual(['plain', 'izba', 'city', 'dacha']);
+    expect(LOOK_PRODUCTS).toEqual([
+      'uzory_look_baguette', 'uzory_look_birch', 'uzory_look_hoop', 'uzory_look_carved',
+      'uzory_look_izba', 'uzory_look_city', 'uzory_look_dacha', ALL_LOOKS,
+    ]);
     expect(new Set(LOOK_PRODUCTS).size).toBe(LOOK_PRODUCTS.length);
+  });
+
+  test('0.21.0: у пялец — лента, резная рама — с золочением; без стены — льняной фон «Поделиться»', () => {
+    expect(frameLook('hoop').ribbon).toBe('#b3162f');
+    expect(frameLook('carved')).toMatchObject({ kind: 'bevel', carved: true });
+    expect(frameLook('carved').inner).toBeDefined();
+    expect(wallLook(FREE_WALL).base).toBe('#ecede6');
+    expect(wallLook('tapestry').id).toBe(FREE_WALL);
   });
 
   test('ткань кремовой канвы в превью — прежний цвет превью до точки (src/render/preview.ts)', () => {
@@ -60,6 +72,17 @@ describe('есть ли рамка у игрока', () => {
     expect(lookOwned('hoop', [productOf('hoop')], false)).toBe(true);
     expect(lookOwned('birch', [productOf('hoop')], false)).toBe(false);
     for (const f of FRAMES) expect(lookOwned(f.id, [ALL_LOOKS], false)).toBe(true);
+  });
+
+  test('стены: светлый фон — у всех; купленная стена, «Все оформления», сборка для проверки', () => {
+    expect(isFree('plain')).toBe(true);
+    expect(isFree('izba')).toBe(false);
+    expect(lookOwned('izba', [], false)).toBe(false);
+    expect(lookOwned('izba', [productOf('izba')], false)).toBe(true);
+    expect(lookOwned('dacha', [ALL_LOOKS], false)).toBe(true);
+    expect(shownWall('izba', [], false).id).toBe('plain');
+    expect(shownWall('izba', [], true).id).toBe('izba');
+    expect(shownWall('city', [productOf('city')], false).id).toBe('city');
   });
 
   test('показывается выбранная, если она есть; иначе бесплатная — и после возврата денег', () => {

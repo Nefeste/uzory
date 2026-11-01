@@ -6,7 +6,7 @@
 // Возврат денег RuStore отдаёт списком без этой покупки — оформление снова заперто.
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-import { type FrameLook, ownedOf, shownFrame } from '../engine/looks';
+import { type FrameLook, ownedOf, shownFrame, shownWall, type WallLook } from '../engine/looks';
 import { billing } from './billing';
 import { useGate } from './plus';
 import { useSettings } from './settings';
@@ -71,6 +71,9 @@ export function useOwnedLooks(): readonly string[] {
 export interface Looks {
   /** какую рамку показывать: выбранную, если она есть у игрока, иначе бесплатную */
   frame: FrameLook;
+  /** стену (с 0.21.0) — так же; паспарту — у любой рамы, бесплатно */
+  wall: WallLook;
+  mat: boolean;
   /** купленные товары */
   owned: readonly string[];
   /** сборка не запирает: все оформления открыты */
@@ -81,5 +84,5 @@ export function useLooks(): Looks {
   const { settings } = useSettings();
   const open = !useGate();
   const list = useOwnedLooks();
-  return { frame: shownFrame(settings.frame, list, open), owned: list, open };
+  return { frame: shownFrame(settings.frame, list, open), wall: shownWall(settings.wall, list, open), mat: settings.mat !== false, owned: list, open };
 }

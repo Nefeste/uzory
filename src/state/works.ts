@@ -4,6 +4,7 @@
 // откат к `.bak`.
 import { type CanvasId, isCanvasId } from '../engine/looks';
 import type { Pattern } from '../engine/pattern';
+import { type Sign, signOf } from '../engine/signature';
 import { addMinute, replay, Stitching, type StitchMinutes, type Stroke } from '../engine/work';
 import { decodeWork, WorkFileError, workFileMisfit, WorkLog } from '../engine/workfile';
 import { utf8Decode, utf8Encode } from '../engine/utf8';
@@ -31,6 +32,8 @@ export interface WorkEntry {
    * (`workCanvas`): у работ до 0.20.0 её не было, у новых она записывается сразу.
    */
   canvas?: CanvasId;
+  /** подпись мастерицы (с 0.21.0, src/engine/signature.ts): инициалы, год, нить и вышитые клетки */
+  sign?: Sign;
 }
 
 const INDEX = 'index.json';
@@ -54,6 +57,11 @@ async function saveIndex(list: WorkEntry[]): Promise<void> {
 
 // правки указателя идут друг за другом: две работы не затирают друг друга
 let indexQueue: Promise<void> = Promise.resolve();
+/**
+ * Записи работ, которые ещё идут, — по id работы. Работу открывает заново другой экран, пока прежний
+ * дописывает её (экран подписи → «Готово»): `openWork` читает после них, а не прежнюю запись.
+ */
+const saving = new Map<string, Promise<void>>();
 function updateIndex(f: (list: WorkEntry[]) => WorkEntry[]): Promise<void> {
   indexQueue = indexQueue.then(async () => saveIndex(f(await loadIndex()))).catch((e) => logError('work', e, 'index'));
   return indexQueue;
@@ -72,6 +80,8 @@ export class WorkSession {
   mystery = false;
   /** канва работы; нет — подходящая узору (src/engine/looks.ts, `workCanvas`) */
   canvas: CanvasId | undefined;
+  /** подпись мастерицы; нет — работа не подписана */
+  sign: Sign | undefined;
   /** минуты со стежками; нет — работа начата до того, как их стали считать, и время на «Готово» не показывается */
   private time: StitchMinutes | undefined;
   /** не записано на диск */
@@ -137,6 +147,7 @@ export class WorkSession {
       done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at, minutes: this.time?.minutes,
       ...(this.mystery ? { mystery: true as const } : {}),
       ...(this.canvas ? { canvas: this.canvas } : {}),
+      ...(this.sign ? { sign: this.sign } : {}),
     };
     this.writing = this.writing.then(async () => {
       try {
@@ -154,7 +165,39 @@ export class WorkSession {
         }, 10000);
       }
     });
-    return this.writing;
+    const w = this.writing;
+    saving.set(this.id, w);
+    void w.then(() => {
+      if (saving.get(this.id) === w) saving.delete(this.id);
+    });
+    return w;
+  }
+
+  /** Подпись мастерицы (экран подписи): записывается сразу, стежки работы не меняются. */
+  setSign(sign: Sign): Promise<void> {
+    this.sign = sign;
+    return this.flush(true);
+  }
+
+  /**
+   * Стежки подписи: новые клетки её сетки — к вышитым, запись сразу. Копит сессия, а не экран: штрихи
+   * кисти приходят чаще, чем экран успевает перерисоваться, и подпись из прошлого кадра теряла бы
+   * клетки предыдущего штриха. Подписи нет — ничего.
+   */
+  stitchSign(cells: readonly number[]): Sign | undefined {
+    const sign = this.sign;
+    if (!sign) return undefined;
+    const have = new Set(sign.done);
+    const fresh: number[] = [];
+    for (const c of cells) {
+      if (have.has(c)) continue;
+      have.add(c);
+      fresh.push(c);
+    }
+    if (!fresh.length) return sign;
+    this.sign = { ...sign, done: [...sign.done, ...fresh] };
+    void this.flush(true);
+    return this.sign;
   }
 
   /** Другая канва работы (меню канвы, «Готово»): записывается сразу, стежки не меняются. */
@@ -171,6 +214,8 @@ export class WorkSession {
 
 /** Открывает работу: файл, при порче — копия `.bak`; не разобралась и она — `null`. */
 export async function openWork(pattern: Pattern, id: string): Promise<WorkSession | null> {
+  // запись той же работы с другого экрана ещё идёт (подпись вышита — и сразу «Готово»): читать после неё
+  await saving.get(id);
   for (const name of [`${id}.log`, `${id}.log.bak`]) {
     try {
       const b = await readFile(name);
@@ -185,6 +230,7 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
       s.mystery = !!entry?.mystery;
       const canvas = entry?.canvas;
       s.canvas = isCanvasId(canvas) ? canvas : undefined;
+      s.sign = signOf(entry?.sign);
       return s;
     } catch (e) {
       logError('work', e, name);
