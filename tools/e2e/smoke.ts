@@ -19,7 +19,8 @@ import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { FREE_FIRST } from '../../src/engine/library';
 import { fieldOf } from '../../src/canvas/shader';
-import { canvasLook, frameLook } from '../../src/engine/looks';
+import { canvasLook, frameLook, wallLook } from '../../src/engine/looks';
+import { SIGN_GAP, signGrid, signLines } from '../../src/engine/signature';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
@@ -1247,9 +1248,59 @@ try {
     await pl.getByTestId('back').click();
     await openDone();
     const kept = (await pl.getByTestId('done-canvas').innerText()).split('\n')[0];
-    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 4 && chosen && !!baguetteLook?.size && !!baguetteLook.frame && kept === 'Канва: Суровый лён',
+    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 5 && chosen && !!baguetteLook?.size && !!baguetteLook.frame && kept === 'Канва: Суровый лён',
       `оформления: «Поделиться» в пяльцах на чёрной канве работы — ${hoopLook?.frame ? 'да' : 'нет'}, на экране рамок ${tiles} образцов, `
       + `выбранная — ${chosen ? '«Сейчас»' : 'без «Сейчас»'}, багет на льне — ${baguetteLook?.frame ? 'со скосом и золочением' : 'нет'}; у работы — «${kept}»`);
+
+    // 0.21.0 (владелец 01.11.2026: «делай А, Б, В, Г и Д»): резная рама без паспарту на стене избы — на
+    // «Готово» сцена картинкой, на «Поделиться» — стена, рама с волокном, ткань канвы вместо паспарту
+    await pl.getByTestId('done-settings').click();
+    await pl.getByTestId('set-looks').click();
+    await pl.getByTestId('looks').waitFor({ timeout: 5000 });
+    const walls = await pl.locator('[data-testid^="wall-"]').count();
+    await pl.getByTestId('look-carved').click();
+    await pl.getByTestId('wall-izba').click();
+    await pl.getByTestId('looks-mat-off').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('back').click();
+    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    // «Как вышивалось» — сразу, сцена — когда работа и шрифты загрузились
+    const scene = await pl.getByTestId('done-scene').waitFor({ timeout: 10_000 }).then(() => 1, () => 0);
+    const izbaPng = await shareNow();
+    const izbaLook = izbaPng ? await lookAtShare(izbaPng, first, frameLook('carved'), canvasLook('linen'), { mat: false, wall: wallLook('izba') }) : null;
+    check(walls === 4 && scene === 1 && !!izbaLook?.size && !!izbaLook.frame,
+      `рамы богаче: стен на экране рамок — ${walls}, сцена «Готово» картинкой — ${scene ? 'да' : 'нет'}, `
+      + `«Поделиться» — резная рама без паспарту на стене избы ${izbaLook?.frame ? 'на месте' : 'не та'}`);
+
+    // подпись мастерицы: инициалы — и подпись вышивается касаниями на своей канве; на «Готово» кнопки больше
+    // нет, а на «Поделиться» узор выше на строки подписи
+    await pl.getByTestId('done-sign').click();
+    await pl.getByTestId('sign-initials').fill('ек');
+    await pl.getByTestId('sign-start').click();
+    // канва подписи готова, когда в ней появился холст Skia (шрифт номеров грузится не сразу)
+    await pl.locator('[data-testid="sign-canvas"] canvas').first().waitFor({ timeout: 15_000 });
+    await pl.waitForTimeout(1000);
+    const lines = signLines('ЕК', new Date().getFullYear(), first.w)!;
+    const g = signGrid(lines);
+    const sb = (await pl.getByTestId('sign-canvas').boundingBox())!;
+    const fit = fitScale(g.w, g.h, sb.width, sb.height);
+    for (let i = 0; i < g.cells.length; i++) {
+      if (!g.cells[i]) continue;
+      await pl.mouse.click(sb.x + (sb.width - g.w * fit) / 2 + ((i % g.w) + 0.5) * fit, sb.y + (sb.height - g.h * fit) / 2 + (Math.floor(i / g.w) + 0.5) * fit);
+      await pl.waitForTimeout(40);
+    }
+    const finished = await pl.getByTestId('sign-done').waitFor({ timeout: 5000 }).then(() => true, () => false);
+    const signedLine = await pl.getByTestId('sign-progress').innerText();
+    if (finished) await pl.getByTestId('sign-done').click();
+    // «Подписать» решает загруженная работа: считать — когда она загрузилась (строка стежков)
+    await pl.getByTestId('done-stats').waitFor({ timeout: 10_000 });
+    const stillAsks = await pl.getByTestId('done-sign').count();
+    const signedPng = await shareNow();
+    const tall = { ...first, h: first.h + SIGN_GAP + g.h };
+    const signedLook = signedPng ? await lookAtShare(signedPng, tall, frameLook('carved'), canvasLook('linen'), { mat: false, wall: wallLook('izba') }) : null;
+    check(fit >= 18 && finished && stillAsks === 0 && !!signedLook?.size,
+      `подпись мастерицы: ${lines.join(' / ')} — ${g.w} × ${g.h} клеток по ${Math.round(fit)} dp, «${signedLine}»; `
+      + `на «Готово» — ${stillAsks ? 'снова «Подписать»' : 'подписана'}, «Поделиться» ${signedLook?.size ? 'выше на подпись' : 'прежнего размера'}`);
     await ctxLooks.close();
   }
 

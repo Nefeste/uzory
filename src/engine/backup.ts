@@ -4,6 +4,7 @@
 // проверяется строго: id работы и узора становятся именами файлов.
 import { base64Decode, base64Encode } from './base64';
 import { type CanvasId, isCanvasId } from './looks';
+import { type Sign, signOf } from './signature';
 import { CANVAS, MAX_SIDE, MAX_THREADS } from './pattern';
 import { decodeWork } from './workfile';
 
@@ -26,6 +27,8 @@ export interface BackupEntry {
   at?: { x: number; y: number };
   /** канва работы (с 0.20.0, src/engine/looks.ts); незнакомая — отбрасывается, работа — на подходящей узору */
   canvas?: CanvasId;
+  /** подпись мастерицы (с 0.21.0, src/engine/signature.ts); испорченная — отбрасывается, работа остаётся */
+  sign?: Sign;
 }
 
 /** Свой узор — как файл `mine-<id>.json` (src/state/mine.ts). */
@@ -153,7 +156,7 @@ const isSide = (v: unknown): v is number => Number.isInteger(v) && (v as number)
 /** Запись указателя — только известные поля, иначе null. */
 function entryOk(e: unknown): BackupEntry | null {
   if (!isObj(e)) return null;
-  const { id, pattern, started, finished, done, total, opened, minutes, at, canvas } = e;
+  const { id, pattern, started, finished, done, total, opened, minutes, at, canvas, sign } = e;
   if (typeof id !== 'string' || !WORK_ID.test(id)) return null;
   if (typeof pattern !== 'string' || !PATTERN_KEY.test(pattern)) return null;
   if (!isTime(started) || !isTime(opened) || (finished !== undefined && !isTime(finished))) return null;
@@ -163,6 +166,8 @@ function entryOk(e: unknown): BackupEntry | null {
   if (isTime(minutes)) out.minutes = minutes;
   if (isObj(at) && Number.isFinite(at.x) && Number.isFinite(at.y)) out.at = { x: at.x as number, y: at.y as number };
   if (isCanvasId(canvas)) out.canvas = canvas;
+  const signed = signOf(sign);
+  if (signed) out.sign = signed;
   return out;
 }
 

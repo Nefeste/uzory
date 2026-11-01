@@ -8,11 +8,17 @@ import { SHARE_CELL_MAX, SHARE_PICTURE_MAX, SHARE_STITCHES_FROM, shareLayout, ty
 const inside = (a: ShareRect, b: ShareRect) => a.x > b.x && a.y > b.y && a.x + a.w < b.x + b.w && a.y + a.h < b.y + b.h;
 
 describe('картинка «Поделиться»', () => {
-  test('малый узор — клетка 64 точки, размеры по формуле', () => {
+  test('малый узор — клетка 64 точки, размеры по формуле; рама и поля растут с работой (0.21.0)', () => {
     const L = shareLayout(16, 18);
     expect(L.cell).toBe(SHARE_CELL_MAX);
-    expect(L.work).toEqual({ x: 134, y: 134, w: 16 * 64, h: 18 * 64 });
-    expect([L.width, L.height]).toEqual([16 * 64 + 268, 18 * 64 + 386]);
+    // работа 1024 × 1152 — в 1,44 раза больше SHARE_BASE: рама 25, паспарту 63, поле 103 точки (вниз)
+    expect(L.work).toEqual({ x: 103 + 25 + 63, y: 103 + 25 + 63, w: 16 * 64, h: 18 * 64 });
+    expect([L.width, L.height]).toEqual([16 * 64 + 2 * (103 + 25 + 63), 18 * 64 + 2 * (25 + 63) + 103 + 190]);
+    expect(L.k).toBeCloseTo(2 * 1.44, 9);
+    // работа не больше SHARE_BASE — как до 0.21.0
+    const small = shareLayout(10, 10);
+    expect(small.work.w).toBe(640);
+    expect([small.width, small.height]).toEqual([640 + 268, 640 + 386]);
   });
 
   test('на любых размерах: клетка 1–64, работа до 1600, картинка до 2000, всё вложено', () => {

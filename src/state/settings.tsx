@@ -2,7 +2,7 @@
 // Настройки игрока (docs/08-game-design.md, «Настройки»; перенос механики из «Вотчины»).
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
-import { type FrameId, FREE_FRAME } from '../engine/looks';
+import { type FrameId, FREE_FRAME, FREE_WALL, type WallId } from '../engine/looks';
 import { DARK, LIGHT, type Theme } from '../ui/theme';
 import type { Ambience } from './ambience';
 import { KEYS, loadJson, saveJson } from './storage';
@@ -35,12 +35,16 @@ export interface Settings {
    * больше не читается.
    */
   frame: FrameId;
+  /** стена за работой на «Готово» и «Поделиться» (с 0.21.0); показывается, только если есть у игрока */
+  wall: WallId;
+  /** паспарту между рамой и тканью (с 0.21.0) — у любой рамы, бесплатно; у пялец его нет */
+  mat: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true, shareStitches: false,
   hints: true, haptics: true, sound: true, music: true, ambience: 'off', previewLock: false,
-  frame: FREE_FRAME,
+  frame: FREE_FRAME, wall: FREE_WALL, mat: true,
 };
 
 interface Ctx {

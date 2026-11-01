@@ -97,6 +97,15 @@ describe('файл переноса', () => {
     const back = readBackup(makeBackup('2026-11-01', r.works, []));
     expect(back.works.map((x) => x.entry.canvas)).toEqual(['linen', 'black', undefined, undefined, undefined]);
   });
+
+  test('подпись мастерицы (0.21.0): переносится; испорченная отбрасывается, а работа остаётся', () => {
+    const good = { initials: 'ЕК', year: 2026, thread: 0, done: [0, 3, 4] };
+    const w = (sign: unknown, i: number) => ({ entry: { ...entry(`w-s-000${i}`, 'rozetka@1', { done: 1 }), sign }, log: base64Encode(log('rozetka@1', [0])) });
+    const r = readBackup(file([good, { ...good, initials: 'EK' }, { ...good, year: -1 }, 'подпись'].map(w)));
+    expect(r.bad).toBe(0);
+    expect(r.works.map((x) => x.entry.sign)).toEqual([good, undefined, undefined, undefined]);
+    expect(readBackup(makeBackup('2026-11-01', r.works, [])).works[0].entry.sign).toEqual(good);
+  });
 });
 
 describe('файлы прошлых версий формата загружаются (tools/test/fixtures/works/)', () => {

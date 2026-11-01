@@ -3,7 +3,7 @@
 // (src/engine/share.ts): размер, фон, рамка и паспарту, выбранный стиль в клетках работы, строки
 // подписи под рамкой.
 import sharp from 'sharp';
-import { CANVASES, type CanvasLook, FRAMES, type FrameLook } from '../../src/engine/looks';
+import { CANVASES, type CanvasLook, FRAMES, type FrameLook, WALLS, type WallLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { SHARE_COLORS, SHARE_STITCHES_FROM, shareLayout } from '../../src/engine/share';
 
@@ -58,33 +58,46 @@ export function stitchStyles(p: Pattern, px: (x: number, y: number) => RGB, x0: 
   return { cells, cross, tile };
 }
 
-/** Разбор PNG законченной работы узора `p`; рамка и канва — оформления (src/engine/looks.ts), сразу — бесплатные. */
-export async function lookAtShare(png: Uint8Array, p: Pattern, look: FrameLook = FRAMES[0], canvas: CanvasLook = CANVASES[0]): Promise<ShareLook> {
+/**
+ * Разбор PNG законченной работы узора `p`; рамка и канва — оформления (src/engine/looks.ts), сразу — бесплатные.
+ * С 0.21.0 — паспарту (нет — поле ткани канвы) и стена: на стене фон — не льняной, резная рама — с волокном.
+ */
+export async function lookAtShare(png: Uint8Array, p: Pattern, look: FrameLook = FRAMES[0], canvas: CanvasLook = CANVASES[0],
+  o: { mat?: boolean; wall?: WallLook } = {}): Promise<ShareLook> {
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
   const hoop = look.kind === 'hoop';
-  const L = shareLayout(p.w, p.h, hoop);
+  const withMat = o.mat !== false;
+  const wall = o.wall ?? WALLS[0];
+  const L = shareLayout(p.w, p.h, hoop, { mat: withMat, carved: !!look.carved });
   const cloth = `#${canvas.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
   const px = (x: number, y: number): RGB => {
     const i = (Math.floor(y) * info.width + Math.floor(x)) * info.channels;
     return [data[i], data[i + 1], data[i + 2]];
   };
   const is = (x: number, y: number, hex: string) => dist(px(x, y), hexRgb(hex)) <= 2;
+  // резная рама — с волокном дерева: грань — около своего цвета, а не ровно он
+  const near = (x: number, y: number, hex: string) => dist(px(x, y), hexRgb(hex)) <= (look.carved ? 80 : 2);
   const size = info.width === L.width && info.height === L.height;
-  const frame = size
-    && is(L.frame.x / 2, L.frame.y / 2, SHARE_COLORS.background)
-    && is(L.width - L.frame.x / 2, L.height - 4, SHARE_COLORS.background)
+  const plain = wall.id === 'plain';
+  const background = plain
+    ? is(L.frame.x / 2, L.frame.y / 2, SHARE_COLORS.background) && is(L.width - L.frame.x / 2, L.height - 4, SHARE_COLORS.background)
+    // на стене фон — стена: в углу не льняной
+    : dist(px(8, 8), hexRgb(SHARE_COLORS.background)) > 12 && dist(px(L.width - 8, L.height - 8), hexRgb(SHARE_COLORS.background)) > 12;
+  const inside = withMat ? SHARE_COLORS.mat : cloth;
+  const frame = size && background
     && (hoop
       // пяльцы: обод слева, ткань канвы у верхнего края круга, латунный винт над ободом
       ? is(L.frame.x + 5, L.frame.y + L.frame.h / 2, look.light)
         && is(L.mat.x + L.mat.w / 2, L.mat.y + 6, cloth)
         && is(L.frame.x + L.frame.w / 2, L.frame.y - 4, '#c9b98f')
-      // рамка со скосом: левая и верхняя грани — к свету, нижняя — в тени; у багета — золочение
-      : is((L.frame.x + L.mat.x) / 2, L.frame.y + L.frame.h / 2, look.light)
-        && is(L.frame.x + L.frame.w / 2, (L.frame.y + L.mat.y) / 2, look.light)
-        && is(L.frame.x + L.frame.w / 2, (L.mat.y + L.mat.h + L.frame.y + L.frame.h) / 2, look.dark)
+      // рамка со скосом: левая и верхняя грани — к свету, нижняя — в тени; у багета — золочение; внутри —
+      // паспарту или, без него, ткань канвы
+      : near((L.frame.x + L.mat.x) / 2, L.frame.y + L.frame.h / 2, look.light)
+        && near(L.frame.x + L.frame.w / 2, (L.frame.y + L.mat.y) / 2, look.light)
+        && near(L.frame.x + L.frame.w / 2, (L.mat.y + L.mat.h + L.frame.y + L.frame.h) / 2, look.dark)
         && (!look.inner || is(L.mat.x - 2, L.mat.y + L.mat.h / 2, look.inner))
-        && is((L.mat.x + L.work.x) / 2, L.mat.y + L.mat.h / 2, SHARE_COLORS.mat)
-        && is(L.mat.x + L.mat.w / 2, (L.mat.y + L.work.y) / 2, SHARE_COLORS.mat));
+        && is((L.mat.x + L.work.x) / 2, L.mat.y + L.mat.h / 2, inside)
+        && is(L.mat.x + L.mat.w / 2, (L.mat.y + L.work.y) / 2, inside));
 
   const { cells, cross, tile } = size ? stitchStyles(p, px, L.work.x, L.work.y, L.cell) : { cells: 0, cross: 0, tile: 0 };
 
