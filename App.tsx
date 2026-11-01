@@ -3,16 +3,20 @@
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { BackHandler, Image, Platform, View } from 'react-native';
+import { Alert, BackHandler, Image, Linking, Platform, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { warmCanvas } from './src/canvas/effect';
+import { GiftError, type GiftNote } from './src/engine/gift';
 import type { CollectionId } from './src/engine/library';
 import type { CanvasId } from './src/engine/looks';
 import type { PackPicture } from './src/engine/pack';
 import type { Pattern } from './src/engine/pattern';
-import { installCrashHandlers } from './src/state/crashlog';
+import { T } from './src/i18n';
+import { installCrashHandlers, logError } from './src/state/crashlog';
+import { openGift } from './src/state/gift';
+import { isFileUrl, readIncoming } from './src/state/incoming';
 import { FIRST_PICTURE, patternOf, pictureById } from './src/state/library';
 import { useNetReady } from './src/state/net';
 import { PlayerProvider, usePlayer } from './src/state/player';
@@ -47,16 +51,19 @@ import { whoMade } from './src/ui/PicAbout';
 
 installCrashHandlers();
 installSessions();
+/** Файлы тайн, уже открытые за этот запуск (вариант Б): Linking отдаёт адрес первого и при новом вопросе. */
+const openedFiles = new Set<string>();
 // заставка держится, пока главная не готова целиком (src/state/splash.ts)
 keepSplash();
 
 type Route =
   | { name: 'home' }
   | { name: 'stitch'; pic: PackPicture; workId?: string; mystery?: boolean; canvas?: CanvasId }
-  | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string }
+  /** gift — тайна от друга (0.23.0): на «Готово» — записка; mystery — новая работа «Тайной», пока тайна не вышита */
+  | { name: 'stitchMine'; pattern: Pattern; title: string; workId?: string; gift?: GiftNote; mystery?: boolean }
   | { name: 'mine' }
   /** listed — готовая работа открыта из «Моих работ» или «Моих узоров», а не только что вышита */
-  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture; listed?: boolean }
+  | { name: 'done'; pattern: Pattern; title: string; caption?: string; workId: string; pic?: PackPicture; listed?: boolean; gift?: GiftNote }
   | { name: 'sign'; pattern: Pattern; workId: string }
   | { name: 'sheet' }
   | { name: 'bench' }
@@ -112,6 +119,30 @@ function Root() {
     return () => clearTimeout(t);
   }, []);
 
+  // «Тайна от друга», вариант Б (issue 145): игру открыли касанием файла тайны в мессенджере (Android) —
+  // сразу к тайне; не тайна или испорчена — строка, почему. Один файл — один раз: Linking отдаёт его адрес
+  // и при следующих вопросах
+  useEffect(() => {
+    let alive = true;
+    const open = async (url: string | null) => {
+      if (!isFileUrl(url) || openedFiles.has(url)) return;
+      openedFiles.add(url);
+      try {
+        const g = await openGift(await readIncoming(url), Date.now());
+        if (alive) go({ name: 'stitchMine', pattern: g.pattern, title: g.title, workId: g.workId, gift: g.gift, mystery: g.secret });
+      } catch (e) {
+        if (!(e instanceof GiftError)) logError('gift', e, 'incoming');
+        if (alive) Alert.alert(T.gift.open, T.gift.problem[e instanceof GiftError ? e.problem : 'broken']);
+      }
+    };
+    void Linking.getInitialURL().then(open, () => undefined);
+    const sub = Linking.addEventListener('url', (e) => void open(e.url));
+    return () => {
+      alive = false;
+      sub.remove();
+    };
+  }, []);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stack.length <= 1) return false;
@@ -144,17 +175,19 @@ function Root() {
       screen = (
         // карточка для библиотеки — инструмент владельца, только в закрытой веб-версии
         <MineScreen onBack={back} owner={Platform.OS === 'web'} onPlus={plus}
-          onStitch={(pattern, title, workId) => go({ name: 'stitchMine', pattern, title, workId })}
-          onDone={(pattern, title, workId) => go({ name: 'done', pattern, title, workId, listed: true })} />
+          onStitch={(pattern, title, workId, gift, mystery) => go({ name: 'stitchMine', pattern, title, workId, gift, mystery })}
+          onDone={(pattern, title, workId, gift) => go({ name: 'done', pattern, title, workId, listed: true, gift, caption: gift?.from ? T.gift.fromLine(gift.from) : undefined })} />
       );
       break;
     case 'stitchMine':
       screen = (
         <StitchScreen
           pattern={route.pattern} title={route.title} workId={route.workId} onBack={back}
+          mystery={route.mystery} secretTitle={route.gift ? T.gift.secretTitle(route.gift.from) : undefined}
           onStarted={(workId) => patch(route.k, { workId })}
           onSettings={() => go({ name: 'settings' })} onLooks={() => go({ name: 'looks' })}
-          onDone={(workId) => setStack((s) => [...s.slice(0, -1), entry({ name: 'done', pattern: route.pattern, title: route.title, workId })])}
+          onDone={(workId) => setStack((s) => [...s.slice(0, -1), entry({ name: 'done', pattern: route.pattern, title: route.title, workId, gift: route.gift,
+            caption: route.gift?.from ? T.gift.fromLine(route.gift.from) : undefined })])}
         />
       );
       break;
@@ -180,12 +213,12 @@ function Root() {
       const { pic } = route;
       // из списка готовых — «назад» к нему и «Вышить ещё раз»: карточка нынешней версии картинки
       screen = route.listed ? (
-        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
+        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic} gift={route.gift}
           onBack={back} onAgain={pic ? () => go({ name: 'picture', pic: pictureById(pic.id) ?? pic }) : undefined}
           onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })}
           onSign={() => go({ name: 'sign', pattern: route.pattern, workId: route.workId })} />
       ) : (
-        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic}
+        <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic} gift={route.gift}
           onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
           onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })}
           onSign={() => go({ name: 'sign', pattern: route.pattern, workId: route.workId })} />

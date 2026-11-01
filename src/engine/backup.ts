@@ -3,6 +3,7 @@
 // (docs/specs/2026-09-custom.md): без них их работы не открыть. Файл приходит извне, поэтому
 // проверяется строго: id работы и узора становятся именами файлов.
 import { base64Decode, base64Encode } from './base64';
+import { giftNote, type GiftNote } from './gift';
 import { type CanvasId, isCanvasId } from './looks';
 import { type Sign, signOf } from './signature';
 import { CANVAS, MAX_SIDE, MAX_THREADS } from './pattern';
@@ -41,6 +42,8 @@ export interface BackupMine {
   threads: { rgb: number; name: string }[];
   /** клетки, base64 */
   cells: string;
+  /** «Тайна от друга» (0.23.0): подпись и записка подарка */
+  gift?: GiftNote;
 }
 
 /** id работы и своего узора — латиница, цифры и дефис: из них получаются имена файлов. */
@@ -191,7 +194,7 @@ function workOk(w: unknown): BackupWork | null {
 
 function mineOk(m: unknown): BackupMine | null {
   if (!isObj(m)) return null;
-  const { key, title, created, w, h, threads, cells } = m;
+  const { key, title, created, w, h, threads, cells, gift } = m;
   if (typeof key !== 'string' || !MINE_KEY.test(key)) return null;
   if (typeof title !== 'string' || !title.trim() || title.length > 200) return null;
   if (!isTime(created) || !isSide(w) || !isSide(h)) return null;
@@ -210,5 +213,7 @@ function mineOk(m: unknown): BackupMine | null {
   } catch {
     return null;
   }
-  return { key, title: title.trim(), created, w, h, threads: th, cells };
+  // подпись и записка подарка — только строки, в пределах; испорченные — подарок без них
+  const note = isObj(gift) ? giftNote(typeof gift.from === 'string' ? gift.from : undefined, typeof gift.note === 'string' ? gift.note : undefined) : null;
+  return { key, title: title.trim(), created, w, h, threads: th, cells, ...(note ? { gift: note } : {}) };
 }

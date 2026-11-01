@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import type { Background } from '../engine/build/main';
 import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, MINE_THREADS, type MineBuild } from '../engine/build/mine';
+import { GiftError, type GiftNote } from '../engine/gift';
 import type { Simplify } from '../engine/build/simplify';
 import { estimateMinutes, type Pattern } from '../engine/pattern';
 import { mineAccess } from '../engine/plus';
@@ -13,8 +14,10 @@ import { T } from '../i18n';
 import { previewUri } from '../render/preview';
 import { billing } from '../state/billing';
 import { logError } from '../state/crashlog';
+import { openGift } from '../state/gift';
 import { deleteMine, listMine, loadMine, type MineEntry, mineKey, saveMine } from '../state/mine';
 import { downloadFiles, type Photo, PhotoError, pickPhoto, textBlob } from '../state/photo';
+import { pickFile } from '../state/pick';
 import { usePlayer } from '../state/player';
 import { useGate, usePlus } from '../state/plus';
 import { useSettings } from '../state/settings';
@@ -23,6 +26,7 @@ import { INTERNAL } from '../version';
 import { Button, Card, FONT_MAX, Screen, SectionTitle, Segmented, Txt } from '../ui/components';
 import { FrameEditor } from '../ui/FrameEditor';
 import { FrameView } from '../ui/FrameView';
+import { GiftForm } from '../ui/GiftForm';
 import { PatternCloser } from '../ui/PatternCloser';
 import { FONTS } from '../ui/theme';
 
@@ -48,10 +52,13 @@ const DEBOUNCE_MS = 250;
 
 export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   onBack: () => void;
-  /** открыть канву: узор, название, работа (нет — новая) */
-  onStitch: (pattern: Pattern, title: string, workId?: string) => void;
+  /**
+   * открыть канву: узор, название, работа (нет — новая); тайна от друга — с подписью и запиской, а пока
+   * не вышита — новая работа «Тайной» (0.23.0)
+   */
+  onStitch: (pattern: Pattern, title: string, workId?: string, gift?: GiftNote, mystery?: boolean) => void;
   /** «Готовая работа»: экран «Готово» с последней законченной работой узора */
-  onDone: (pattern: Pattern, title: string, workId: string) => void;
+  onDone: (pattern: Pattern, title: string, workId: string, gift?: GiftNote) => void;
   /** «Подробнее» о «Узорах+»: первый свой узор уже был */
   onPlus: () => void;
   /** закрытая веб-версия: карточка для библиотеки */
@@ -90,6 +97,11 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   const [framing, setFraming] = useState(false);
   // собранный узор вблизи (src/ui/PatternCloser.tsx)
   const [closer, setCloser] = useState(false);
+  // «Подарить тайной» (src/ui/GiftForm.tsx, 0.23.0): какой свой узор дарят
+  const [giftFor, setGiftFor] = useState<{ pattern: Pattern; title: string } | null>(null);
+  // «Открыть тайну от друга»: файл читается; не открылся — строка, почему
+  const [giftOpening, setGiftOpening] = useState(false);
+  const [giftError, setGiftError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry; done?: WorkEntry }[]>([]);
   const [sure, setSure] = useState<string | null>(null);
@@ -105,7 +117,10 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       const pattern = await loadMine(entry.id);
       // указатель работ — от свежих к старым: первая с этим узором и есть последняя
       const own = works.filter((w) => w.pattern === mineKey(entry.id));
-      rows.push({ entry, pattern, uri: pattern ? previewUri(pattern, 'done', 240) : null, work: own[0], done: own.find((w) => w.finished) });
+      const done = own.find((w) => w.finished);
+      // тайна от друга до последнего стежка — без превью: оно выдало бы картинку
+      const secret = !!entry.gift && !done;
+      rows.push({ entry, pattern, uri: pattern && !secret ? previewUri(pattern, 'done', 240) : null, work: own[0], done });
     }
     if (alive.current) setMine(rows);
   };
@@ -197,7 +212,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     setThreadsText(String(n));
   };
 
-  const stitch = async () => {
+  // «Вышивать» и «Подарить тайной»: узор сохраняется в «Мои узоры» и открывается канва или подарок
+  const save = async (then: (pattern: Pattern, name: string) => void) => {
     if (!built || building || opening || built.verdict.level === 'bad' || access === 'locked') return;
     setSaving(true);
     setError(null);
@@ -208,12 +224,34 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       // первый свой узор там, где «Узоры+» запирают, — бесплатный; следующий новый — по подписке
       if (gate && !player.mineFreeUsed) update({ mineFreeUsed: today });
       void refresh();
-      onStitch(pattern, name);
+      then(pattern, name);
     } catch (e) {
       logError('mine', e, 'save');
       setError(T.mine.saveError);
     } finally {
       if (alive.current) setSaving(false);
+    }
+  };
+
+  const stitch = () => save((pattern, name) => onStitch(pattern, name));
+  const giveNew = () => save((pattern, name) => setGiftFor({ pattern, title: name }));
+
+  // «Открыть тайну от друга» (0.23.0): файл → «Мои узоры» и сразу канва «Тайной»; тот же файл — та же тайна
+  const openGiftFile = async () => {
+    if (giftOpening) return;
+    setGiftError(null);
+    try {
+      const bytes = await pickFile();
+      if (!bytes) return;
+      setGiftOpening(true);
+      const g = await openGift(bytes, Date.now());
+      void refresh();
+      onStitch(g.pattern, g.title, g.workId, g.gift, g.secret);
+    } catch (e) {
+      if (!(e instanceof GiftError)) logError('gift', e, 'open');
+      if (alive.current) setGiftError(T.gift.problem[e instanceof GiftError ? e.problem : 'broken']);
+    } finally {
+      if (alive.current) setGiftOpening(false);
     }
   };
 
@@ -246,6 +284,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     );
   }
   if (closer && built && !building) return <PatternCloser pattern={built.pattern} onBack={() => setCloser(false)} />;
+  if (giftFor) return <GiftForm pattern={giftFor.pattern} title={giftFor.title} onBack={() => setGiftFor(null)} />;
   const k = photo ? Math.min(photoW / photo.raster.width, photoH / photo.raster.height) : 1;
 
   return (
@@ -345,6 +384,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                 <>
                   <Button label={T.mine.stitch} onPress={() => void stitch()} disabled={!built || building || saving || opening || built.verdict.level === 'bad'}
                     style={styles.go} testID="mine-stitch" />
+                  <Button kind="secondary" label={T.gift.give} onPress={() => void giveNew()} disabled={!built || building || saving || opening || built.verdict.level === 'bad'}
+                    testID="mine-gift-new" />
                   {access === 'free' ? <Txt dim style={styles.small} testID="mine-free">{T.mine.free}</Txt> : null}
                 </>
               )}
@@ -358,27 +399,38 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
           </View>
         )}
         <SectionTitle>{T.mine.list}</SectionTitle>
+        <Button small kind="secondary" label={giftOpening ? T.gift.opening : T.gift.open} onPress={() => void openGiftFile()} disabled={giftOpening} testID="mine-gift-open" />
+        {giftError ? <Txt style={{ color: theme.danger }} testID="mine-gift-error">{giftError}</Txt> : null}
         {mine.length === 0 ? <Txt dim>{T.mine.empty}</Txt> : null}
         <View style={styles.list}>
-          {mine.map(({ entry, uri, pattern, work, done }) => (
-            <Card key={entry.id} style={styles.item} testID={`mine-item-${entry.id}`}>
-              {uri ? <Image source={{ uri }} style={styles.itemImg} resizeMode="contain" /> : null}
-              <View style={styles.itemText}>
-                <Txt bold>{entry.title}</Txt>
-                <Txt dim style={styles.small}>{T.common.meta(entry.w, entry.h, entry.threads, pattern ? estimateMinutes(pattern) : 0)}</Txt>
-                <View style={styles.row}>
-                  {pattern ? (
-                    <Button small label={work && !work.finished ? T.mine.continue(Math.floor((work.done * 100) / Math.max(1, work.total))) : work ? T.mine.again : T.mine.stitch}
-                      onPress={() => onStitch(pattern, entry.title, work && !work.finished ? work.id : undefined)} testID={`mine-open-${entry.id}`} />
-                  ) : null}
-                  {pattern && done ? (
-                    <Button small kind="secondary" label={T.mine.done} onPress={() => onDone(pattern, entry.title, done.id)} testID={`mine-done-${entry.id}`} />
-                  ) : null}
-                  <Button small kind="ghost" label={sure === entry.id ? T.mine.removeSure : T.mine.remove} onPress={() => void remove(entry.id)} testID={`mine-remove-${entry.id}`} />
+          {mine.map(({ entry, uri, pattern, work, done }) => {
+            // тайна от друга до последнего стежка — знак вопроса и подпись, без названия и превью
+            const secret = !!entry.gift && !done;
+            return (
+              <Card key={entry.id} style={styles.item} testID={`mine-item-${entry.id}`}>
+                {uri ? <Image source={{ uri }} style={styles.itemImg} resizeMode="contain" /> : null}
+                {secret ? <View style={[styles.itemImg, styles.secret, { backgroundColor: theme.surfaceAlt }]}><Txt title style={styles.secretMark}>?</Txt></View> : null}
+                <View style={styles.itemText}>
+                  <Txt bold>{secret ? T.gift.secretTitle(entry.gift?.from) : entry.title}</Txt>
+                  {!secret && entry.gift?.from ? <Txt dim style={styles.small}>{T.gift.fromLine(entry.gift.from)}</Txt> : null}
+                  <Txt dim style={styles.small}>{T.common.meta(entry.w, entry.h, entry.threads, pattern ? estimateMinutes(pattern) : 0)}</Txt>
+                  <View style={styles.row}>
+                    {pattern ? (
+                      <Button small label={work && !work.finished ? T.mine.continue(Math.floor((work.done * 100) / Math.max(1, work.total))) : secret ? T.gift.start : work ? T.mine.again : T.mine.stitch}
+                        onPress={() => onStitch(pattern, entry.title, work && !work.finished ? work.id : undefined, entry.gift, secret)} testID={`mine-open-${entry.id}`} />
+                    ) : null}
+                    {pattern && done ? (
+                      <Button small kind="secondary" label={T.mine.done} onPress={() => onDone(pattern, entry.title, done.id, entry.gift)} testID={`mine-done-${entry.id}`} />
+                    ) : null}
+                    {pattern && !entry.gift ? (
+                      <Button small kind="secondary" label={T.gift.give} onPress={() => setGiftFor({ pattern, title: entry.title })} testID={`mine-gift-${entry.id}`} />
+                    ) : null}
+                    <Button small kind="ghost" label={sure === entry.id ? T.mine.removeSure : T.mine.remove} onPress={() => void remove(entry.id)} testID={`mine-remove-${entry.id}`} />
+                  </View>
                 </View>
-              </View>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </View>
       </ScrollView>
     </Screen>
@@ -411,6 +463,8 @@ const styles = StyleSheet.create({
   preview: { width: '100%', aspectRatio: 1.3, borderRadius: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   previewImg: { width: '100%', height: '100%' },
   previewTap: { width: '100%', height: '100%' },
+  secret: { alignItems: 'center', justifyContent: 'center' },
+  secretMark: { fontSize: 40 },
   opening: { alignSelf: 'stretch', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   openingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   building: { position: 'absolute', alignItems: 'center', gap: 6, padding: 10, borderRadius: 6, backgroundColor: 'rgba(247, 247, 242, 0.85)' },

@@ -190,10 +190,11 @@ describe('покупка навсегда (0.18.1)', () => {
     return { b: fakeBilling(() => raw, (r) => { raw = r; }, () => 0), set: (m: string) => { raw = JSON.stringify({ ...JSON.parse(raw ?? '{}'), mode: m }); } };
   };
 
-  test('заглушка: цены — не 99 и 299 ₽ из описания; купленное остаётся и после «перезагрузки»', async () => {
+  test('заглушка: цены — не 99 и 399 ₽ из описания; купленное остаётся и после «перезагрузки»', async () => {
     const { b } = stub('ok');
     expect(await b.lookPrices()).toEqual(FAKE_LOOK_PRICES);
     expect(FAKE_LOOK_PRICES.map((p) => p.price)).not.toContain('99 ₽');
+    expect(FAKE_LOOK_PRICES.map((p) => p.price)).not.toContain('399 ₽');
     expect(await b.looks()).toEqual([]);
     expect(await b.buyLook(productOf('baguette'))).toEqual({ ok: true, owned: [productOf('baguette')] });
     expect(await b.buyLook(ALL_LOOKS)).toEqual({ ok: true, owned: [productOf('baguette'), ALL_LOOKS] });

@@ -54,4 +54,6 @@ export const KEYS = {
   looks: 'uzory.looks.v1',
   /** запуски и оборвавшиеся сессии — строкой в отчёт об ошибке; никуда не уходит сам (src/state/sessions.ts) */
   sessions: 'uzory.sessions.v1',
+  /** «Тайна от друга»: подпись отправителя из прошлого раза (src/state/gift.ts, 0.23.0) */
+  gift: 'uzory.gift.v1',
 };
