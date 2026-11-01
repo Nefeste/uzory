@@ -23,6 +23,7 @@ import { INTERNAL } from '../version';
 import { Button, Card, FONT_MAX, Screen, SectionTitle, Segmented, Txt } from '../ui/components';
 import { FrameEditor } from '../ui/FrameEditor';
 import { FrameView } from '../ui/FrameView';
+import { PatternCloser } from '../ui/PatternCloser';
 import { FONTS } from '../ui/theme';
 
 type SizeKey = keyof typeof MINE_SIZES;
@@ -84,10 +85,11 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   const [shot, setShot] = useState(0);
   // снимок выбран и читается — секунды у снимка в 50 Мп: экран говорит, что занят
   const [opening, setOpening] = useState(false);
-  // палец на снимке в экране кадра: узор собирается, когда отпустят
-  const [touching, setTouching] = useState(false);
-  // экран кадра (src/ui/FrameEditor.tsx): сразу после выбора снимка и по «Изменить кадр»
+  // экран кадра (src/ui/FrameEditor.tsx): сразу после выбора снимка и по «Изменить кадр»; пока он открыт,
+  // узор не собирается (владелец 01.11.2026: на каждую правку рамки пересчёт — на телефоне медленно)
   const [framing, setFraming] = useState(false);
+  // собранный узор вблизи (src/ui/PatternCloser.tsx)
+  const [closer, setCloser] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry; done?: WorkEntry }[]>([]);
   const [sure, setSure] = useState<string | null>(null);
@@ -111,12 +113,12 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     void refresh();
   }, []);
 
-  // сборка узора — после паузы в правках и когда рамку отпустили: сборка занимает поток JS, и
-  // палец на рамке ждал бы её; пока узор не для этих правок, идёт «Собираю…»
+  // сборка узора — когда экран кадра закрыт («Собрать узор»), и после паузы в правках: сборка занимает поток
+  // JS, и палец на рамке ждал бы её; пока узор не для этих правок, идёт «Собираю…»
   const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify} ${main?.join(',') ?? '-'} ${bg ?? '-'}` : '';
   const building = !!photo && result?.key !== inputKey;
   useEffect(() => {
-    if (!photo || touching) return;
+    if (!photo || framing) return;
     const t = setTimeout(() => {
       try {
         const build = buildMine(photo.raster, { crop, side, threads, simplify, ...(main ? { main, ...(bg ? { background: bg } : {}) } : {}) });
@@ -126,7 +128,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [photo, crop, side, threads, simplify, main, bg, inputKey, touching]);
+  }, [photo, crop, side, threads, simplify, main, bg, inputKey, framing]);
 
   const built = result?.build ?? null;
   // превью — заново на каждую сборку: у несохранённого узора ключ один (`mine@1`), и из памяти превью было бы прежним
@@ -240,9 +242,10 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     return (
       <FrameEditor key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height}
         crop={crop} onCrop={setCrop} main={main} onMain={setMain} onToggleMain={toggleMain} onWhole={() => setCrop([0, 0, 1, 1])}
-        preview={building ? null : preview} building={building} onActive={setTouching} onDone={() => setFraming(false)} />
+        onDone={() => setFraming(false)} />
     );
   }
+  if (closer && built && !building) return <PatternCloser pattern={built.pattern} onBack={() => setCloser(false)} />;
   const k = photo ? Math.min(photoW / photo.raster.width, photoH / photo.raster.height) : 1;
 
   return (
@@ -277,7 +280,12 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
             </View>
             <View style={[styles.col, wide && styles.colWide, wide && styles.colRight]}>
               <View style={[styles.preview, { backgroundColor: theme.surfaceAlt }]}>
-                {preview && !opening ? <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-preview" /> : null}
+                {preview && !opening ? (
+                  // касание превью — узор ближе
+                  <Pressable onPress={() => setCloser(true)} disabled={building} accessibilityRole="button" accessibilityLabel={T.mine.closer} style={styles.previewTap}>
+                    <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-preview" />
+                  </Pressable>
+                ) : null}
                 {building && !opening ? (
                   <View style={styles.building} testID="mine-building">
                     <ActivityIndicator color={theme.accent} />
@@ -292,6 +300,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                     <Txt bold style={{ color: verdictColor }}>{T.mine.verdict[built.verdict.level]}</Txt>
                     {built.verdict.issues.map((i) => <Txt key={i} style={styles.small}>{T.mine.issues[i]}</Txt>)}
                   </View>
+                  <Button small kind="secondary" label={T.mine.closer} onPress={() => setCloser(true)} disabled={building} testID="mine-closer-open" />
                 </>
               ) : null}
               <SectionTitle>{T.mine.size}</SectionTitle>
@@ -401,6 +410,7 @@ const styles = StyleSheet.create({
   small: { fontSize: 13 },
   preview: { width: '100%', aspectRatio: 1.3, borderRadius: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   previewImg: { width: '100%', height: '100%' },
+  previewTap: { width: '100%', height: '100%' },
   opening: { alignSelf: 'stretch', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   openingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   building: { position: 'absolute', alignItems: 'center', gap: 6, padding: 10, borderRadius: 6, backgroundColor: 'rgba(247, 247, 242, 0.85)' },

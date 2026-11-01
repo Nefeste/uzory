@@ -4,26 +4,27 @@
 // Android отнимала палец. Жесты — react-native-gesture-handler, как у канвы, где пальцы на телефоне
 // владельца работают: один палец двигает рамку или овал главного, за уголок — тянет, два пальца — ближе
 // и дальше (на овале — овал больше и меньше). Что берёт палец и куда двигается рамка — чистые функции
-// src/engine/build/crop.ts. Внизу — маленькое превью узора этого кадра: собирается, когда палец отпустили.
+// src/engine/build/crop.ts. Узор здесь не собирается (владелец 01.11.2026: «пока человек ещё не выделил
+// рамку и не выбрал овал, при каждом мини-изменении происходит пересчёт предпросмотра, на телефоне это
+// медленно»): сначала рамка и главное, сборка — один раз, по «Собрать узор».
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Image, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { dragFrame, type FrameGrip, gripAt, insideOval, pinchCrop, scaleRect, zoomCrop } from '../engine/build/crop';
 import type { Crop } from '../engine/build/mine';
 import { T } from '../i18n';
-import { useSettings } from '../state/settings';
 import { Button, Screen, Txt } from './components';
 import { FrameView } from './FrameView';
 
 /** Уголок ловит палец на столько точек вокруг: сам он — 26. */
 const GRAB = 34;
-/** Место под кнопки и превью внизу экрана, точек. */
-const BELOW = 236;
+/** Место под подсказку и кнопки внизу экрана, точек. */
+const BELOW = 260;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
-export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, onToggleMain, onWhole, preview, building, onActive, onDone }: {
+export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, onToggleMain, onWhole, onDone }: {
   uri: string;
   /** размер снимка, точек */
   width: number;
@@ -34,14 +35,9 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
   onMain: (c: Crop) => void;
   onToggleMain: () => void;
   onWhole: () => void;
-  /** превью узора этого кадра; нет — ещё не собран */
-  preview: string | null;
-  building: boolean;
-  /** палец на снимке (true) и отпущен (false): пока держат, узор не собирается */
-  onActive: (active: boolean) => void;
+  /** кадр готов — к узору: он соберётся по этому кадру и главному */
   onDone: () => void;
 }) {
-  const { theme } = useSettings();
   const { width: ww, height: wh } = useWindowDimensions();
   const k = Math.min((ww - 32) / width, Math.max(160, wh - BELOW - 120) / height);
   const dw = Math.max(1, Math.round(width * k));
@@ -59,7 +55,6 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
     .onBegin((e) => {
       const g = gripAt(e.x, e.y, crop, main, dw, dh, GRAB);
       grip.set({ g, start: g.target === 'main' && main ? main : crop });
-      onActive(true);
     })
     .onUpdate((e) => {
       const d = grip.get();
@@ -67,7 +62,6 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
     })
     .onFinalize(() => {
       grip.set(null);
-      onActive(false);
     });
   const pinch = Gesture.Pinch()
     .runOnJS(true)
@@ -76,7 +70,6 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
       const onOval = !!main && insideOval(e.focalX / dw, e.focalY / dh, main);
       pinchAt.set({ target: onOval ? 'main' : 'crop', start: onOval && main ? main : crop });
       grip.set(null);
-      onActive(true);
     })
     .onUpdate((e) => {
       const p = pinchAt.get();
@@ -85,7 +78,6 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
     })
     .onFinalize(() => {
       pinchAt.set(null);
-      onActive(false);
     });
   const gesture = Gesture.Simultaneous(pan, pinch);
 
@@ -115,18 +107,14 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
           </View>
         </GestureDetector>
         <View style={styles.below}>
-          <View style={[styles.preview, { backgroundColor: theme.surfaceAlt }]}>
-            {preview ? <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" testID="mine-frame-preview" /> : null}
-            {building ? <ActivityIndicator style={styles.spinner} color={theme.accent} /> : null}
+          <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
+          <View style={styles.row}>
+            <Button small kind="secondary" label={T.mine.whole} onPress={onWhole} testID="mine-whole" />
+            <Button small kind={main ? 'ghost' : 'secondary'} label={main ? T.mine.mainOff : T.mine.mainOn} onPress={onToggleMain} testID="mine-main-toggle" />
           </View>
-          <View style={styles.side}>
-            <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
-            <View style={styles.row}>
-              <Button small kind="secondary" label={T.mine.whole} onPress={onWhole} testID="mine-whole" />
-              <Button small kind={main ? 'ghost' : 'secondary'} label={main ? T.mine.mainOff : T.mine.mainOn} onPress={onToggleMain} testID="mine-main-toggle" />
-            </View>
-            {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
-          </View>
+          {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
+          <Button label={T.mine.frameBuild} onPress={onDone} testID="mine-frame-build" />
+          <Txt dim style={styles.small}>{T.mine.frameLater}</Txt>
         </View>
       </View>
     </Screen>
@@ -135,11 +123,7 @@ export function FrameEditor({ uri, width, height, crop, onCrop, main, onMain, on
 
 const styles = StyleSheet.create({
   body: { flex: 1, alignItems: 'center', paddingTop: 12, gap: 12 },
-  below: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, alignSelf: 'stretch' },
-  preview: { width: 132, height: 132, borderRadius: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  previewImg: { width: '100%', height: '100%' },
-  spinner: { position: 'absolute' },
-  side: { flex: 1, gap: 8 },
+  below: { gap: 8, paddingHorizontal: 16, alignSelf: 'stretch' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   small: { fontSize: 13 },
 });

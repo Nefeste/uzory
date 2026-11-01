@@ -1035,9 +1035,11 @@ try {
   await page.getByTestId('mine-pick').click();
   const sent = requests.length;
   await (await chooser).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
-  // сразу после выбора — экран кадра (0.19.0): снимок на весь экран, внизу — превью узора этого кадра
+  // сразу после выбора — экран кадра (0.19.0): снимок на весь экран; узор здесь не собирается (0.22.0,
+  // владелец 01.11.2026: на телефоне пересчёт на каждую правку медленный) — превью узора на нём нет
   await page.getByTestId('mine-frame-screen').waitFor({ timeout: 30_000 });
-  await page.getByTestId('mine-frame-preview').waitFor({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  const framePreviews = await page.getByTestId('mine-frame-preview').count();
   // колёсико над снимком — рамка ближе; мышью за уголок — рамка уже
   const photoBox = (await page.getByTestId('mine-photo').boundingBox())!;
   await page.mouse.move(photoBox.x + photoBox.width / 2, photoBox.y + photoBox.height / 2);
@@ -1051,11 +1053,29 @@ try {
   const shrunk = (await page.getByTestId('mine-frame').boundingBox())!;
   check(Math.abs(frame.width - shrunk.width - 40) < 3 && Math.abs(frame.x - shrunk.x) < 2,
     `за уголок рамка стала уже на ${Math.round(frame.width - shrunk.width)} точек, левый край на месте`);
-  await page.getByTestId('mine-frame-done').click();
+  // «Собрать узор» — и только теперь «Собираю узор…»: на экране кадра узор не собирался
+  await page.getByTestId('mine-frame-build').click();
+  const buildsAfter = await page.getByTestId('mine-building').waitFor({ state: 'attached', timeout: 3000 }).then(() => true, () => false);
   await page.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
+  check(framePreviews === 0 && buildsAfter, `экран кадра без сборки: превью узора на нём — ${framePreviews}, узор собирается после «Собрать узор» — ${buildsAfter ? 'да' : 'нет'}`);
   const meta0 = await page.getByTestId('mine-meta').innerText();
   // размер сразу — «большая», 120 клеток (решение владельца 01.11.2026)
   check(/^120 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
+  // узор ближе (0.22.0; владелец 01.11.2026): тот же узор вышитым на канве без кисти — колёсико приближает,
+  // «назад» — снова приговор
+  await page.getByTestId('mine-closer-open').click();
+  await page.locator('[data-testid="mine-closer"] canvas').first().waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(800);
+  const closerBox = (await page.getByTestId('mine-closer').boundingBox())!;
+  const closerFar = await page.getByTestId('mine-closer').screenshot();
+  await page.mouse.move(closerBox.x + closerBox.width / 2, closerBox.y + closerBox.height / 2);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -240);
+  await page.waitForTimeout(800);
+  const closerNear = await page.getByTestId('mine-closer').screenshot();
+  await page.screenshot({ path: join(OUT, '09-mine-closer.png') });
+  await page.getByTestId('back').click();
+  const backToVerdict = await page.getByTestId('mine-verdict').waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  check(!closerFar.equals(closerNear) && backToVerdict, `узор ближе: колёсико приблизило узор (${await frameDiff(closerFar, closerNear)}), «назад» — снова приговор`);
   // превью узора — картинка этой сборки (до 0.19.0 из памяти превью оставалось первым: ключ у
   // несохранённого узора один, `mine@1`)
   const previewSrc = async () => (await page.getByTestId('mine-preview').locator('img').first().getAttribute('src')) ?? '';
