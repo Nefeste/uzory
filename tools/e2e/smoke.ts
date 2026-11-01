@@ -101,6 +101,13 @@ const check = (ok: boolean, what: string) => {
 };
 
 /**
+ * Картинку «Поделиться» ждать до минуты: на раннере GitHub графика программная, и картинка первой работы
+ * крестиками (1620 × 1701) рисовалась там дольше 15 с — тег v0.24.0 упал на «Стежки на картинке»
+ * (01.11.2026); на машине разработчика — секунда-две. Ровным цветом та же картинка — 8,5 с на раннере.
+ */
+const SHARE_MS = 60_000;
+
+/**
  * Число, когда оно перестало меняться: пять замеров подряд через 200 мс, не дольше 10 с. Список «Моих узоров»
  * читается после открытия экрана (`MineScreen`, `refresh`): кнопки экрана уже есть, а строк ещё нет — на
  * раннере GitHub счёт сразу после «назад» дал 0 тайн вместо двух (CI, 01.11.2026).
@@ -785,7 +792,7 @@ try {
   check(new RegExp(`^${firstStitches} стеж(ок|ка|ков) · \\d+ минут[аы]?$`).test(doneStats), `«Готово»: «${doneStats}» — стежки и минуты со стежками`);
   await page.screenshot({ path: join(OUT, '03-done.png') });
   // «Поделиться» в вебе — файл PNG: работа в рамке, под ней подпись
-  const shared = page.waitForEvent('download', { timeout: 15_000 });
+  const shared = page.waitForEvent('download', { timeout: SHARE_MS });
   await page.getByTestId('share').click();
   const png = await shared.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
   const dims = png && png.bytes.subarray(1, 4).toString() === 'PNG' ? [png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)] : [0, 0];
@@ -857,7 +864,7 @@ try {
   await page.waitForTimeout(200);
   await page.getByTestId('back').click();
   await page.getByTestId('replay').waitFor({ timeout: 10_000 });
-  const sharedAgain = page.waitForEvent('download', { timeout: 15_000 });
+  const sharedAgain = page.waitForEvent('download', { timeout: SHARE_MS });
   await page.getByTestId('share').click();
   const pngAgain = await sharedAgain.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
   const lookFirst = png ? await lookAtShare(png.bytes, first) : null;
@@ -1408,7 +1415,7 @@ try {
       'uzory.settings.v1': JSON.stringify({ frame: 'hoop' }),
     });
     const shareNow = async () => {
-      const got = pl.waitForEvent('download', { timeout: 15_000 });
+      const got = pl.waitForEvent('download', { timeout: SHARE_MS });
       await pl.getByTestId('share').click();
       return got.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
     };
@@ -1774,7 +1781,7 @@ try {
     '«Готово» картины: «О картине» — автор с годами жизни, год, рассказ, подпись и источник');
   await page2.screenshot({ path: join(OUT, '03-done-about.png') });
   await page2.getByTestId('done-about-close').click();
-  const shared2 = page2.waitForEvent('download', { timeout: 20_000 });
+  const shared2 = page2.waitForEvent('download', { timeout: SHARE_MS });
   await page2.getByTestId('share').click();
   const png2 = await shared2.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
   const dims2 = png2 ? [png2.bytes.readUInt32BE(16), png2.bytes.readUInt32BE(20)] : [0, 0];
@@ -1813,7 +1820,7 @@ try {
     const pt = await cellPoint(pg, gribok, gTail.last);
     await pg.mouse.click(pt.x, pt.y);
     const done = await pg.getByTestId('replay').waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    const dl = done ? pg.waitForEvent('download', { timeout: 15_000 }) : null;
+    const dl = done ? pg.waitForEvent('download', { timeout: SHARE_MS }) : null;
     if (done) await pg.getByTestId('share').click();
     const bytes = dl ? await dl.then(async (d) => readFileSync((await d.path())!)).catch(() => null) : null;
     await ctx.close();
