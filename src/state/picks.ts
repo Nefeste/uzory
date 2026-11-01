@@ -4,19 +4,23 @@
 // ассистенту текстом (src/state/decisions.ts), и он ставит `approved` в карточки. Только в сборках для
 // проверки (0.x).
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cleanNote, type Pick, PICKS } from './decisions';
+import { cleanNote, cleanTune, type Pick, PICKS, type Tune } from './decisions';
 import { KEYS, loadJson, saveJson } from './storage';
 
-export type { Pick } from './decisions';
+export type { Pick, Tune } from './decisions';
 
 export function usePicks(): {
   picks: Readonly<Record<string, Pick>>;
   setPick: (key: string, v: Pick | null) => void;
   notes: Readonly<Record<string, string>>;
   setNote: (key: string, text: string) => void;
+  /** настройки, при которых владелец согласен (0.24.1): пустые — как сейчас */
+  tunes: Readonly<Record<string, Tune>>;
+  setTune: (key: string, t: Tune | null) => void;
 } {
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [tunes, setTunes] = useState<Record<string, Tune>>({});
   // комментарий записывается и тогда, когда лист уже закрывается и поле уходит вместе с ним:
   // запись не ждёт состояния экрана
   const notesNow = useRef<Record<string, string>>({});
@@ -34,6 +38,14 @@ export function usePicks(): {
       }
       notesNow.current = { ...out, ...notesNow.current };
       setNotes(notesNow.current);
+    });
+    void loadJson<Record<string, unknown>>(KEYS.tunes).then((raw) => {
+      const out: Record<string, Tune> = {};
+      for (const [id, v] of Object.entries(raw ?? {})) {
+        const t = typeof v === 'object' && v ? cleanTune(v as Tune) : undefined;
+        if (t) out[id] = t;
+      }
+      setTunes((cur) => ({ ...out, ...cur }));
     });
   }, []);
   const setPick = useCallback((id: string, v: Pick | null) => {
@@ -55,5 +67,15 @@ export function usePicks(): {
     saveJson(KEYS.notes, next);
     setNotes(next);
   }, []);
-  return { picks, setPick, notes, setNote };
+  const setTune = useCallback((id: string, t: Tune | null) => {
+    setTunes((prev) => {
+      const next = { ...prev };
+      const clean = t ? cleanTune(t) : undefined;
+      if (clean) next[id] = clean;
+      else delete next[id];
+      saveJson(KEYS.tunes, next);
+      return next;
+    });
+  }, []);
+  return { picks, setPick, notes, setNote, tunes, setTune };
 }

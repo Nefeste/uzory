@@ -13,7 +13,7 @@ import { estimateMinutes } from '../engine/pattern';
 import { patternStats } from '../engine/stats';
 import { T } from '../i18n';
 import { copyText } from '../state/clip';
-import { decisionGroups, NOTE_MAX, PICKS, pickKey } from '../state/decisions';
+import { decisionGroups, NOTE_MAX, PICKS, pickKey, TUNE_SIDE, TUNE_THREADS, type Tune, tuneText } from '../state/decisions';
 import { patternOf, pictures, rebuiltIds } from '../state/library';
 import { type Pick, usePicks } from '../state/picks';
 import { usePlayer } from '../state/player';
@@ -30,6 +30,9 @@ interface Info {
   uri: string | null;
   meta: string;
   stats: string;
+  /** клеток по длинной стороне и нитей у узора сейчас — от них «Настроить узор» */
+  side: number;
+  threads: number;
 }
 
 /** Посчитанные карточки — на всё время работы: лист открывают снова и снова. */
@@ -45,6 +48,8 @@ function infoOf(pic: PackPicture): Info {
       uri: previewUri(p, 'done', 480),
       meta: `${T.common.sizes[pic.size]} · ${T.common.meta(p.w, p.h, p.threads.length, estimateMinutes(p))}`,
       stats: T.sheet.stats(st.singles.toFixed(1), st.small.toFixed(1), Number.isFinite(st.minDelta) ? st.minDelta.toFixed(3) : '—'),
+      side: Math.max(p.w, p.h),
+      threads: p.threads.length,
     };
     infos.set(key, info);
   }
@@ -85,10 +90,85 @@ function NoteField({ id, store, title, value, onCommit }: { id: string; store: s
   );
 }
 
+type Level = 'same' | 0 | 1 | 2;
+const LEVELS: Level[] = ['same', 0, 1, 2];
+/**
+ * Коллекции, чьи узоры собираются из картинки, — им «Настроить узор». Орнаменты и «Детям» нарисованы
+ * (`drawn`), у старинных схем клетки — свои, упрощения нет: у них только нити (tools/content/decisions.ts).
+ */
+const TUNABLE: ReadonlySet<CollectionId> = new Set<CollectionId>(['painting', 'tales', 'russia', 'flowers', 'nature', 'cities', 'schemes']);
+
+/**
+ * «Настроить узор» (0.24.1; владелец 01.11.2026: «выбрать и сказать, что вот столько клеток если сделать, то
+ * рисунок принимается»): клеток, нитей и упрощение. Сразу — как у узора сейчас; изменённое запоминается у
+ * версии картинки и уходит в текст решений. Узор здесь не пересобирается: пересоберёт ассистент.
+ */
+function TuneBox({ id, store, info, chart, tune, onTune }: {
+  id: string; store: string; info: Info;
+  /** старинная схема: только нити */
+  chart: boolean;
+  tune: Tune | undefined; onTune: (key: string, t: Tune | null) => void;
+}) {
+  const { theme } = useSettings();
+  const [open, setOpen] = useState(false);
+  const [cells, setCells] = useState<string | null>(null);
+  const [threads, setThreads] = useState<string | null>(null);
+  // число из поля: пусто или вне пределов — как сейчас
+  const read = (text: string | null, now: number, [lo, hi]: readonly [number, number], set: number | undefined) => {
+    if (text === null) return set;
+    const n = Number(text);
+    return Number.isInteger(n) && n >= lo && n <= hi && n !== now ? n : undefined;
+  };
+  const save = (patch: { cells?: string | null; threads?: string | null; simplify?: Level }) => {
+    const size = read(patch.cells !== undefined ? patch.cells : cells, info.side, TUNE_SIDE, tune?.size);
+    const th = read(patch.threads !== undefined ? patch.threads : threads, info.threads, TUNE_THREADS, tune?.threads);
+    const lv = patch.simplify !== undefined ? patch.simplify : tune?.simplify ?? 'same';
+    onTune(store, { ...(size !== undefined ? { size } : {}), ...(th !== undefined ? { threads: th } : {}), ...(lv !== 'same' ? { simplify: lv } : {}) });
+    setCells(null);
+    setThreads(null);
+  };
+  const input = [styles.num, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt, fontFamily: FONTS.body }];
+  const set = tune ? tuneText(tune, T.sheet.tuneWords) : '';
+  return (
+    <View style={styles.tune}>
+      <View style={styles.tuneRow}>
+        <Button small kind="ghost" label={open ? T.sheet.tuneHide : T.sheet.tune} onPress={() => setOpen((o) => !o)} testID={`tune-open-${id}`} />
+        {set ? <Txt bold style={styles.small} testID={`tune-text-${id}`}>{T.sheet.tuneSet(set)}</Txt> : null}
+      </View>
+      {open ? (
+        <>
+          <View style={styles.tuneRow}>
+            {!chart ? (
+              <>
+                <Txt>{T.sheet.tuneCells}</Txt>
+                <TextInput value={cells ?? String(tune?.size ?? info.side)} onChangeText={(t) => setCells(t.replace(/\D/g, ''))} onBlur={() => save({ cells })}
+                  onSubmitEditing={() => save({ cells })} keyboardType="number-pad" maxLength={3} maxFontSizeMultiplier={FONT_MAX} testID={`tune-cells-${id}`} style={input} />
+              </>
+            ) : null}
+            <Txt>{T.sheet.tuneThreads}</Txt>
+            <TextInput value={threads ?? String(tune?.threads ?? info.threads)} onChangeText={(t) => setThreads(t.replace(/\D/g, ''))} onBlur={() => save({ threads })}
+              onSubmitEditing={() => save({ threads })} keyboardType="number-pad" maxLength={2} maxFontSizeMultiplier={FONT_MAX} testID={`tune-threads-${id}`} style={input} />
+          </View>
+          {!chart ? (
+            <>
+              <Txt dim style={styles.small}>{T.sheet.tuneSimplify}</Txt>
+              <Segmented<string> value={String(tune?.simplify ?? 'same')} testID={`tune-simplify-${id}`}
+                onChange={(v) => save({ simplify: v === 'same' ? 'same' : (Number(v) as 0 | 1 | 2) })}
+                options={LEVELS.map((l) => ({ id: String(l), label: T.sheet.tuneLevels[l] }))} />
+            </>
+          ) : null}
+          {set ? <Button small kind="ghost" label={T.sheet.tuneReset} onPress={() => onTune(store, null)} testID={`tune-reset-${id}`} /> : null}
+          <Txt dim style={styles.small}>{T.sheet.tuneNote}</Txt>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (pic: PackPicture, workId?: string) => void }) {
   const { theme } = useSettings();
   const { today } = usePlayer();
-  const { picks, setPick, notes, setNote } = usePicks();
+  const { picks, setPick, notes, setNote, tunes, setTune } = usePicks();
   const [filter, setFilter] = useState<Filter>('all');
   // коллекция — чтобы отбирать по частям: двести картинок за раз не отметить
   const [coll, setColl] = useState<CollectionId | 'all'>('all');
@@ -129,6 +209,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const count = (v: Pick) => rows.filter((pic) => picks[pickKey(pic)] === v).length;
   const marked = rows.filter((pic) => picks[pickKey(pic)]).length;
   const noted = rows.filter((pic) => notes[pickKey(pic)]).length;
+  const tuned = rows.filter((pic) => tunes[pickKey(pic)]).length;
   const inColl = coll === 'all' ? rows : rows.filter((pic) => pic.collection === coll);
   // «Без «да»» — картинки не для выпуска: без «да» владельца или музейные без лицензии (`trial`)
   const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pickKey(pic)] || stay.has(pic.id))
@@ -139,14 +220,14 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const colls = COLLECTIONS.map((c) => ({ id: c, n: rows.filter((pic) => pic.collection === c).length })).filter((c) => c.n > 0);
   // «Название (id@v) — «комментарий»»: владельцу — узнать картинку, ассистенту — найти карточку, версию и что поправить
   const copy = async () => {
-    const text = T.sheet.picksText(APP_VERSION, today, decisionGroups(rows, picks, notes, T.sheet));
+    const text = T.sheet.picksText(APP_VERSION, today, decisionGroups(rows, picks, notes, T.sheet, tunes));
     setCopied({ ok: await copyText(text), text });
   };
 
   const header = (
     <View style={styles.head}>
       <Txt dim style={styles.small}>{T.sheet.picksNote}</Txt>
-      <Txt bold testID="sheet-picked">{T.sheet.picked(marked, rows.length, count('yes'), count('no'), count('later'), noted)}</Txt>
+      <Txt bold testID="sheet-picked">{T.sheet.picked(marked, rows.length, count('yes'), count('no'), count('later'), noted, tuned)}</Txt>
       <Segmented<Filter> value={filter} onChange={choose} testID="sheet-filter"
         options={(['all', 'unmarked', 'review', 'trial'] as const).map((id) => ({ id, label: T.sheet.filter[id] }))} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colls} testID="sheet-colls">
@@ -157,7 +238,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
         ))}
       </ScrollView>
       {filter !== 'all' || coll !== 'all' ? <Txt dim style={styles.small} testID="sheet-shown">{T.sheet.shown(shown.length, shown.filter((pic) => picks[pickKey(pic)]).length)}</Txt> : null}
-      <Button kind="secondary" label={T.sheet.copy} disabled={!marked && !noted} onPress={() => void copy()} testID="sheet-copy" />
+      <Button kind="secondary" label={T.sheet.copy} disabled={!marked && !noted && !tuned} onPress={() => void copy()} testID="sheet-copy" />
       {copied ? (
         <>
           <Txt dim style={styles.small}>{copied.ok ? T.sheet.copied : T.sheet.notCopied}</Txt>
@@ -180,7 +261,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
         ListEmptyComponent={<Txt dim style={styles.empty} testID="sheet-none">
           {!rows.length ? T.sheet.empty : onlyReleased && (filter === 'review' || filter === 'trial') ? T.sheet.onlyReleased : T.sheet.none}
         </Txt>}
-        extraData={[works, picks, notes, theme]}
+        extraData={[works, picks, notes, tunes, theme]}
         // карточка — крупное превью: на экране их две-три, вперёд — ещё на пару экранов
         initialNumToRender={4}
         maxToRenderPerBatch={4}
@@ -209,6 +290,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
                   onChange={(v) => mark(pic, v === 'none' || v === picks[pickKey(pic)] ? null : v)}
                   options={PICKS.map((v) => ({ id: v, label: T.sheet.picks[v] }))} />
                 <NoteField id={pic.id} store={pickKey(pic)} title={pic.title} value={notes[pickKey(pic)] ?? ''} onCommit={setNote} />
+                {TUNABLE.has(pic.collection) ? (
+                  <TuneBox id={pic.id} store={pickKey(pic)} info={info} chart={pic.collection === 'schemes'} tune={tunes[pickKey(pic)]} onTune={setTune} />
+                ) : null}
               </View>
             </Card>
           );
@@ -232,4 +316,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   decide: { paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
   note: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  tune: { gap: 6 },
+  tuneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  num: { width: 64, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 8, fontSize: 16, textAlign: 'center' },
 });

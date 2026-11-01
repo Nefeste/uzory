@@ -308,12 +308,24 @@ export const ru = {
     stats: (singles: string, small: string, minDist: string) => `одиночных ${singles} % · в мелких пятнах ${small} % · различимость ${minDist}`,
     picksNote: 'Отбор: «Да» — в выпуск, «Нет» — убрать, «Позже» — вернуться к ней. Под отметкой можно коротко написать, что поправить. Отметки и комментарии хранятся здесь; «Скопировать решения» даёт текст для ассистента — он поставит «да» в карточки и поправит то, о чём комментарий.',
     picks: { yes: 'Да', no: 'Нет', later: 'Позже' } as Record<'yes' | 'no' | 'later', string>,
-    picked: (n: number, total: number, yes: number, no: number, later: number, notes: number) =>
-      `Отмечено ${n} из ${total}: да — ${yes}, нет — ${no}, позже — ${later}${notes ? `; с комментарием — ${notes}` : ''}`,
+    picked: (n: number, total: number, yes: number, no: number, later: number, notes: number, tunes = 0) =>
+      `Отмечено ${n} из ${total}: да — ${yes}, нет — ${no}, позже — ${later}${notes ? `; с комментарием — ${notes}` : ''}${tunes ? `; с настройками — ${tunes}` : ''}`,
     note: 'Комментарий: что поправить',
     noteLabel: (title: string) => `Комментарий к картинке «${title}»`,
     noPick: 'Без отметки, с комментарием',
-    item: (title: string, id: string, note: string) => (note ? `${title} (${id}) — «${note}»` : `${title} (${id})`),
+    item: (title: string, id: string, note: string, tune = '') => `${title} (${id})${tune ? ` {${tune}}` : ''}${note ? ` — «${note}»` : ''}`,
+    /** настройки узора в тексте решений (0.24.1): «клеток 450, нитей 40, упрощение: немного» */
+    tuneWords: { size: 'клеток', threads: 'нитей', simplify: 'упрощение', levels: ['нет', 'немного', 'сильно'] as const },
+    /** «Настроить узор» у карточки листа (владелец 01.11.2026: «выбрать и сказать, что вот столько клеток если сделать, то рисунок принимается») */
+    tune: 'Настроить узор',
+    tuneHide: 'Свернуть настройки',
+    tuneCells: 'Клеток',
+    tuneThreads: 'нитей',
+    tuneSimplify: 'Упрощение',
+    tuneLevels: { same: 'Как сейчас', 0: 'Нет', 1: 'Немного', 2: 'Сильно' } as Record<'same' | 0 | 1 | 2, string>,
+    tuneNote: 'С «Да» — принимаю при этих настройках: ассистент пересоберёт картинку так и пустит в выпуск без второго отбора. С «Нет», «Позже» или без отметки — пересобрать так и показать снова. Фон — словами в комментарии.',
+    tuneSet: (text: string) => `Настройки: ${text}`,
+    tuneReset: 'Как сейчас',
     filter: { all: 'Все', unmarked: 'Без отметки', review: 'На отборе', trial: 'Без «да»' } as Record<'all' | 'unmarked' | 'review' | 'trial', string>,
     /** сколько картинок под фильтром или в коллекции и сколько из них отмечено — сколько осталось */
     shown: (n: number, marked: number) => `Показано: ${n}${marked ? ` · отмечено ${marked}` : ''}`,
