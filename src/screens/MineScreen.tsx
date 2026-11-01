@@ -15,6 +15,7 @@ import { previewUri } from '../render/preview';
 import { billing } from '../state/billing';
 import { logError } from '../state/crashlog';
 import { openGift } from '../state/gift';
+import { findFaces, findSalient } from '../state/faces';
 import { deleteMine, listMine, loadMine, type MineEntry, mineKey, saveMine } from '../state/mine';
 import { downloadFiles, type Photo, PhotoError, pickPhoto, textBlob } from '../state/photo';
 import { pickFile } from '../state/pick';
@@ -45,8 +46,12 @@ const FIRST_SIDE = MINE_SIZES.L;
  * Черновик на время открытой вкладки: после «Вышивать» и возврата с канвы кадр на месте.
  * Снимок — только в памяти, на диск не пишется (docs/specs/2026-09-custom.md, «Данные»).
  */
-interface Draft { photo: Photo; crop: Crop; side: number; threads: number; simplify: Simplify; title: string; main: Crop | null; background: BackgroundChoice }
+interface Draft { photo: Photo; crop: Crop; side: number; threads: number; simplify: Simplify; title: string; mains: Crop[]; background: BackgroundChoice }
 let draft: Draft | null = null;
+
+/** Главное и фон — для сборки и карточки: один овал — рамкой, как до 0.24.0, несколько — списком. */
+const mainOf = (mains: Crop[], bg: Background | undefined) =>
+  mains.length ? { main: mains.length === 1 ? mains[0] : mains, ...(bg ? { background: bg } : {}) } : {};
 /** Сборка — через столько после последней правки: рамку тянут, а узор не пересобирается на каждый сдвиг. */
 const DEBOUNCE_MS = 250;
 
@@ -80,13 +85,14 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   // упрощение: снимок — не картина, «немного» почти всегда спокойнее (docs/specs/2026-09-custom.md)
   const [simplify, setSimplify] = useState<Simplify>(() => draft?.simplify ?? 1);
   const [title, setTitle] = useState(() => draft?.title ?? T.mine.defaultName(new Date()));
-  // главное — овал в рамке (доли снимка) и фон вне его (src/engine/build/main.ts, с 0.19.0)
-  const [main, setMain] = useState<Crop | null>(() => draft?.main ?? null);
+  // главное — овалы в рамке (доли снимка) и фон вне них (src/engine/build/main.ts, с 0.19.0); овалов с 0.24.0
+  // несколько — «Найти лица» ставит овал на каждое лицо (issue 146)
+  const [mains, setMains] = useState<Crop[]>(() => draft?.mains ?? []);
   const [background, setBackground] = useState<BackgroundChoice>(() => draft?.background ?? 'keep');
   useEffect(() => {
-    draft = photo ? { photo, crop, side, threads, simplify, title, main, background } : null;
-  }, [photo, crop, side, threads, simplify, title, main, background]);
-  const bg = main && background !== 'keep' ? background : undefined;
+    draft = photo ? { photo, crop, side, threads, simplify, title, mains, background } : null;
+  }, [photo, crop, side, threads, simplify, title, mains, background]);
+  const bg = mains.length && background !== 'keep' ? background : undefined;
   const [result, setResult] = useState<{ key: string; build: MineBuild } | null>(null);
   // какой по счёту снимок открыт: ключ сборки и рамки — номер, а не data: URI в мегабайт
   const [shot, setShot] = useState(0);
@@ -130,20 +136,20 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   // сборка узора — когда экран кадра закрыт («Собрать узор»), и после паузы в правках: сборка занимает поток
   // JS, и палец на рамке ждал бы её; пока узор не для этих правок, идёт «Собираю…»
-  const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify} ${main?.join(',') ?? '-'} ${bg ?? '-'}` : '';
+  const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify} ${mains.map((m) => m.join(',')).join(';') || '-'} ${bg ?? '-'}` : '';
   const building = !!photo && result?.key !== inputKey;
   useEffect(() => {
     if (!photo || framing) return;
     const t = setTimeout(() => {
       try {
-        const build = buildMine(photo.raster, { crop, side, threads, simplify, ...(main ? { main, ...(bg ? { background: bg } : {}) } : {}) });
+        const build = buildMine(photo.raster, { crop, side, threads, simplify, ...mainOf(mains, bg) });
         if (alive.current) setResult({ key: inputKey, build });
       } catch (e) {
         logError('mine', e, 'build');
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [photo, crop, side, threads, simplify, main, bg, inputKey, framing]);
+  }, [photo, crop, side, threads, simplify, mains, bg, inputKey, framing]);
 
   const built = result?.build ?? null;
   // превью — заново на каждую сборку: у несохранённого узора ключ один (`mine@1`), и из памяти превью было бы прежним
@@ -160,7 +166,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       setShot((n) => n + 1);
       setCrop([0, 0, 1, 1]);
       // главное прежнего снимка новому ни к чему
-      setMain(null);
+      setMains([]);
       setBackground('keep');
       setResult(null);
       setTitle(T.mine.defaultName(new Date()));
@@ -175,20 +181,31 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   };
 
   // овал — посередине кадра: по меньшей стороне кадра — половина в ширину и 0,6 в высоту (лицо, фигура,
-  // цветок); дальше его двигают и тянут, как рамку
-  const toggleMain = () => {
-    if (main || !photo) {
-      setMain(null);
-      return;
-    }
+  // цветок); дальше его двигают и тянут, как рамку. «Ещё овал» — вдвое меньше и чуть ниже и правее
+  // прежних: новый не ложится на тот, что уже посередине
+  const addMain = () => {
+    if (!photo) return;
     const [l, t, r, b] = crop;
     const { width: pw, height: ph } = photo.raster;
-    const least = Math.min((r - l) * pw, (b - t) * ph);
+    const n = mains.length;
+    const least = Math.min((r - l) * pw, (b - t) * ph) * (n ? 0.5 : 1);
     const ow = (0.5 * least) / pw;
     const oh = (0.6 * least) / ph;
-    const cx = (l + r) / 2;
-    const cy = (t + b) / 2;
-    setMain([cx - ow / 2, cy - oh / 2, cx + ow / 2, cy + oh / 2]);
+    const cx = Math.min(1 - ow / 2, (l + r) / 2 + (n * 0.12 * (r - l)) % (0.5 * (r - l)));
+    const cy = Math.min(1 - oh / 2, (t + b) / 2 + (n * 0.12 * (b - t)) % (0.5 * (b - t)));
+    setMains([...mains, [cx - ow / 2, cy - oh / 2, cx + ow / 2, cy + oh / 2]]);
+  };
+  // «Найти лица» и «Найти главное»: овалы — на найденное в кадре; не нашлось ничего — прежние овалы на месте
+  const find = async (how: typeof findFaces, what: string) => {
+    if (!photo) return 0;
+    try {
+      const found = await how(photo.raster, crop);
+      if (found.length && alive.current) setMains(found);
+      return found.length;
+    } catch (e) {
+      logError('mine', e, what);
+      throw e;
+    }
   };
 
   // свой размер и нити — числом, собираются по «Применить» (владелец 01.11.2026: на каждое «+10» узор
@@ -257,7 +274,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   const exportCard = () => {
     if (!photo?.jpeg || !built) return;
-    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, ...(main ? { main, ...(bg ? { background: bg } : {}) } : {}), now: new Date() });
+    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, ...mainOf(mains, bg), now: new Date() });
     downloadFiles([{ name: `${card.id}.yaml`, data: textBlob(card.yaml) }, { name: `${card.id}.jpg`, data: photo.jpeg }]);
   };
 
@@ -279,8 +296,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   if (photo && framing && !opening) {
     return (
       <FrameEditor key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height}
-        crop={crop} onCrop={setCrop} main={main} onMain={setMain} onToggleMain={toggleMain} onWhole={() => setCrop([0, 0, 1, 1])}
-        onDone={() => setFraming(false)} />
+        crop={crop} onCrop={setCrop} mains={mains} onMains={setMains} onAddMain={addMain} onWhole={() => setCrop([0, 0, 1, 1])}
+        onFaces={() => find(findFaces, 'faces')} onSalient={() => find(findSalient, 'salient')} onDone={() => setFraming(false)} />
     );
   }
   if (closer && built && !building) return <PatternCloser pattern={built.pattern} onBack={() => setCloser(false)} />;
@@ -307,14 +324,14 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                 // кадр — картинкой; касание открывает экран кадра
                 <Pressable onPress={() => setFraming(true)} accessibilityRole="button" accessibilityLabel={T.mine.frameEdit} testID="mine-frame-open">
                   <FrameView uri={photo.uri} dw={Math.max(1, Math.round(photo.raster.width * k))} dh={Math.max(1, Math.round(photo.raster.height * k))}
-                    crop={crop} main={main} />
+                    crop={crop} mains={mains} />
                 </Pressable>
               )}
               <View style={styles.row}>
                 <Button small kind="secondary" label={T.mine.frameEdit} onPress={() => setFraming(true)} disabled={opening} testID="mine-frame-edit" />
                 <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} disabled={opening} testID="mine-other" />
               </View>
-              {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
+              {mains.length ? <Txt dim style={styles.small}>{mains.length > 1 ? T.mine.mainsNote : T.mine.mainNote}</Txt> : null}
               {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
             </View>
             <View style={[styles.col, wide && styles.colWide, wide && styles.colRight]}>
@@ -361,7 +378,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
               <Segmented value={String(simplify)} onChange={(id) => setSimplify(Number(id) as Simplify)} testID="mine-simplify"
                 options={SIMPLIFY.map((l) => ({ id: String(l), label: T.mine.simplifyLevels[l] }))} />
               <Txt dim style={styles.small}>{T.mine.simplifyNote}</Txt>
-              {main ? (
+              {mains.length ? (
                 <>
                   <SectionTitle>{T.mine.background}</SectionTitle>
                   <Segmented value={background} onChange={setBackground} testID="mine-background"

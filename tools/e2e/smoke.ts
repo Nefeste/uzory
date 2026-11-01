@@ -101,6 +101,22 @@ const check = (ok: boolean, what: string) => {
 };
 
 /**
+ * Число, когда оно перестало меняться: пять замеров подряд через 200 мс, не дольше 10 с. Список «Моих узоров»
+ * читается после открытия экрана (`MineScreen`, `refresh`): кнопки экрана уже есть, а строк ещё нет — на
+ * раннере GitHub счёт сразу после «назад» дал 0 тайн вместо двух (CI, 01.11.2026).
+ */
+async function settled(read: () => Promise<number>): Promise<number> {
+  let last = -1, same = 0;
+  for (let i = 0; i < 50 && same < 5; i++) {
+    const n = await read();
+    same = n === last && n > 0 ? same + 1 : 0;
+    last = n;
+    await new Promise((done) => setTimeout(done, 200));
+  }
+  return last;
+}
+
+/**
  * Центр клетки на экране при камере открытия новой работы (src/canvas/camera.ts, `openCamera`):
  * маленькая картинка — «весь узор» по центру, большая — масштаб открытия, середина узора в середине экрана.
  */
@@ -460,6 +476,7 @@ try {
   check((await page.getByTestId('set-music').count()) === 1, 'настройки: переключатель «Музыка»');
   await page.getByTestId('set-about').click();
   check((await page.getByTestId('about-version').innerText().catch(() => '')).includes('Узоры'), '«О программе»: версия и источники картинок');
+  check((await page.getByTestId('about-faces-license').innerText().catch(() => '')).includes('Copyright (c) 2013 Nenad Markus'), '«О программе»: детектор лиц pico и текст его лицензии MIT');
   const aboutMusic = await page.locator('[data-testid^="about-music-"]').allInnerTexts();
   check(aboutMusic.length >= 5 && aboutMusic.every((t) => /общественное достояние|CC BY/.test(t)), `«О программе»: ${aboutMusic.length} пьес, у каждой — исполнитель и лицензия записи`);
   await page.getByTestId('back').click();
@@ -1141,8 +1158,53 @@ try {
     `фон «не вышивать»: ${metaAlone} (было ${metaAll}) — ${alone.split('\n')[0]}`);
   await page.screenshot({ path: join(OUT, '09-mine-main.png') });
   await page.getByTestId('mine-frame-edit').click();
-  await page.getByTestId('mine-main-toggle').click();
+  await page.getByTestId('mine-main-off').click();
   await page.getByTestId('mine-main').waitFor({ state: 'detached' });
+  await page.getByTestId('mine-frame-done').click();
+  await rebuilt();
+  // «Найти лица» (0.24.0; владелец 01.11.2026, issue 146): на портрете овал встаёт на лицо сам; «Ещё овал» —
+  // второй, сразу выбранный, «Убрать овал» убирает его; узор собирается с главным. Лицо «Грузинки» —
+  // focus [0.424, 0.232, 0.480, 0.300] в content/russia/pg-gruzinka.yaml
+  const chooserF = page.waitForEvent('filechooser');
+  await page.getByTestId('mine-other').click();
+  await (await chooserF).setFiles(join(ROOT, 'content/russia/pg-gruzinka.jpg'));
+  await page.getByTestId('mine-frame-screen').waitFor({ timeout: 30_000 });
+  const facesAt = Date.now();
+  await page.getByTestId('mine-faces').click();
+  await page.getByTestId('mine-faces-result').waitFor({ timeout: 30_000 });
+  const facesMs = Date.now() - facesAt;
+  const facesText = await page.getByTestId('mine-faces-result').innerText();
+  const fBox = (await page.getByTestId('mine-photo').boundingBox())!;
+  const ovalCenter = async (id: string) => {
+    const b = await page.getByTestId(id).boundingBox();
+    return b ? { x: (b.x + b.width / 2 - fBox.x) / fBox.width, y: (b.y + b.height / 2 - fBox.y) / fBox.height } : null;
+  };
+  const face = await ovalCenter('mine-main');
+  check(!!face && face.x > 0.41 && face.x < 0.5 && face.y > 0.21 && face.y < 0.32 && (await page.getByTestId('mine-main-1').count()) === 0 && /^Нашлось лицо/.test(facesText),
+    `«Найти лица» на «Грузинке» за ${facesMs} мс: «${facesText.split(' — ')[0]}», овал — (${face?.x.toFixed(3)}, ${face?.y.toFixed(3)}) снимка`);
+  await page.screenshot({ path: join(OUT, '09-mine-faces.png') });
+  await page.getByTestId('mine-main-more').click();
+  await page.getByTestId('mine-main-1').waitFor();
+  await page.getByTestId('mine-main-off').click();
+  await page.getByTestId('mine-main-1').waitFor({ state: 'detached' });
+  const kept = await ovalCenter('mine-main');
+  await page.getByTestId('mine-frame-done').click();
+  const faceVerdict = await rebuilt();
+  check(!!kept && !!face && Math.abs(kept.x - face.x) < 0.002 && Math.abs(kept.y - face.y) < 0.002 && (await page.getByTestId('mine-background').count()) === 1,
+    `«Ещё овал» и «Убрать овал»: второй овал убран, овал лица на месте; узор с главным — ${faceVerdict.split('\n')[0]}`);
+  // «Найти главное» (0.24.0, issue 146): на «Георгине» — один овал на цветке посередине кадра
+  const chooserM = page.waitForEvent('filechooser');
+  await page.getByTestId('mine-other').click();
+  await (await chooserM).setFiles(join(ROOT, 'content/nature/georgin.jpg'));
+  await page.getByTestId('mine-frame-screen').waitFor({ timeout: 30_000 });
+  const salientAt = Date.now();
+  await page.getByTestId('mine-salient').click();
+  await page.getByTestId('mine-salient-result').waitFor({ timeout: 30_000 });
+  const salientMs = Date.now() - salientAt;
+  const salientText = await page.getByTestId('mine-salient-result').innerText();
+  const flower = await ovalCenter('mine-main');
+  check(!!flower && flower.x > 0.35 && flower.x < 0.65 && flower.y > 0.3 && flower.y < 0.65 && (await page.getByTestId('mine-main-1').count()) === 0 && /^Овал — на самом заметном/.test(salientText),
+    `«Найти главное» на «Георгине» за ${salientMs} мс: «${salientText.split('.')[0]}», овал — (${flower?.x.toFixed(3)}, ${flower?.y.toFixed(3)}) снимка`);
   await page.getByTestId('mine-frame-done').click();
   await rebuilt();
   // пёстрая листва — пятна пяти зелёных чуть крупнее клетки (как в tools/test/mine.test.ts): без
@@ -1299,7 +1361,7 @@ try {
     await pf.getByTestId('canvas').waitFor({ timeout: 30_000 });
     await pf.getByTestId('back').click();
     await pf.getByTestId('mine-gift-open').waitFor({ timeout: 10_000 });
-    const gifts = await pf.locator('[data-testid^="mine-item-mine-g-"]').count();
+    const gifts = await settled(() => pf.locator('[data-testid^="mine-item-mine-g-"]').count());
     check(gifts === 2, `тот же файл тайны ещё раз — та же тайна: тайн в «Моих узорах» ${gifts} (две разные)`);
     await ctxFriend.close();
   }

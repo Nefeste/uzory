@@ -1,7 +1,8 @@
-// О программе (docs/08-game-design.md, «Настройки»): версия, студия, шрифты с лицензиями, музыка —
+// О программе (docs/08-game-design.md, «Настройки»): версия, студия, шрифты и детектор лиц с лицензиями, музыка —
 // исполнитель и лицензия каждой записи — и источник каждой картинки встроенного набора — автор,
 // основание, откуда взята.
 import { FlatList, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { PICO_NOTICE } from '../engine/build/faces';
 import type { PackPicture } from '../engine/pack';
 import { T } from '../i18n';
 import { useLibrary } from '../state/library';
@@ -22,6 +23,9 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Txt dim style={styles.text}>{T.about.studio}</Txt>
       <SectionTitle>{T.about.fonts}</SectionTitle>
       <Txt dim style={styles.text}>{T.about.fontsText}</Txt>
+      <SectionTitle>{T.about.faces}</SectionTitle>
+      <Txt dim style={styles.text}>{T.about.facesText}</Txt>
+      <Txt dim style={styles.small} testID="about-faces-license">{PICO_NOTICE}</Txt>
       {musicTracks.length ? (
         <>
           <SectionTitle>{T.about.music}</SectionTitle>

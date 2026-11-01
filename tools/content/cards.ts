@@ -106,7 +106,7 @@ export interface Card {
      * (src/engine/build/main.ts; «Свой узор» — с 0.19.0): своя палитра и бережная чистка, как у лиц, без
      * упрощения резких точек; одиночки в нём проверка не считает
      */
-    main?: [number, number, number, number];
+    main?: [number, number, number, number] | [number, number, number, number][];
     /** фон вне главного: `one` — одной нитью, `none` — не вышивать; без поля — как есть; только с `main` */
     background?: 'one' | 'none';
     /**
@@ -252,7 +252,11 @@ function patternErrors(p: PatternSpec): string[] {
     }
   }
   const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
-  if (p.main !== undefined && (!rect(p.main) || p.chart)) errors.push(`pattern.main ${JSON.stringify(p.main)}: рамка овала [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
+  // несколько овалов — списком рамок (с 0.24.0: «Найти лица» — овал на каждое лицо)
+  const mains = Array.isArray(p.main) && Array.isArray(p.main[0]) ? (p.main as unknown[]) : [p.main];
+  if (p.main !== undefined && (!mains.length || mains.length > 6 || !mains.every(rect) || p.chart)) {
+    errors.push(`pattern.main ${JSON.stringify(p.main)}: рамка овала [слева, сверху, справа, снизу] в долях снимка или до шести таких рамок списком, и не у схемы`);
+  }
   if (p.background !== undefined && ((p.background !== 'one' && p.background !== 'none') || p.main === undefined)) {
     errors.push(`pattern.background «${String(p.background)}»: one или none, и только с main — фон считается вне главного`);
   }

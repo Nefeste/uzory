@@ -40,6 +40,20 @@ export function ovalMask(crop: Rect, w: number, h: number, main: Rect): Uint8Arr
   return any ? mask : undefined;
 }
 
+/**
+ * Главное — один овал или несколько (с 0.24.0, «Найти лица»: на каждое лицо — свой; issue 146). Каждый —
+ * рамка, в которую он вписан, в долях снимка.
+ */
+export type Mains = Rect | readonly Rect[];
+
+/** Овалы главного списком: один овал — список из одного. */
+export const mainRects = (main: Mains): readonly Rect[] => (typeof main[0] === 'number' ? [main as Rect] : (main as readonly Rect[]));
+
+/** Клетки всех овалов главного; ни одной клетки — `undefined`. */
+export function ovalsMask(crop: Rect, w: number, h: number, main: Mains): Uint8Array | undefined {
+  return unionMask(...mainRects(main).map((m) => ovalMask(crop, w, h, m)));
+}
+
 /** Клетки, отмеченные хотя бы одной маской; нет ни одной маски — `undefined`. */
 export function unionMask(...masks: (Uint8Array | undefined)[]): Uint8Array | undefined {
   const list = masks.filter((m): m is Uint8Array => !!m);

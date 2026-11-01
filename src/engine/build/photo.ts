@@ -3,7 +3,7 @@
 // (./mine.ts): карточка, скачанная из «Своего узора», собирается тем же узором.
 import { saturate, toGridDominant } from './dominant';
 import { type Grid, type Raster, toGrid } from './grid';
-import { type Background, keepInside, ovalMask, withBackground } from './main';
+import { type Background, keepInside, type Mains, ovalsMask, withBackground } from './main';
 import { type Simplify, simplifyGrid } from './simplify';
 import { averageRaster, type Smooth, smoothRaster } from './smooth';
 import { toneGrid } from './tone';
@@ -32,10 +32,10 @@ export interface PhotoSpec {
    */
   px?: number;
   /**
-   * главное — овал, вписанный в рамку (доли снимка, как `crop`; ./main.ts): в нём нет упрощения, а
-   * сборка палитры даёт ему свои нити и бережную чистку, как лицам (`focus`)
+   * главное — овал, вписанный в рамку (доли снимка, как `crop`; ./main.ts), или несколько (с 0.24.0): в нём
+   * нет упрощения, а сборка палитры даёт ему свои нити и бережную чистку, как лицам (`focus`)
    */
-  main?: [number, number, number, number];
+  main?: Mains;
   /** фон вне главного: `one` — одной нитью, `none` — не вышивать; без поля — как есть */
   background?: Background;
 }
@@ -47,7 +47,7 @@ export function photoGrid(r0: Raster, p: PhotoSpec): Grid {
   const cells = p.grid === 'dominant' ? toGridDominant(r, crop, p.size) : toGrid(r, crop, p.size);
   const simple = simplifyGrid(cells, p.smooth ? 1 : p.simplify ?? 0);
   // главное — без упрощения: зрачок и блик в клетку не смешиваются с кожей ещё до чистки
-  const main = p.main ? ovalMask(p.crop ?? [0, 0, 1, 1], cells.w, cells.h, p.main) : undefined;
+  const main = p.main ? ovalsMask(p.crop ?? [0, 0, 1, 1], cells.w, cells.h, p.main) : undefined;
   const grid = main ? keepInside(simple, cells, main) : simple;
   const saturated = p.chroma !== undefined && p.chroma !== 1 ? saturate(grid, p.chroma) : grid;
   const toned = p.tone ? toneGrid(saturated, p.tone) : saturated;
@@ -56,4 +56,4 @@ export function photoGrid(r0: Raster, p: PhotoSpec): Grid {
 
 /** Главное узора — клетки овала `main` в сетке `grid` кадра `crop` (сборке палитры — как лица, `focus`). */
 export const mainMask = (p: Pick<PhotoSpec, 'crop' | 'main'>, grid: { w: number; h: number }): Uint8Array | undefined =>
-  p.main ? ovalMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.main) : undefined;
+  p.main ? ovalsMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.main) : undefined;

@@ -38,10 +38,11 @@ export function pinchCrop(crop: Crop, from: number, to: number): Crop {
   return zoomCrop(crop, (l + r) / 2, (t + b) / 2, from / to);
 }
 
-/** Что двигает касание: рамку кадра или овал главного, целиком или за уголок. */
+/** Что двигает касание: рамку кадра или овал главного (`index` — какой из овалов), целиком или за уголок. */
 export interface FrameGrip {
   target: 'crop' | 'main';
   mode: 'move' | 'resize';
+  index?: number;
 }
 
 /** Уголок овала — на его краю справа внизу, под 45°: cos 45°. */
@@ -64,15 +65,35 @@ export function insideOval(x: number, y: number, [l, t, r, b]: Crop): boolean {
  * Что берёт палец, коснувшийся точки (px, py) на снимке dw × dh (точки экрана): уголок овала главного,
  * уголок рамки (справа внизу), овал, иначе — рамку. Уголок ловит палец в `grab` точках вокруг: сам он
  * маленький, а палец — нет (на 0.18.x угол рамки на телефоне так и не давался — владелец 01.11.2026).
+ * Овалов может быть несколько (с 0.24.0, «Найти лица»): берётся ближайший уголок, а внутри — меньший овал
+ * (он лежит поверх).
  */
-export function gripAt(px: number, py: number, crop: Crop, main: Crop | null, dw: number, dh: number, grab: number): FrameGrip {
-  if (main) {
-    const [hx, hy] = mainHandle(main);
-    if (Math.hypot(px - hx * dw, py - hy * dh) <= grab) return { target: 'main', mode: 'resize' };
-  }
+export function gripAt(px: number, py: number, crop: Crop, mains: readonly Crop[], dw: number, dh: number, grab: number): FrameGrip {
+  let near = -1, best = grab;
+  mains.forEach((m, i) => {
+    const [hx, hy] = mainHandle(m);
+    const d = Math.hypot(px - hx * dw, py - hy * dh);
+    if (d > best) return;
+    // маленький овал лица весь в пределах `grab` от уголка: внутри и ближе к середине — сдвиг, а не уголок
+    const dc = Math.hypot(px - ((m[0] + m[2]) / 2) * dw, py - ((m[1] + m[3]) / 2) * dh);
+    if (insideOval(px / dw, py / dh, m) && dc < d) return;
+    [near, best] = [i, d];
+  });
+  if (near >= 0) return { target: 'main', mode: 'resize', index: near };
   if (Math.hypot(px - crop[2] * dw, py - crop[3] * dh) <= grab) return { target: 'crop', mode: 'resize' };
-  if (main && insideOval(px / dw, py / dh, main)) return { target: 'main', mode: 'move' };
+  const inside = ovalAt(px / dw, py / dh, mains);
+  if (inside >= 0) return { target: 'main', mode: 'move', index: inside };
   return { target: 'crop', mode: 'move' };
+}
+
+/** Какой овал под точкой (доли снимка): меньший из накрывших, нет — −1. */
+export function ovalAt(x: number, y: number, mains: readonly Crop[]): number {
+  let at = -1, area = Infinity;
+  mains.forEach((m, i) => {
+    const a = (m[2] - m[0]) * (m[3] - m[1]);
+    if (insideOval(x, y, m) && a < area) [at, area] = [i, a];
+  });
+  return at;
 }
 
 /**

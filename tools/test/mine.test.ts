@@ -86,6 +86,8 @@ describe('свой узор', () => {
       { simplify: 1 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop },
       { simplify: 1 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop, background: 'one' as const },
       { simplify: 0 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop, background: 'none' as const },
+      // два овала — «Найти лица» нашла два лица (0.24.0)
+      { simplify: 1 as const, main: [[0.15, 0.4, 0.5, 0.8], [0.6, 0.2, 0.8, 0.5]] as Crop[], background: 'one' as const },
     ];
     for (const v of variants) {
       const o = { crop: [0.1, 0.1, 0.9, 0.8] as Crop, side: 60, threads: 12, ...v };
@@ -222,6 +224,16 @@ describe('свой узор', () => {
     expect(ovalCard.card?.pattern?.main).toEqual([0.3, 0.2, 0.7, 0.8]);
     expect(ovalCard.card?.pattern?.background).toBe('none');
     expect(readCard(cardFile('bad', oval.yaml.replace(/^ {2}main: .*$/m, ''))).errors.join()).toContain('pattern.background');
+    // несколько овалов (0.24.0, «Найти лица») — списком рамок; один — рамкой, как до 0.24.0; больше шести — ошибка
+    const two = libraryCard({ title: 'Сёстры', crop: [0, 0, 1, 1], side: 120, threads: 24, main: [[0.2, 0.2, 0.4, 0.5], [0.6, 0.25, 0.8, 0.55]], now: new Date(2026, 10, 1) });
+    const twoCard = readCard(cardFile(two.id, two.yaml));
+    expect(twoCard.errors).toEqual([]);
+    expect(twoCard.card?.pattern?.main).toEqual([[0.2, 0.2, 0.4, 0.5], [0.6, 0.25, 0.8, 0.55]]);
+    expect(libraryCard({ title: 'Сирень', crop: [0, 0, 1, 1], side: 120, threads: 24, main: [[0.3, 0.2, 0.7, 0.8]], now: new Date(2026, 10, 1) }).yaml)
+      .toContain('  main: [0.3, 0.2, 0.7, 0.8]');
+    const seven = two.yaml.replace(/^ {2}main: .*$/m, `  main: [${Array.from({ length: 7 }, () => '[0.2, 0.2, 0.4, 0.5]').join(', ')}]`);
+    expect(readCard(cardFile('bad', seven)).errors.join()).toContain('pattern.main');
+    expect(readCard(cardFile('bad', two.yaml.replace(/^ {2}main: .*$/m, '  main: []'))).errors.join()).toContain('pattern.main');
   });
 
   test('снимок с телефона: трава в точку не пестрит узор — кадр до сетки усредняется до 4 × 4 точек на клетку (0.18.2)', () => {
