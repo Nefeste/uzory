@@ -8,7 +8,7 @@
 // рамку и не выбрал овал, при каждом мини-изменении происходит пересчёт предпросмотра, на телефоне это
 // медленно»): сначала рамка и главное, сборка — один раз, по «Собрать узор».
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { dragFrame, type FrameGrip, gripAt, ovalAt, pinchCrop, scaleRect, zoomCrop } from '../engine/build/crop';
@@ -22,8 +22,11 @@ import { FrameView } from './FrameView';
 
 /** Уголок ловит палец на столько точек вокруг: сам он — 26. */
 const GRAB = 34;
-/** Место под подсказку и кнопки внизу экрана, точек. */
-const BELOW = 260;
+/**
+ * Место под подсказку и кнопки внизу экрана, точек; с «Найти лица» и «Найти главное» (сборки 0.x) — на ряд
+ * кнопок больше. Прокрутки на экране кадра нет (0.19.0: на Android она отнимала палец у рамки).
+ */
+const BELOW = AUTO_MAIN ? 300 : 260;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
@@ -83,11 +86,13 @@ export function FrameEditor({ uri, width, height, crop, onCrop, mains, onMains, 
   // новый овал — сразу выбранный: его и двигают, и убирают, если поставили зря
   const addMain = () => {
     setSel(mains.length);
+    setSearch(null);
     onAddMain();
   };
   const removeMain = () => {
     onMains(mains.filter((_, i) => i !== Math.min(sel, mains.length - 1)));
     setSel(0);
+    setSearch(null);
   };
 
   const pan = Gesture.Pan()
@@ -150,9 +155,7 @@ export function FrameEditor({ uri, width, height, crop, onCrop, mains, onMains, 
             <FrameView ref={box} uri={uri} dw={dw} dh={dh} crop={crop} mains={mains} sel={Math.min(sel, mains.length - 1)} big testID="mine-photo" />
           </View>
         </GestureDetector>
-        {/* под снимком — прокрутка: на невысоком экране кнопки и строки о находках не уходят за край; сам снимок
-            с жестами — вне её, палец у рамки прокрутка не отнимает */}
-        <ScrollView style={styles.belowScroll} contentContainerStyle={styles.below}>
+        <View style={styles.below}>
           <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
           <View style={styles.row}>
             <Button small kind="secondary" label={T.mine.whole} onPress={onWhole} testID="mine-whole" />
@@ -168,18 +171,19 @@ export function FrameEditor({ uri, width, height, crop, onCrop, mains, onMains, 
             {mains.length && mains.length < FACE_MAX ? <Button small kind="ghost" label={T.mine.mainMore} onPress={addMain} testID="mine-main-more" /> : null}
             {mains.length ? <Button small kind="ghost" label={mains.length > 1 ? T.mine.mainRemoveOne : T.mine.mainOff} onPress={removeMain} testID="mine-main-off" /> : null}
           </View>
+          {/* одна строка: что нашлось, иначе — как обращаться с овалами, иначе — что узор соберётся по кнопке; три
+              строки сразу уводили «Собрать узор» за край невысокого экрана */}
           {search && search.n !== 'busy' ? (
             <Txt dim style={styles.small} testID={search.kind === 'faces' ? 'mine-faces-result' : 'mine-salient-result'}>
               {search.kind === 'faces'
                 ? (search.n === 'error' ? T.mine.facesError : T.mine.facesFound(search.n))
                 : (search.n === 'error' ? T.mine.salientError : T.mine.salientFound(search.n))}
             </Txt>
-          ) : null}
-          {mains.length > 1 ? <Txt dim style={styles.small}>{T.mine.mainsPick}</Txt> : null}
-          {mains.length ? <Txt dim style={styles.small}>{mains.length > 1 ? T.mine.mainsNote : T.mine.mainNote}</Txt> : null}
+          ) : (
+            <Txt dim style={styles.small}>{mains.length > 1 ? T.mine.mainsNote : mains.length ? T.mine.mainNote : T.mine.frameLater}</Txt>
+          )}
           <Button label={T.mine.frameBuild} onPress={onDone} testID="mine-frame-build" />
-          <Txt dim style={styles.small}>{T.mine.frameLater}</Txt>
-        </ScrollView>
+        </View>
       </View>
     </Screen>
   );
@@ -187,8 +191,7 @@ export function FrameEditor({ uri, width, height, crop, onCrop, mains, onMains, 
 
 const styles = StyleSheet.create({
   body: { flex: 1, alignItems: 'center', paddingTop: 12, gap: 12 },
-  belowScroll: { flex: 1, alignSelf: 'stretch' },
-  below: { gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  below: { gap: 8, paddingHorizontal: 16, alignSelf: 'stretch' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   small: { fontSize: 13 },
 });
