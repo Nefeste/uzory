@@ -22,7 +22,7 @@ export const FAKE_PRODUCTS: Product[] = [
   { id: 'uzory_plus_year', period: 'year', price: '1490 ₽', kopecks: 149000 },
 ];
 
-/** Цены оформлений заглушки — не 99 и 299 ₽ из описания: по ним видно, что экран взял их у магазина. */
+/** Цены оформлений заглушки — не 99 и 399 ₽ из описания: по ним видно, что экран взял их у магазина. */
 export const FAKE_LOOK_PRICES: LookPrice[] = LOOK_PRODUCTS.map((id) => ({ id, price: id === ALL_LOOKS ? '349 ₽' : '119 ₽' }));
 
 interface FakeRecord {

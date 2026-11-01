@@ -18,6 +18,7 @@ import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { canStitch } from '../engine/access';
 import { nextPicture } from '../engine/library';
 import { type CanvasId, workCanvas } from '../engine/looks';
+import type { GiftNote } from '../engine/gift';
 import type { PackPicture } from '../engine/pack';
 import { CANVAS, type Pattern } from '../engine/pattern';
 import { offerOnDone } from '../engine/plus';
@@ -78,10 +79,12 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus, onLooks, onSign }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, gift, onNext, onBack, onAgain, onSettings, onPlus, onLooks, onSign }: {
   pattern: Pattern;
   title: string;
   caption?: string;
+  /** тайна от друга (0.23.0): записка — под названием, когда тайна вышита */
+  gift?: GiftNote;
   workId: string;
   /** картинка библиотеки — для «О картине» и «Дальше»; у своего узора её нет */
   pic?: PackPicture;
@@ -283,6 +286,12 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
         <Animated.View entering={fresh ? FadeInDown.duration(350).delay(200) : undefined} style={styles.info}>
           <Txt title style={styles.title}>{title}</Txt>
           {caption ? <Txt dim style={styles.caption}>{caption}</Txt> : null}
+          {gift?.note && !playing ? (
+            <View style={[styles.giftNote, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="done-gift-note">
+              <Txt dim style={styles.caption}>{T.gift.noteBy(gift.from)}</Txt>
+              <Txt>{gift.note}</Txt>
+            </View>
+          ) : null}
           {session ? (
             playing
               ? <Txt dim testID="replay-count">{T.done.replayCount(count, order.length)}</Txt>
@@ -338,6 +347,7 @@ const styles = StyleSheet.create({
   info: { padding: 16, gap: 6 },
   title: { fontSize: 24 },
   caption: { fontSize: 14 },
+  giftNote: { borderWidth: 1, borderRadius: 6, padding: 12, gap: 4 },
   row: { flexDirection: 'row', gap: 10, marginTop: 8 },
   stacked: { flexDirection: 'column' },
   half: { flexGrow: 1, flexBasis: 0 },

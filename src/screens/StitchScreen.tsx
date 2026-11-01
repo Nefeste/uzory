@@ -38,13 +38,15 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, canvas: newCanvas, onBack, onDone, onStarted, onSettings, onLooks }: {
+export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, secretTitle, canvas: newCanvas, onBack, onDone, onStarted, onSettings, onLooks }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
   workId?: string;
   /** новая работа — «Тайна» (src/engine/mystery.ts); у открытой работы это знает её запись */
   mystery?: boolean;
+  /** шапка «Тайны» — у тайны от друга своя: «Тайна · Маша» (0.23.0); нет — «Тайна» */
+  secretTitle?: string;
   /** канва новой работы — выбранная на карточке картинки; нет — подходящая узору (src/engine/looks.ts) */
   canvas?: CanvasId;
   /** картинка библиотеки — для «О картине»; у своего узора её нет */
@@ -260,7 +262,7 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   );
 
   return (
-    <Screen title={mystery ? T.mystery.title : title} onBack={onBack} wide right={right}>
+    <Screen title={mystery ? (secretTitle ?? T.mystery.title) : title} onBack={onBack} wide right={right}>
       <View style={[styles.canvas, { backgroundColor: theme.dark ? field.dark : field.light }]} onLayout={(e) => {
         const next = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
         sizeRef.current = next;

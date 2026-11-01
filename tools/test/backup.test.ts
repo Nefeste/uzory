@@ -32,6 +32,17 @@ describe('файл переноса', () => {
     expect(r.mine).toEqual([mine('mine-mg5k1-00aa')]);
   });
 
+  test('тайна от друга (0.23.0): подпись и записка узора переносятся; испорченные — узор без них', () => {
+    const gift = mine('mine-g-1abc', { gift: { from: 'Маша', note: 'С днём рождения!' } });
+    expect(readBackup(makeBackup('2026-11-01', [], [gift])).mine).toEqual([gift]);
+    const r = readBackup(file([], [
+      mine('mine-g-2abc', { gift: { from: 'Ма\u0007ша', note: 'а'.repeat(400) } as never }),
+      mine('mine-g-3abc', { gift: { from: 7, note: ['x'] } as never }),
+      mine('mine-g-4abc', { gift: 'Маша' as never }),
+    ]));
+    expect(r.mine.map((m) => m.gift)).toEqual([{ from: 'Ма ша', note: 'а'.repeat(300) }, {}, undefined]);
+  });
+
   test('не файл работ «Узоров» — ошибка целиком', () => {
     expect(() => readBackup('не json')).toThrow(BackupError);
     expect(() => readBackup(JSON.stringify({ format: 'votchina-save', v: 1, works: [], mine: [] }))).toThrow(BackupError);

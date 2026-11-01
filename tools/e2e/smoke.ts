@@ -21,6 +21,7 @@ import { FREE_FIRST } from '../../src/engine/library';
 import { fieldOf } from '../../src/canvas/shader';
 import { canvasLook, frameLook, wallLook } from '../../src/engine/looks';
 import { SIGN_GAP, signGrid, signLines } from '../../src/engine/signature';
+import { makeGift, readGift } from '../../src/engine/gift';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
 import { fillRegion, nearestGroup } from '../../src/engine/regions';
@@ -324,7 +325,9 @@ async function frameDiff(a: Buffer, b: Buffer): Promise<string> {
 const { built, previous } = await buildAll();
 const first = built.find((b) => b.card.id === 'first-picture')!.pattern;
 
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+// без UTF-8 в окружении (LANG не задан) Chromium называет скачанный файл с русским именем «download» —
+// у игроков и в CI UTF-8 есть («Тайна — Маша.uzory», 0.23.0)
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, env: { ...process.env, LANG: process.env.LANG || 'C.UTF-8' } });
 const page = await browser.newPage({ viewport: { width: 400, height: 860 }, deviceScaleFactor: 2 });
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -1211,6 +1214,93 @@ try {
   await page.getByTestId('back').click();
   await page.getByTestId('back').click();
   await page.getByTestId('home-daily').waitFor();
+
+  // «Тайна от друга» (0.23.0; владелец 01.11.2026, issue 145): свой узор — файлом другу, в файле только узор,
+  // подпись и записка; друг в чистом браузере открывает его («Открыть тайну от друга»), вышивает «Тайной» и на
+  // «Готово» читает записку; тот же файл ещё раз — та же тайна; не тайна — строка, почему
+  {
+    await page.getByTestId('home-mine').click();
+    const give = page.locator('[data-testid^="mine-gift-mine-"]').first();
+    await give.click({ timeout: 10_000 });
+    await page.getByTestId('gift-from').fill('Маша');
+    await page.getByTestId('gift-note').fill('С днём рождения!');
+    const sentFile = page.waitForEvent('download', { timeout: 20_000 });
+    await page.getByTestId('gift-send').click();
+    const gd = await sentFile.then(async (d) => ({ name: d.suggestedFilename(), bytes: readFileSync((await d.path())!) })).catch(() => null);
+    const sentLine = await page.getByTestId('gift-sent').count();
+    let giftRead = false;
+    try {
+      const g = gd ? readGift(new Uint8Array(gd.bytes)) : null;
+      giftRead = !!g && g.from === 'Маша' && g.note === 'С днём рождения!' && g.pattern.w > 0;
+    } catch {
+      giftRead = false;
+    }
+    const giftFile = join(OUT, 'gift.uzory');
+    if (gd) writeFileSync(giftFile, gd.bytes);
+    check(!!gd && gd.name === 'Тайна — Маша.uzory' && giftRead && !gd.bytes.toString('utf8').includes('data:') && gd.bytes.length < 400_000 && sentLine === 1,
+      `тайна от друга: файл «${gd?.name ?? '—'}» ${gd ? Math.round(gd.bytes.length / 1024) : 0} КБ — узор, подпись и записка, без снимка`);
+    await page.getByTestId('back').click();
+    await page.getByTestId('back').click();
+    await page.getByTestId('home-daily').waitFor();
+
+    const ctxFriend = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const pf = await ctxFriend.newPage();
+    pf.on('pageerror', (e) => errors.push(e.message));
+    await pf.goto(base);
+    await seedWorks(pf, [], { 'uzory.player.v1': JSON.stringify({ installed: '2026-10-01', seen: '2026-11-01', pinned: {}, firstDone: true, hints: ['start', 'brush', 'zoom', 'where'] }) });
+    const openGiftFile = async (file: string) => {
+      const chooser = pf.waitForEvent('filechooser');
+      await pf.getByTestId('mine-gift-open').click();
+      await (await chooser).setFiles(file);
+    };
+    await pf.getByTestId('home-mine').click();
+    await openGiftFile(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
+    const wrongLine = await pf.getByTestId('mine-gift-error').innerText({ timeout: 10_000 }).catch(() => '');
+    await openGiftFile(giftFile);
+    await pf.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pf.waitForTimeout(800);
+    const secretHead = await pf.getByText('Тайна · Маша', { exact: true }).first().isVisible().catch(() => false);
+    await pf.getByTestId('back').click();
+    await pf.getByTestId('mine-gift-open').waitFor({ timeout: 10_000 });
+    const secretItem = pf.locator('[data-testid^="mine-item-mine-g-"]').first();
+    const secretText = await secretItem.innerText().catch(() => '');
+    const secretImages = await secretItem.locator('img').count();
+    check(wrongLine === 'Это не файл тайны.' && secretHead && secretText.includes('Тайна · Маша') && secretImages === 0,
+      `тайна у друга: снимок вместо тайны — «${wrongLine}»; канва «Тайна · Маша», в «Моих узорах» — ${secretImages ? 'с превью' : 'знак вопроса без превью'}`);
+
+    // крошечная тайна 3 × 2 — вышить до конца: на «Готово» название, подпись и записка
+    const tinyFile = join(OUT, 'gift-tiny.uzory');
+    writeFileSync(tinyFile, makeGift({ w: 3, h: 2, threads: [{ rgb: 0xb3162f, name: 'кумачовая' }], cells: Uint8Array.from([0, 0, CANVAS, 0, 0, 0]) },
+      'Сердечко', { from: 'Маша', note: 'Привет!' }, '2026-11-01'));
+    await openGiftFile(tinyFile);
+    await pf.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pf.waitForTimeout(1000);
+    const cb = (await pf.getByTestId('canvas').boundingBox())!;
+    const s = fitScale(3, 2, cb.width, cb.height);
+    for (const i of [0, 1, 3, 4, 5]) {
+      await pf.mouse.click(cb.x + (cb.width - 3 * s) / 2 + ((i % 3) + 0.5) * s, cb.y + (cb.height - 2 * s) / 2 + (Math.floor(i / 3) + 0.5) * s);
+      await pf.waitForTimeout(300);
+    }
+    await pf.getByTestId('replay').waitFor({ timeout: 15_000 }).catch(() => {});
+    const revealed = await pf.getByText('Сердечко', { exact: true }).first().isVisible().catch(() => false);
+    const fromLine = await pf.getByText('От: Маша', { exact: true }).first().isVisible().catch(() => false);
+    const noteText = await pf.getByTestId('done-gift-note').innerText().catch(() => '');
+    check(revealed && fromLine && noteText.includes('Маша пишет:') && noteText.includes('Привет!'),
+      `тайна вышита: на «Готово» — «Сердечко», «От: Маша» и записка «${noteText.replace(/\n/g, ' ')}»`);
+    await pf.screenshot({ path: join(OUT, '09-gift-done.png') });
+
+    // тот же файл ещё раз — та же тайна, а не вторая; с «Готово» своего узора «Дальше» — на главную
+    await pf.getByTestId('next').click();
+    await pf.getByTestId('home-mine').click();
+    await pf.getByTestId('mine-gift-open').waitFor({ timeout: 10_000 });
+    await openGiftFile(giftFile);
+    await pf.getByTestId('canvas').waitFor({ timeout: 30_000 });
+    await pf.getByTestId('back').click();
+    await pf.getByTestId('mine-gift-open').waitFor({ timeout: 10_000 });
+    const gifts = await pf.locator('[data-testid^="mine-item-mine-g-"]').count();
+    check(gifts === 2, `тот же файл тайны ещё раз — та же тайна: тайн в «Моих узорах» ${gifts} (две разные)`);
+    await ctxFriend.close();
+  }
 
   // «Свой узор» «как в 1.0» (решение владельца 31.10.2026, issue 118, вариант В): первый — бесплатно, и
   // под «Вышивать» об этом строка; после него у нового узора вместо «Вышивать» — «Подробнее», а сам он

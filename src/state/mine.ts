@@ -2,6 +2,7 @@
 // `mine-<id>.json` рядом с работами, список — `mine.json`. Снимок не хранится: только
 // клетки и нити. Узор после «Вышивать» не меняется: другой кадр — другой узор.
 import { base64Decode, base64Encode } from '../engine/base64';
+import { type Gift, giftId, type GiftNote } from '../engine/gift';
 import type { Pattern } from '../engine/pattern';
 import { utf8Decode, utf8Encode } from '../engine/utf8';
 import { logError } from './crashlog';
@@ -16,6 +17,8 @@ export interface MineEntry {
   w: number;
   h: number;
   threads: number;
+  /** «Тайна от друга» (0.23.0): узор подарили — подпись и записка; до последнего стежка он «Тайна» */
+  gift?: GiftNote;
 }
 
 export interface MineFile {
@@ -27,6 +30,7 @@ export interface MineFile {
   threads: { rgb: number; name: string }[];
   /** клетки, base64 */
   cells: string;
+  gift?: GiftNote;
 }
 
 const INDEX = 'mine.json';
@@ -85,6 +89,23 @@ export async function loadMine(id: string): Promise<Pattern | null> {
   }
 }
 
+/**
+ * Подарок друга — в «Мои узоры» (0.23.0): ключ — по содержимому (`giftId`), тот же файл ещё раз — тот же узор
+ * (`fresh` — false). Ошибка записи — исключение.
+ */
+export async function saveGift(g: Gift, now: number): Promise<{ entry: MineEntry; pattern: Pattern; fresh: boolean }> {
+  const id = giftId(g);
+  const pattern: Pattern = { key: mineKey(id), w: g.pattern.w, h: g.pattern.h, threads: g.pattern.threads, cells: g.pattern.cells };
+  const gift: GiftNote = { ...(g.from ? { from: g.from } : {}), ...(g.note ? { note: g.note } : {}) };
+  const have = (await listMine()).find((m) => m.id === id);
+  if (have && (await readFile(fileOf(id)))) return { entry: have, pattern, fresh: false };
+  const file: MineFile = { key: pattern.key, title: g.title, created: now, w: pattern.w, h: pattern.h, threads: pattern.threads, cells: base64Encode(pattern.cells), gift };
+  await writeFile(fileOf(id), utf8Encode(JSON.stringify(file)));
+  const entry: MineEntry = { id, title: g.title, created: now, w: pattern.w, h: pattern.h, threads: pattern.threads.length, gift };
+  await updateIndex((list) => [entry, ...list.filter((m) => m.id !== id)]);
+  return { entry, pattern, fresh: true };
+}
+
 /** Файл узора как есть — для «Перенос»; нет или не читается — null. */
 export async function readMineFile(id: string): Promise<MineFile | null> {
   try {
@@ -103,7 +124,7 @@ export async function putMine(files: readonly MineFile[]): Promise<void> {
   for (const f of files) {
     const id = f.key.replace(/@1$/, '');
     await writeFile(fileOf(id), utf8Encode(JSON.stringify(f)));
-    entries.push({ id, title: f.title, created: f.created, w: f.w, h: f.h, threads: f.threads.length });
+    entries.push({ id, title: f.title, created: f.created, w: f.w, h: f.h, threads: f.threads.length, ...(f.gift ? { gift: f.gift } : {}) });
   }
   const ids = new Set(entries.map((m) => m.id));
   await updateIndex((list) => [...list.filter((m) => !ids.has(m.id)), ...entries].sort((a, b) => b.created - a.created));
