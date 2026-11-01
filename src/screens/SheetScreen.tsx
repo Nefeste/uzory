@@ -14,7 +14,7 @@ import { patternStats } from '../engine/stats';
 import { T } from '../i18n';
 import { copyText } from '../state/clip';
 import { decisionGroups, NOTE_MAX, PICKS, pickKey } from '../state/decisions';
-import { patternOf, pictures } from '../state/library';
+import { patternOf, pictures, rebuiltIds } from '../state/library';
 import { type Pick, usePicks } from '../state/picks';
 import { usePlayer } from '../state/player';
 import { useSettings } from '../state/settings';
@@ -24,7 +24,7 @@ import { previewUri } from '../render/preview';
 import { FONTS } from '../ui/theme';
 import { APP_VERSION } from '../version';
 
-type Filter = 'all' | 'unmarked' | 'trial';
+type Filter = 'all' | 'unmarked' | 'review' | 'trial';
 
 interface Info {
   uri: string | null;
@@ -121,6 +121,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const started = (pic: PackPicture) => works.find((w) => w.pattern === `${pic.id}@${pic.v}` && !w.finished);
 
   const rows = useMemo(() => pictures().filter((p) => !p.hidden), []);
+  // «На отборе» — пересобранные без «да» (повторный отбор, docs/09-content.md, §8; владелец 01.11.2026): у
+  // картинки в наборе есть прежняя версия узора. У запаса и музейных без лицензии прежних версий нет
+  const older = useMemo(() => rebuiltIds(), []);
 
   // отметка и комментарий — у версии картинки (pickKey): новая версия узора — без прежней отметки
   const count = (v: Pick) => rows.filter((pic) => picks[pickKey(pic)] === v).length;
@@ -129,7 +132,10 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
   const inColl = coll === 'all' ? rows : rows.filter((pic) => pic.collection === coll);
   // «Без «да»» — картинки не для выпуска: без «да» владельца или музейные без лицензии (`trial`)
   const shown = filter === 'unmarked' ? inColl.filter((pic) => !picks[pickKey(pic)] || stay.has(pic.id))
-    : filter === 'trial' ? inColl.filter((pic) => pic.trial) : inColl;
+    : filter === 'review' ? inColl.filter((pic) => pic.trial && older.has(pic.id))
+      : filter === 'trial' ? inColl.filter((pic) => pic.trial) : inColl;
+  // в APK — только картинки с «да»: отбор идёт в закрытой веб-версии, где набор для проверки
+  const onlyReleased = rows.length > 0 && !rows.some((pic) => pic.trial);
   const colls = COLLECTIONS.map((c) => ({ id: c, n: rows.filter((pic) => pic.collection === c).length })).filter((c) => c.n > 0);
   // «Название (id@v) — «комментарий»»: владельцу — узнать картинку, ассистенту — найти карточку, версию и что поправить
   const copy = async () => {
@@ -142,7 +148,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
       <Txt dim style={styles.small}>{T.sheet.picksNote}</Txt>
       <Txt bold testID="sheet-picked">{T.sheet.picked(marked, rows.length, count('yes'), count('no'), count('later'), noted)}</Txt>
       <Segmented<Filter> value={filter} onChange={choose} testID="sheet-filter"
-        options={(['all', 'unmarked', 'trial'] as const).map((id) => ({ id, label: T.sheet.filter[id] }))} />
+        options={(['all', 'unmarked', 'review', 'trial'] as const).map((id) => ({ id, label: T.sheet.filter[id] }))} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colls} testID="sheet-colls">
         {[{ id: 'all' as const, label: `${T.sheet.filter.all} · ${rows.length}` },
           ...colls.map((c) => ({ id: c.id, label: `${T.library.collections[c.id]} · ${c.n}` }))].map((c) => (
@@ -150,6 +156,7 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
             onPress={() => chooseColl(c.id)} testID={`sheet-coll-${c.id}`} />
         ))}
       </ScrollView>
+      {filter !== 'all' || coll !== 'all' ? <Txt dim style={styles.small} testID="sheet-shown">{T.sheet.shown(shown.length, shown.filter((pic) => picks[pickKey(pic)]).length)}</Txt> : null}
       <Button kind="secondary" label={T.sheet.copy} disabled={!marked && !noted} onPress={() => void copy()} testID="sheet-copy" />
       {copied ? (
         <>
@@ -170,7 +177,9 @@ export function SheetScreen({ onBack, onOpen }: { onBack: () => void; onOpen: (p
         keyExtractor={(pic) => pic.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={rows.length ? header : null}
-        ListEmptyComponent={<Txt dim style={styles.empty}>{T.sheet.empty}</Txt>}
+        ListEmptyComponent={<Txt dim style={styles.empty} testID="sheet-none">
+          {!rows.length ? T.sheet.empty : onlyReleased && (filter === 'review' || filter === 'trial') ? T.sheet.onlyReleased : T.sheet.none}
+        </Txt>}
         extraData={[works, picks, notes, theme]}
         // карточка — крупное превью: на экране их две-три, вперёд — ещё на пару экранов
         initialNumToRender={4}

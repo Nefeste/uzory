@@ -25,6 +25,8 @@ const patterns = new Map<string, Pattern>();
 let byKey: Map<string, { pic: PackPicture; pack: Pack }> | null = null;
 /** последняя версия каждой картинки */
 let latest: PackPicture[] = [];
+/** картинки с прежними версиями узора — пересобранные */
+let rebuilt: ReadonlySet<string> = new Set();
 const listeners = new Set<() => void>();
 
 export function basePack(): Pack {
@@ -54,6 +56,7 @@ function index(): Map<string, { pic: PackPicture; pack: Pack }> {
   const lib = libraryIndex(packs());
   byKey = lib.byKey;
   latest = lib.latest;
+  rebuilt = lib.rebuilt;
   return byKey;
 }
 
@@ -61,6 +64,15 @@ function index(): Map<string, { pic: PackPicture; pack: Pack }> {
 export function pictures(): PackPicture[] {
   index();
   return latest;
+}
+
+/**
+ * Картинки, у которых в наборах есть прежняя версия узора, — пересобранные: фильтр «На отборе» в «Листе
+ * узоров» (0.21.1; повторный отбор, docs/09-content.md, §8). `pictures()` — только последние версии.
+ */
+export function rebuiltIds(): ReadonlySet<string> {
+  index();
+  return rebuilt;
 }
 
 export function pictureById(id: string): PackPicture | undefined {

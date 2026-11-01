@@ -1,7 +1,7 @@
 // из votchina: src/ui/components.tsx @ 1242776
 // Общие элементы интерфейса (перенос из «Вотчины», вид — по сайту студии).
 import type { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Switch, Text, View, type StyleProp, type SwitchProps, type TextStyle, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Switch, Text, View, type StyleProp, type SwitchProps, type TextStyle, type ViewStyle } from 'react-native';
 import { Icon } from './Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from '../i18n';
@@ -15,24 +15,35 @@ import { FONTS } from './theme';
  */
 export const FONT_MAX = 1.3;
 
+/**
+ * Клавиатура (владелец 01.11.2026: название своего узора вводилось вслепую). С Android 15 окно идёт под
+ * системные панели (edge-to-edge, react-native WindowUtil.kt) и под клавиатуру больше не сжимается: экран
+ * сам отдаёт ей место снизу, а прокрутка с полем в фокусе сдвигается так, чтобы поле было видно (Android
+ * ScrollView.onSizeChanged). На Android до 15 окно сжимается само: экран и так кончается над клавиатурой, и
+ * отступ выходит нулевым. В вебе клавиатурой занимается браузер.
+ */
+const KEYBOARD = Platform.OS === 'web' ? undefined : 'padding';
+
 /** `wide` — канва на весь экран компьютера; остальное — колонкой шириной с телефон-планшет. */
 export function Screen({ children, title, onBack, right, wide }: { children: ReactNode; title?: string; onBack?: () => void; right?: ReactNode; wide?: boolean }) {
   const { theme } = useSettings();
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
-      {title ? (
-        <View style={[styles.header, { borderBottomColor: theme.border }]}>
-          {onBack ? (
-            <Pressable onPress={onBack} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel={T.common.back} testID="back">
-              <Icon name="back" color={theme.text} size={26} />
-            </Pressable>
-          ) : <View style={styles.back} />}
-          <Txt title style={styles.title} numberOfLines={1}>{title}</Txt>
-          <View style={styles.right}>{right}</View>
-        </View>
-      ) : null}
-      <View style={[styles.column, wide && styles.wide]}>{children}</View>
+      <KeyboardAvoidingView behavior={KEYBOARD} style={styles.fill}>
+        {title ? (
+          <View style={[styles.header, { borderBottomColor: theme.border }]}>
+            {onBack ? (
+              <Pressable onPress={onBack} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel={T.common.back} testID="back">
+                <Icon name="back" color={theme.text} size={26} />
+              </Pressable>
+            ) : <View style={styles.back} />}
+            <Txt title style={styles.title} numberOfLines={1}>{title}</Txt>
+            <View style={styles.right}>{right}</View>
+          </View>
+        ) : null}
+        <View style={[styles.column, wide && styles.wide]}>{children}</View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -134,6 +145,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   column: { flex: 1, width: '100%', maxWidth: 640, alignSelf: 'center' },
   wide: { maxWidth: 1600 },
   header: { height: 52, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },

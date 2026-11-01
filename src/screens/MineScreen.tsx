@@ -247,7 +247,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   return (
     <Screen title={T.mine.title} onBack={onBack} wide={wide}>
-      <ScrollView contentContainerStyle={styles.body}>
+      {/* при открытой клавиатуре кнопки нажимаются с первого раза («Применить», «Вышивать»), а не прячут её */}
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {!photo ? (
           <Card style={styles.intro}>
             <Txt>{T.mine.intro}</Txt>
