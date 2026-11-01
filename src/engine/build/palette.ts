@@ -48,6 +48,8 @@ export interface BuildOptions {
    * мелкое пятно в них чистка перекрашивает только в почти тот же цвет. Без поля — как раньше.
    */
   focus?: Uint8Array;
+  /** Сколько нитей — важным частям; нет — `focusThreads` (лица, пятая часть). Главное «Своего узора» — половина (`mainThreads`). */
+  focusCount?: number;
   /**
    * Мягкий переход на ровном месте (./soft.ts): сдвиг клетки к светлому оттенку (+) или тёмному (−)
    * в долях пути между двумя ближними нитями. Без поля — ближняя нить, как раньше.
@@ -420,7 +422,7 @@ export function buildPattern(g: Grid, o: BuildOptions): { pattern: Pattern; log:
   // важные части: из нитей узора — свои, по клеткам рамок (лицо — сотая доля кадра, общая
   // палитра отдала бы его нитям травы и неба)
   const focus = o.focus;
-  const kf = focus ? focusThreads(o.threads) : 0;
+  const kf = focus ? Math.max(0, Math.min(o.threads - 1, o.focusCount ?? focusThreads(o.threads))) : 0;
   let centers = kmeans(pts, o.threads - kf, hash32(o.id));
   const shared = centers.length;
   if (kf) centers = [...centers, ...kmeansAround(stitchIdx.filter((i) => focus![i]).map((i) => labs[i]), centers, kf, hash32(`${o.id}#focus`), FOCUS_FAR)];

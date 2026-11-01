@@ -1,16 +1,16 @@
-// «Оформление» (решение владельца 31.10.2026, issue 116, вариант Б; docs/08-game-design.md, «Оформления»): цвет
-// канвы — на всех работах, рамка — на «Готово» и на картинке «Поделиться». Образец канвы — тем же шейдером
-// (src/render/swatch.ts), рамка — макетом. Своё оформление выбирается касанием; чужое — с ценой магазина,
-// касание покупает его навсегда (0.18.1, RuStore Pay), «Все оформления» — все сразу. Кремовая канва и тёмное
-// дерево — у всех. В сборке без магазина (APK из Releases, веб) — строка, где купить.
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { ALL_LOOKS, CANVASES, type CanvasLook, FRAMES, type FrameLook, isFree, type LookId, lookOwned, productOf } from '../engine/looks';
+// «Рамки» (решение владельца 31.10.2026, issue 116, вариант Б; docs/08-game-design.md, «Оформления»): рамка — на
+// «Готово» и на картинке «Поделиться», макетом. Своя рамка выбирается касанием; чужая — с ценой магазина,
+// касание покупает её навсегда (0.18.1, RuStore Pay), «Все оформления» — все сразу. Тёмное дерево — у всех. В
+// сборке без магазина (APK из Releases, веб) — строка, где купить. Канва с 0.20.0 — не товар, а часть работы
+// (владелец 01.11.2026: «делай канву фоном узора»): она выбирается у работы (src/ui/CanvasPicker.tsx).
+import { type ReactNode, useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ALL_LOOKS, CANVASES, FRAMES, type FrameId, type FrameLook, isFree, lookOwned, productOf } from '../engine/looks';
 import { T } from '../i18n';
-import { canvasSwatch } from '../render/swatch';
 import { billing, type BillingFail, type LookPrice } from '../state/billing';
 import { ownedLooksNow, refreshLooks, setOwnedLooks, useLooks } from '../state/looks';
 import { useSettings } from '../state/settings';
+import { clothHex } from '../ui/CanvasPicker';
 import { Button, Screen, SectionTitle, Txt } from '../ui/components';
 
 /** Что сказать, если покупка не прошла; отказ игрока — тихо. */
@@ -43,10 +43,8 @@ function FrameMock({ frame, cloth }: { frame: FrameLook; cloth: string }) {
 export function LooksScreen({ onBack }: { onBack: () => void }) {
   const { update, theme } = useSettings();
   const looks = useLooks();
-  const own = (id: LookId) => lookOwned(id, looks.owned, looks.open);
-  const swatches = useMemo(() => new Map(CANVASES.map((c) => [c.id, canvasSwatch(c)])), []);
-  const clothHex = (c: CanvasLook) => `#${c.cloth.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
-  const locked = CANVASES.some((c) => !own(c.id)) || FRAMES.some((f) => !own(f.id));
+  const own = (id: FrameId) => lookOwned(id, looks.owned, looks.open);
+  const locked = FRAMES.some((f) => !own(f.id));
   /** покупать есть где: сборка запирает, и магазин есть */
   const shop = locked && billing.available;
   const [prices, setPrices] = useState<LookPrice[] | null>(null);
@@ -99,14 +97,14 @@ export function LooksScreen({ onBack }: { onBack: () => void }) {
   };
 
   // подпись под образцом: сейчас, есть, бесплатно или цена магазина
-  const state = (id: LookId, chosen: boolean) => {
+  const state = (id: FrameId, chosen: boolean) => {
     if (chosen) return T.looks.chosen;
     if (isFree(id)) return T.looks.free;
     if (own(id)) return T.looks.owned;
     return busy ? T.looks.buying : T.looks.locked(priceOf(productOf(id)));
   };
 
-  const tile = (id: LookId, name: string, chosen: boolean, body: ReactNode, onPick: () => void) => (
+  const tile = (id: FrameId, name: string, chosen: boolean, body: ReactNode, onPick: () => void) => (
     <Pressable key={id} onPress={() => (own(id) ? onPick() : shop ? void purchase(productOf(id), T.looks.bought(name), onPick) : undefined)}
       accessibilityRole="button" accessibilityState={{ selected: chosen, disabled: !own(id) && !shop }}
       testID={`look-${id}`}
@@ -121,18 +119,10 @@ export function LooksScreen({ onBack }: { onBack: () => void }) {
     <Screen title={T.looks.title} onBack={onBack}>
       <ScrollView contentContainerStyle={styles.body} testID="looks">
         <Txt dim>{T.looks.note}</Txt>
-        <SectionTitle>{T.looks.canvas}</SectionTitle>
-        <View style={styles.grid}>
-          {CANVASES.map((c) => tile(c.id, T.looks.canvases[c.id], looks.canvas.id === c.id,
-            swatches.get(c.id)
-              ? <Image source={{ uri: swatches.get(c.id)! }} style={styles.swatch} resizeMode="cover" />
-              : <View style={[styles.swatch, { backgroundColor: clothHex(c) }]} />,
-            () => update({ canvas: c.id })))}
-        </View>
         <SectionTitle>{T.looks.frame}</SectionTitle>
         <View style={styles.grid}>
           {FRAMES.map((f) => tile(f.id, T.looks.frames[f.id], looks.frame.id === f.id,
-            <View style={styles.mockBox}><FrameMock frame={f} cloth={clothHex(looks.canvas)} /></View>,
+            <View style={styles.mockBox}><FrameMock frame={f} cloth={clothHex(CANVASES[0])} /></View>,
             () => update({ frame: f.id })))}
         </View>
         {shop ? (
@@ -156,7 +146,6 @@ const styles = StyleSheet.create({
   chosen: { borderWidth: 2, padding: 7 },
   name: { fontSize: 15 },
   small: { fontSize: 13 },
-  swatch: { width: '100%', aspectRatio: 7 / 4, borderRadius: 4 },
   mockBox: { height: 84, alignItems: 'center', justifyContent: 'center' },
   mockFrame: { width: MOCK_W, height: MOCK_H, borderWidth: 7, borderRadius: 1 },
   mockCloth: { flex: 1 },

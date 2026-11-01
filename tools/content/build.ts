@@ -26,7 +26,7 @@ import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
 import { findEyes, findLines, paintEyes } from '../../src/engine/build/eyes';
-import { focusMask } from '../../src/engine/build/focus';
+import { focusMask, mainThreads } from '../../src/engine/build/focus';
 import { unionMask } from '../../src/engine/build/main';
 import { mainMask, photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
@@ -104,7 +104,8 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   const focus = p.chart ? undefined : unionMask(p.focus?.length ? focusMask(p.crop ?? [0, 0, 1, 1], grid.w, grid.h, p.focus) : undefined, mainMask(p, grid));
   const opts = {
     id: card.id, v, threads: p.threads, canvas, canvasDelta: p.canvas_delta, exact: !!p.exact,
-    ...(focus ? { focus } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
+    // главному «Своего узора» — половина нитей, как в приложении (src/engine/build/focus.ts, MAIN_SHARE)
+    ...(focus ? { focus, ...(p.main ? { focusCount: mainThreads(p.threads) } : {}) } : {}), ...(p.min_delta !== undefined ? { minDelta: p.min_delta } : {}),
     // мягкое небо: на больших ровных местах граница оттенков — волной (src/engine/build/soft.ts)
     ...(p.soft ? { soft: softField(grid, card.id) } : {}),
   };

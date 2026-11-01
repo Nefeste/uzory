@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { clothRgb, workCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
 import { estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
@@ -77,14 +78,15 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   const lastPic = last ? patternByKey(last.pattern)?.pic : undefined;
 
   // превью — приглушённым цветом, пока не начата; начатая — полным цветом там, где вышито; готовая — целиком
-  const previewKey = pic ? `${keyOf(pic)} ${work?.id ?? ''} ${work?.done ?? 0} ${work?.finished ? 1 : 0}` : '';
+  const previewKey = pic ? `${keyOf(pic)} ${work?.id ?? ''} ${work?.done ?? 0} ${work?.finished ? 1 : 0} ${work?.canvas ?? ''}` : '';
   const [preview, setPreview] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {
     if (!pattern || !previewKey) return;
     let alive = true;
     void (async () => {
       const stitched = work && !work.finished && work.done > 0 ? await workStitched(pattern, work.id) : null;
-      const uri = previewUri(pattern, work?.finished ? 'done' : 'muted', 480, stitched ?? undefined);
+      // невышитый фон — ткань канвы работы, а без работы — подходящей узору (с 0.20.0)
+      const uri = previewUri(pattern, work?.finished ? 'done' : 'muted', 480, stitched ?? undefined, false, clothRgb(workCanvas(work?.canvas, pattern)));
       if (alive) setPreview({ key: previewKey, uri });
     })();
     return () => {

@@ -2,6 +2,7 @@
 // «Сохранение»): штрихи копятся в памяти, файл пишется целиком не чаще раза в секунду
 // и сразу при уходе с экрана; собирается он по мере вышивания (`WorkLog`). Испорченный файл —
 // откат к `.bak`.
+import { type CanvasId, isCanvasId } from '../engine/looks';
 import type { Pattern } from '../engine/pattern';
 import { addMinute, replay, Stitching, type StitchMinutes, type Stroke } from '../engine/work';
 import { decodeWork, WorkFileError, workFileMisfit, WorkLog } from '../engine/workfile';
@@ -25,6 +26,11 @@ export interface WorkEntry {
   at?: { x: number; y: number };
   /** «Тайна» (issue 117, А): до последнего стежка без названия, превью и силуэта (src/engine/mystery.ts) */
   mystery?: true;
+  /**
+   * Канва работы (с 0.20.0, src/engine/looks.ts): невышитый фон узора — её ткань. Нет — подходящая узору
+   * (`workCanvas`): у работ до 0.20.0 её не было, у новых она записывается сразу.
+   */
+  canvas?: CanvasId;
 }
 
 const INDEX = 'index.json';
@@ -64,6 +70,8 @@ export class WorkSession {
   at: { x: number; y: number } | undefined;
   /** «Тайна»: картинку не видно, пока она не вышита */
   mystery = false;
+  /** канва работы; нет — подходящая узору (src/engine/looks.ts, `workCanvas`) */
+  canvas: CanvasId | undefined;
   /** минуты со стежками; нет — работа начата до того, как их стали считать, и время на «Готово» не показывается */
   private time: StitchMinutes | undefined;
   /** не записано на диск */
@@ -128,6 +136,7 @@ export class WorkSession {
       id: this.id, pattern: this.pattern.key, started: this.started, finished: this.finished,
       done: this.state.done, total: this.state.total, opened: Date.now(), at: this.at, minutes: this.time?.minutes,
       ...(this.mystery ? { mystery: true as const } : {}),
+      ...(this.canvas ? { canvas: this.canvas } : {}),
     };
     this.writing = this.writing.then(async () => {
       try {
@@ -146,6 +155,12 @@ export class WorkSession {
       }
     });
     return this.writing;
+  }
+
+  /** Другая канва работы (меню канвы, «Готово»): записывается сразу, стежки не меняются. */
+  setCanvas(canvas: CanvasId): Promise<void> {
+    this.canvas = canvas;
+    return this.flush(true);
   }
 
   dispose() {
@@ -168,6 +183,8 @@ export async function openWork(pattern: Pattern, id: string): Promise<WorkSessio
       const s = new WorkSession(id, pattern, f.started, f.strokes, entry?.finished, entry?.minutes, f.truncated ? undefined : b);
       s.at = entry?.at;
       s.mystery = !!entry?.mystery;
+      const canvas = entry?.canvas;
+      s.canvas = isCanvasId(canvas) ? canvas : undefined;
       return s;
     } catch (e) {
       logError('work', e, name);
@@ -182,9 +199,10 @@ export async function workStitched(pattern: Pattern, id: string): Promise<Uint8A
   return s ? s.state.stitched : null;
 }
 
-export async function startWork(pattern: Pattern, now: number, mystery = false): Promise<WorkSession> {
+export async function startWork(pattern: Pattern, now: number, mystery = false, canvas?: CanvasId): Promise<WorkSession> {
   const s = new WorkSession(newWorkId(now), pattern, now, [], undefined, 0);
   s.mystery = mystery;
+  s.canvas = canvas;
   // пустая работа тоже записывается: «Продолжить» появляется сразу
   await s.flush(true);
   return s;
@@ -201,6 +219,14 @@ export async function putWorks(list: readonly { entry: WorkEntry; log: Uint8Arra
   const next = indexQueue.then(async () => saveIndex([...list.map((w) => w.entry), ...(await loadIndex()).filter((w) => !ids.has(w.id))]));
   indexQueue = next.catch((e) => logError('work', e, 'index'));
   await next;
+}
+
+/**
+ * Канва работы, которая сейчас не открыта на канве (карточка картинки): только запись в указателе — стежки
+ * не трогаются. Открытая работа пишет канву сама (`WorkSession.canvas`, `flush`).
+ */
+export function setWorkCanvas(id: string, canvas: CanvasId): Promise<void> {
+  return updateIndex((list) => list.map((w) => (w.id === id ? { ...w, canvas } : w)));
 }
 
 export async function deleteWork(id: string): Promise<void> {

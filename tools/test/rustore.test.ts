@@ -260,20 +260,25 @@ const look = (productId: string, status: string, productType: 'NON_CONSUMABLE_PR
 
 describe('оформления навсегда: ответы RuStore Pay → купленное', () => {
   test('куплено — CONFIRMED («покупка успешно оплачена»); PAID, REVERSED — двухстадийной, REFUNDED — возврат: нет', () => {
-    expect(looksOf([look('uzory_look_black', 'CONFIRMED'), look('uzory_look_hoop', 'PAID'), look('uzory_look_blue', 'REFUNDED'), look('uzory_look_linen', 'REVERSED')]))
-      .toEqual(['uzory_look_black']);
+    expect(looksOf([look('uzory_look_baguette', 'CONFIRMED'), look('uzory_look_hoop', 'PAID'), look('uzory_look_birch', 'REFUNDED'), look('uzory_looks_all', 'REVERSED')]))
+      .toEqual(['uzory_look_baguette']);
+  });
+
+  test('канвы с 0.20.0 — не товары: их покупка (если была в тестовом режиме) не считается', () => {
+    expect(looksOf([look('uzory_look_black', 'CONFIRMED'), look('uzory_look_white', 'CONFIRMED'), look('uzory_look_hoop', 'CONFIRMED')]))
+      .toEqual(['uzory_look_hoop']);
   });
 
   test('чужие товары и подписки — не оформления; порядок — как в каталоге, без повторов', () => {
     expect(looksOf([
       look('uzory_looks_all', 'CONFIRMED'), look('coins_100', 'CONFIRMED', 'CONSUMABLE_PRODUCT'), sub('uzory_plus_year', 'ACTIVE', '2027-01-01T00:00:00Z'),
-      look('uzory_look_white', 'CONFIRMED'), look('uzory_look_white', 'CONFIRMED'),
-    ])).toEqual(['uzory_look_white', 'uzory_looks_all']);
+      look('uzory_look_birch', 'CONFIRMED'), look('uzory_look_birch', 'CONFIRMED'),
+    ])).toEqual(['uzory_look_birch', 'uzory_looks_all']);
   });
 
   test('цены — только наших товаров и только с ценой, порядок — как в каталоге', () => {
-    expect(lookPricesOf([product('uzory_looks_all', '299 ₽'), product('uzory_look_black', '99 ₽'), product('uzory_plus_year', '990 ₽'), product('uzory_look_hoop', ' ')]))
-      .toEqual([{ id: 'uzory_look_black', price: '99 ₽' }, { id: 'uzory_looks_all', price: '299 ₽' }]);
+    expect(lookPricesOf([product('uzory_looks_all', '299 ₽'), product('uzory_look_baguette', '99 ₽'), product('uzory_look_black', '99 ₽'), product('uzory_plus_year', '990 ₽'), product('uzory_look_hoop', ' ')]))
+      .toEqual([{ id: 'uzory_look_baguette', price: '99 ₽' }, { id: 'uzory_looks_all', price: '299 ₽' }]);
   });
 });
 
@@ -282,33 +287,33 @@ describe('магазин RuStore Pay: оформления навсегда (src
     const f = fakePay();
     const b = rustoreBilling(f.pay, '');
     expect(await b.lookPrices()).toBeNull();
-    expect(await b.buyLook('uzory_look_black')).toEqual({ ok: false, fail: 'no-store' });
+    expect(await b.buyLook('uzory_look_baguette')).toEqual({ ok: false, fail: 'no-store' });
     expect(await b.looks()).toBeNull();
     expect(f.calls).toEqual([]);
   });
 
   test('цены — у магазина, по всем товарам каталога; ничего не пришло — null', async () => {
-    const f = fakePay({ products: [product('uzory_look_black', '99 ₽')] });
-    expect(await rustoreBilling(f.pay, APP_ID).lookPrices()).toEqual([{ id: 'uzory_look_black', price: '99 ₽' }]);
+    const f = fakePay({ products: [product('uzory_look_baguette', '99 ₽')] });
+    expect(await rustoreBilling(f.pay, APP_ID).lookPrices()).toEqual([{ id: 'uzory_look_baguette', price: '99 ₽' }]);
     expect(f.calls.find((c) => c.name === 'getProducts')?.args).toEqual([[...LOOK_PRODUCTS]]);
     expect(await rustoreBilling(fakePay().pay, APP_ID).lookPrices()).toBeNull();
   });
 
   test('покупка: одна стадия, без почты и идентификатора игрока и без отметки «выдано»; в списке её ещё нет — уже куплено', async () => {
-    const f = fakePay({ purchases: () => [look('uzory_look_white', 'CONFIRMED')] });
-    expect(await rustoreBilling(f.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: true, owned: ['uzory_look_white', 'uzory_look_black'] });
-    expect(f.calls.find((c) => c.name === 'purchase')?.args.slice(0, 8)).toEqual(['uzory_look_black', null, null, null, null, null, 'ONE_STEP', 'LIGHT']);
+    const f = fakePay({ purchases: () => [look('uzory_look_birch', 'CONFIRMED')] });
+    expect(await rustoreBilling(f.pay, APP_ID).buyLook('uzory_look_baguette')).toEqual({ ok: true, owned: ['uzory_look_birch', 'uzory_look_baguette'] });
+    expect(f.calls.find((c) => c.name === 'purchase')?.args.slice(0, 8)).toEqual(['uzory_look_baguette', null, null, null, null, null, 'ONE_STEP', 'LIGHT']);
     expect(f.calls.some((c) => c.name === 'updateAcknowledgementState')).toBe(false);
   });
 
   test('отказ игрока — тихо; сбой — с ответом RuStore; но если RuStore говорит, что куплено, — куплено', async () => {
     const cancelled = fakePay({ buy: () => { throw err('ProductPurchaseCancelled'); } });
-    expect(await rustoreBilling(cancelled.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: false, fail: 'cancelled' });
+    expect(await rustoreBilling(cancelled.pay, APP_ID).buyLook('uzory_look_baguette')).toEqual({ ok: false, fail: 'cancelled' });
     const failed = fakePay({ buy: () => { throw err('RuStorePaymentCommonException'); } });
-    expect(await rustoreBilling(failed.pay, APP_ID).buyLook('uzory_look_black'))
+    expect(await rustoreBilling(failed.pay, APP_ID).buyLook('uzory_look_baguette'))
       .toEqual({ ok: false, fail: 'failed', detail: 'RuStorePaymentCommonException: RuStorePaymentCommonException' });
-    const paid = fakePay({ buy: () => { throw err('RuStorePaymentNetworkException'); }, purchases: () => [look('uzory_look_black', 'CONFIRMED')] });
-    expect(await rustoreBilling(paid.pay, APP_ID).buyLook('uzory_look_black')).toEqual({ ok: true, owned: ['uzory_look_black'] });
+    const paid = fakePay({ buy: () => { throw err('RuStorePaymentNetworkException'); }, purchases: () => [look('uzory_look_baguette', 'CONFIRMED')] });
+    expect(await rustoreBilling(paid.pay, APP_ID).buyLook('uzory_look_baguette')).toEqual({ ok: true, owned: ['uzory_look_baguette'] });
   });
 
   test('купленное — из списка покупок без фильтров; RuStore не ответил — null, прежний ответ остаётся', async () => {

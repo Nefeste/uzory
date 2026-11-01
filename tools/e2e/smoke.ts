@@ -18,6 +18,7 @@ import { Daily } from '../../src/engine/calendar';
 import { addDays, mondayOf } from '../../src/engine/dates';
 import { mergedCalendar, openPack, packPattern } from '../../src/engine/pack';
 import { FREE_FIRST } from '../../src/engine/library';
+import { fieldOf } from '../../src/canvas/shader';
 import { canvasLook, frameLook } from '../../src/engine/looks';
 import { CANVAS, type Pattern } from '../../src/engine/pattern';
 import { shareLayout } from '../../src/engine/share';
@@ -387,11 +388,47 @@ try {
   await page.getByTestId('tile-rozetka').click();
   const picMeta = await page.getByTestId('picture-meta').innerText();
   check(/^Малая · \d+ нит/.test(picMeta) && (await page.getByTestId('picture-stitch').innerText()) === 'Вышивать', `«Все» → карточка картинки: ${picMeta}`);
+  // канва — фон узора (0.20.0, владелец 01.11.2026): у розетки фон не вышивается; канва выбирается на карточке,
+  // превью — на ней; на канве — та же, в меню — другая сразу, и она остаётся у работы
+  const canvasLine = async (id: string) => (await page.getByTestId(id).innerText()).split('\n')[0];
+  const cardSrc = () => page.locator('[data-testid="picture"] img').first().getAttribute('src');
+  const creamLine = await canvasLine('picture-canvas');
+  const paperNote = (await page.getByTestId('picture-canvas').innerText()).includes('не вышивается');
+  const creamSrc = await cardSrc();
+  await page.getByTestId('picture-canvas-blue').click();
+  await page.waitForFunction((src) => document.querySelector('[data-testid="picture"] img')?.getAttribute('src') !== src, creamSrc, { timeout: 5000 }).catch(() => {});
+  const blueLine = await canvasLine('picture-canvas');
+  const blueSrc = await cardSrc();
   await page.getByTestId('picture-stitch').click();
   await page.getByTestId('canvas').waitFor();
   await page.waitForTimeout(1200);
+  const fieldOn = () => page.getByTestId('canvas').evaluate((el) => getComputedStyle(el).backgroundColor);
+  const rgbOf = (hex: string) => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
+  const blueField = await fieldOn();
+  // сама канва (шейдер), а не только поле контейнера: у голубой синего в кадре больше красного, у льна — меньше
+  const tint = async () => {
+    const { data, info } = await sharp(await page.getByTestId('canvas').screenshot()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    let br = 0;
+    for (let i = 0; i < data.length; i += 3) br += data[i + 2] - data[i];
+    return Math.round(br / (info.width * info.height));
+  };
+  const blueTint = await tint();
+  await page.getByTestId('menu').click();
+  const menuLine = await canvasLine('menu-canvas');
+  await page.getByTestId('menu-canvas-linen').click();
+  await page.getByTestId('menu').click();
+  await page.waitForTimeout(500);
+  const linenField = await fieldOn();
+  const linenTint = await tint();
   await page.getByTestId('back').click();
   await page.getByTestId('picture-stitch').waitFor();
+  await page.waitForFunction(() => (document.querySelector('[data-testid="picture-canvas"]')?.textContent ?? '').includes('Суровый лён'), null, { timeout: 5000 }).catch(() => {});
+  const keptLine = await canvasLine('picture-canvas');
+  check(creamLine === 'Канва: Кремовая' && paperNote && blueLine === 'Канва: Голубая' && !!blueSrc && blueSrc !== creamSrc
+    && blueField === rgbOf(fieldOf(canvasLook('blue')).light) && menuLine === 'Канва: Голубая'
+    && linenField === rgbOf(fieldOf(canvasLook('linen')).light) && blueTint - linenTint > 30 && keptLine === 'Канва: Суровый лён',
+    `канва — фон узора: карточка «${creamLine}» → «${blueLine}», превью ${blueSrc !== creamSrc ? 'на новой канве' : 'прежнее'}; `
+    + `на канве поле ${blueField}, в меню «${menuLine}» → лён, поле ${linenField}, синее − красное в кадре ${blueTint} → ${linenTint}; у работы — «${keptLine}»`);
   check((await music()).length === 0, 'музыка: открыли канву и ушли без стежка — не звучала');
   await page.waitForFunction(() => document.querySelector('[data-testid="picture-stitch"]')?.textContent?.startsWith('Продолжить'), null, { timeout: 5000 }).catch(() => {});
   check((await page.getByTestId('picture-stitch').innerText()).startsWith('Продолжить'), 'начатая картинка: на карточке — «Продолжить»');
@@ -1168,43 +1205,51 @@ try {
     await ctxMine.close();
   }
 
-  // оформления (решение владельца 31.10.2026, issue 116, вариант Б): в сборке для проверки открыты все.
-  // Чёрная канва и пяльцы — на картинке «Поделиться» готовой работы; на экране «Оформление» пять канв и
-  // четыре рамки, выбранные — «Сейчас»; багет — рамка со скосом и золочением
+  // оформления (решение владельца 31.10.2026, issue 116, вариант Б): в сборке для проверки открыты все рамки.
+  // Канва с 0.20.0 — у работы: чёрная канва работы и пяльцы — на картинке «Поделиться» готовой работы; на экране
+  // рамок четыре рамки, выбранная — «Сейчас»; багет — рамка со скосом и золочением; на «Готово» канва работы
+  // меняется — суровый лён на «Поделиться» — и остаётся у неё
   {
     const ctxLooks = await browser.newContext({ viewport: { width: 400, height: 860 }, acceptDownloads: true });
     const pl = await ctxLooks.newPage();
     pl.on('pageerror', (e) => errors.push(e.message));
     await pl.goto(base);
     const finishedAt = Date.now() - 3_600_000;
-    await seedWorks(pl, [seedDone('w-e2e-looks', first, finishedAt - 1_800_000, finishedAt)], {
-      'uzory.settings.v1': JSON.stringify({ canvas: 'black', frame: 'hoop' }),
+    await seedWorks(pl, [{ ...seedDone('w-e2e-looks', first, finishedAt - 1_800_000, finishedAt), canvas: 'black' }], {
+      'uzory.settings.v1': JSON.stringify({ frame: 'hoop' }),
     });
     const shareNow = async () => {
       const got = pl.waitForEvent('download', { timeout: 15_000 });
       await pl.getByTestId('share').click();
       return got.then(async (d) => readFileSync((await d.path())!)).catch(() => null);
     };
+    const openDone = async () => {
+      await pl.getByTestId('works-tab-finished').click();
+      await pl.getByTestId('work-w-e2e-looks').click();
+      await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    };
     await pl.getByTestId('home-works').click();
-    await pl.getByTestId('works-tab-finished').click();
-    await pl.getByTestId('work-w-e2e-looks').click();
-    await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    await openDone();
     const hoopPng = await shareNow();
     const hoopLook = hoopPng ? await lookAtShare(hoopPng, first, frameLook('hoop'), canvasLook('black')) : null;
     await pl.getByTestId('done-settings').click();
     await pl.getByTestId('set-looks').click();
     await pl.getByTestId('looks').waitFor({ timeout: 5000 });
     const tiles = await pl.locator('[data-testid^="look-"]').count();
-    const chosen = (await pl.getByTestId('look-black').innerText()).includes('Сейчас') && (await pl.getByTestId('look-hoop').innerText()).includes('Сейчас');
+    const chosen = (await pl.getByTestId('look-hoop').innerText()).includes('Сейчас');
     await pl.getByTestId('look-baguette').click();
     await pl.getByTestId('back').click();
     await pl.getByTestId('back').click();
     await pl.getByTestId('replay').waitFor({ timeout: 10_000 });
+    await pl.getByTestId('done-canvas-linen').click();
     const baguettePng = await shareNow();
-    const baguetteLook = baguettePng ? await lookAtShare(baguettePng, first, frameLook('baguette'), canvasLook('black')) : null;
-    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 9 && chosen && !!baguetteLook?.size && !!baguetteLook.frame,
-      `оформления: «Поделиться» в пяльцах на чёрной канве — ${hoopLook?.frame ? 'да' : 'нет'}, на экране «Оформление» ${tiles} образцов, `
-      + `выбранные — ${chosen ? '«Сейчас»' : 'без «Сейчас»'}, багет — ${baguetteLook?.frame ? 'со скосом и золочением' : 'нет'}`);
+    const baguetteLook = baguettePng ? await lookAtShare(baguettePng, first, frameLook('baguette'), canvasLook('linen')) : null;
+    await pl.getByTestId('back').click();
+    await openDone();
+    const kept = (await pl.getByTestId('done-canvas').innerText()).split('\n')[0];
+    check(!!hoopLook?.size && !!hoopLook.frame && tiles === 4 && chosen && !!baguetteLook?.size && !!baguetteLook.frame && kept === 'Канва: Суровый лён',
+      `оформления: «Поделиться» в пяльцах на чёрной канве работы — ${hoopLook?.frame ? 'да' : 'нет'}, на экране рамок ${tiles} образцов, `
+      + `выбранная — ${chosen ? '«Сейчас»' : 'без «Сейчас»'}, багет на льне — ${baguetteLook?.frame ? 'со скосом и золочением' : 'нет'}; у работы — «${kept}»`);
     await ctxLooks.close();
   }
 
@@ -1226,11 +1271,12 @@ try {
     const tileText = (id: string) => pb.getByTestId(`look-${id}`).innerText();
     const noteText = () => pb.getByTestId('looks-note').innerText({ timeout: 5000 }).catch(() => '');
     await openLooks();
-    await pb.waitForFunction(() => /119/.test(document.querySelector('[data-testid="look-black"]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
-    const priced = (await tileText('black')).includes('Навсегда · 119 ₽');
-    await pb.getByTestId('look-black').click();
+    await pb.waitForFunction(() => /119/.test(document.querySelector('[data-testid="look-baguette"]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+    const priced = (await tileText('baguette')).includes('Навсегда · 119 ₽');
+    const canvases = await pb.locator('[data-testid="look-black"], [data-testid="look-cream"]').count();
+    await pb.getByTestId('look-baguette').click();
     const boughtNote = await noteText();
-    const blackChosen = (await tileText('black')).includes('Сейчас');
+    const baguetteChosen = (await tileText('baguette')).includes('Сейчас');
     await pb.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), mode: 'failed' })), FAKE);
     await pb.getByTestId('look-hoop').click();
     const failNote = await noteText();
@@ -1243,10 +1289,10 @@ try {
     await pb.reload();
     await pb.getByTestId('home-library').waitFor({ timeout: 30_000 });
     await openLooks();
-    const kept = (await tileText('black')).includes('Сейчас') && (await tileText('baguette')).includes('Есть') && (await pb.getByTestId('looks-all').count()) === 0;
-    check(priced && /навсегда/.test(boughtNote) && blackChosen && /Платёж не прошёл/.test(failNote) && /Ответ RuStore/.test(failNote) && hoopStillLocked
+    const kept = (await tileText('baguette')).includes('Сейчас') && (await tileText('birch')).includes('Есть') && (await pb.getByTestId('looks-all').count()) === 0;
+    check(priced && canvases === 0 && /навсегда/.test(boughtNote) && baguetteChosen && /Платёж не прошёл/.test(failNote) && /Ответ RuStore/.test(failNote) && hoopStillLocked
       && allLabel.includes('349 ₽') && /все оформления/.test(allNote) && hoopOwned && kept,
-      `оформления как в 1.0: цена у магазина — ${priced ? '«Навсегда · 119 ₽»' : 'нет'}; чёрная куплена и выбрана — ${blackChosen ? 'да' : 'нет'}; `
+      `рамки как в 1.0: цена у магазина — ${priced ? '«Навсегда · 119 ₽»' : 'нет'}; канв в продаже — ${canvases}; багет куплен и выбран — ${baguetteChosen ? 'да' : 'нет'}; `
       + `сбой — «${failNote.split('\n')[0]}»${/Ответ RuStore/.test(failNote) ? ' с ответом RuStore' : ''}; «${allLabel}» — ${hoopOwned ? 'все есть' : 'не все'}; `
       + `после перезагрузки — ${kept ? 'купленное на месте' : 'купленного нет'}`);
     await ctxBuy.close();

@@ -12,17 +12,18 @@ import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
 import { ThreadBar } from '../canvas/ThreadBar';
 import { currentHint, type HintAction, type HintId, hintsAfter, hintsPassed, strokeAction } from '../engine/hints';
+import { type CanvasId, canvasLook, suitedCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
 import type { Pattern } from '../engine/pattern';
 import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
-import { useLooks } from '../state/looks';
 import { hasMusic, musicEnabled, musicEnter, musicLeave, musicNext, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
 import { type StitchStyle, useSettings } from '../state/settings';
 import { play, soundsReady } from '../state/sound';
 import { type Ambience, ambienceEnter, ambienceLeave, ambienceSet } from '../state/ambience';
 import { openWork, startWork, type WorkSession } from '../state/works';
+import { CanvasPicker } from '../ui/CanvasPicker';
 import { Button, Screen, Segmented, ToggleRow, Txt } from '../ui/components';
 import { hasAbout, PicAbout } from '../ui/PicAbout';
 import { DIGIT_FONT } from '../ui/fonts';
@@ -37,13 +38,15 @@ function leave(session: WorkSession, api: { current: CanvasApi | null }, size: {
   session.dispose();
 }
 
-export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, onBack, onDone, onStarted, onSettings, onLooks }: {
+export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery, canvas: newCanvas, onBack, onDone, onStarted, onSettings, onLooks }: {
   pattern: Pattern;
   title: string;
   /** нет — новая работа */
   workId?: string;
   /** новая работа — «Тайна» (src/engine/mystery.ts); у открытой работы это знает её запись */
   mystery?: boolean;
+  /** канва новой работы — выбранная на карточке картинки; нет — подходящая узору (src/engine/looks.ts) */
+  canvas?: CanvasId;
   /** картинка библиотеки — для «О картине»; у своего узора её нет */
   pic?: PackPicture;
   onBack: () => void;
@@ -51,13 +54,15 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   /** новая работа записана: вернувшись из настроек, экран откроет её, а не начнёт ещё одну */
   onStarted?: (workId: string) => void;
   onSettings?: () => void;
-  /** «Канва и рамка» в меню — экран «Оформление» (владелец 01.11.2026: в настройках его ещё найти надо) */
+  /** «Рамка» в меню — экран рамок (владелец 01.11.2026: в настройках его ещё найти надо) */
   onLooks?: () => void;
 }) {
   const { settings, update, theme } = useSettings();
-  // канва оформления (src/state/looks.ts); фон до первого кадра — её же поле
-  const looks = useLooks();
-  const field = fieldOf(looks.canvas);
+  // канва работы (с 0.20.0 — у работы, src/state/works.ts): до открытия работы — выбранная на карточке или
+  // подходящая узору; фон до первого кадра — её же поле
+  const [canvasId, setCanvasId] = useState<CanvasId>(() => newCanvas ?? suitedCanvas(pattern));
+  const look = canvasLook(canvasId);
+  const field = fieldOf(look);
   const player = usePlayer();
   const font = useFont(DIGIT_FONT, DIGIT_FONT_SIZE);
   const [session, setSession] = useState<WorkSession | null>(null);
@@ -84,12 +89,15 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   useEffect(() => {
     let alive = true;
     (async () => {
-      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now(), !!newMystery);
+      const s = openId ? await openWork(pattern, openId) : await startWork(pattern, Date.now(), !!newMystery, newCanvas ?? suitedCanvas(pattern));
       if (!alive) return;
       if (!s) {
         setBroken(true);
         return;
       }
+      // работа до 0.20.0 — без своей канвы: подходящая узору записывается с первой записью работы
+      s.canvas ??= suitedCanvas(pattern);
+      setCanvasId(s.canvas);
       if (!openId) onStarted?.(s.id);
       s.onSaveError = () => setLine({ text: Platform.OS === 'web' ? T.stitch.saveFailedWeb : T.stitch.saveFailed });
       const first = s.state.left.findIndex((n) => n > 0);
@@ -260,7 +268,7 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
       }} testID="canvas">
         {broken ? <Txt style={styles.msg}>{T.stitch.broken}</Txt>
           : size && font && session ? (
-            <StitchCanvas canvas={looks.canvas}
+            <StitchCanvas canvas={look}
               pattern={pattern} stitched={session.state.stitched} selected={selected}
               mosaic={settings.style === 'mosaic'} hatch={settings.highlight === 'hatch'}
               bigNumbers={settings.bigNumbers} fill={settings.fill} font={font}
@@ -309,6 +317,10 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
                       { id: 'off', label: T.settings.ambiences.off }, { id: 'rain', label: T.settings.ambiences.rain },
                       { id: 'fire', label: T.settings.ambiences.fire },
                     ]} />
+                  <CanvasPicker value={canvasId} testID="menu-canvas" onChange={(id) => {
+                    setCanvasId(id);
+                    if (session) void session.setCanvas(id);
+                  }} />
                   {onLooks ? <Button kind="ghost" label={T.stitch.looks} onPress={() => { setPanel(null); onLooks(); }} testID="menu-looks" /> : null}
                   {onSettings ? <Button kind="ghost" label={T.stitch.settings} onPress={() => { setPanel(null); onSettings(); }} testID="menu-settings" /> : null}
                 </>

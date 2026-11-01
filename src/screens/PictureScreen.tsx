@@ -1,17 +1,20 @@
 // Карточка картинки (docs/specs/2026-09-library.md, «Карточка картинки»): превью, название,
 // автор и год, «Средняя · 12 нитей · ≈ 25 мин», «О картине» раскрывается на месте, кнопка по
-// состоянию: «Вышивать», «Продолжить (38 %)», «Вышить ещё раз».
-import { useEffect, useState } from 'react';
+// состоянию: «Вышивать», «Продолжить (38 %)», «Вышить ещё раз». С 0.20.0 — канва работы: у начатой —
+// её, у новой — подходящая узору (src/engine/looks.ts); превью — на этой канве.
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { type CanvasId, canvasLook, clothRgb, isCanvasId, suitedCanvas } from '../engine/looks';
 import type { PackPicture } from '../engine/pack';
-import { estimateMinutes } from '../engine/pattern';
+import { CANVAS, estimateMinutes } from '../engine/pattern';
 import { T } from '../i18n';
 import { previewUri } from '../render/preview';
 import { billing } from '../state/billing';
 import { percentOf, useCatalog } from '../state/catalog';
 import { patternOf } from '../state/library';
 import { useSettings } from '../state/settings';
-import { workStitched } from '../state/works';
+import { setWorkCanvas, workStitched } from '../state/works';
+import { CanvasPicker } from '../ui/CanvasPicker';
 import { Button, Screen, Txt } from '../ui/components';
 import { hasAbout, PicAbout, whoMade } from '../ui/PicAbout';
 import { INTERNAL } from '../version';
@@ -19,7 +22,8 @@ import { INTERNAL } from '../version';
 export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
   pic: PackPicture;
   onBack: () => void;
-  onStitch: (pic: PackPicture, workId?: string) => void;
+  /** `canvas` — канва новой работы; у начатой она уже записана */
+  onStitch: (pic: PackPicture, workId?: string, canvas?: CanvasId) => void;
   /** «Подробнее» у запертой картинки — экран «Узоры+» */
   onPlus: () => void;
 }) {
@@ -30,22 +34,33 @@ export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
   const work = cat?.workOf(pic);
   const started = work && !work.finished ? work : undefined;
   const done = !!cat?.done(pic);
+  // канва: у начатой работы — записанная (у работы до 0.20.0 — подходящая узору), у новой — выбранная здесь
+  const suited = useMemo(() => suitedCanvas(pattern), [pattern]);
+  const paper = useMemo(() => pattern.cells.includes(CANVAS), [pattern]);
+  const [picked, setPicked] = useState<{ work: string; id: CanvasId } | null>(null);
+  const ownCanvas = started && isCanvasId(started.canvas) ? started.canvas : undefined;
+  const canvasId: CanvasId = picked && picked.work === (started?.id ?? '') ? picked.id : ownCanvas ?? suited;
+  const cloth = clothRgb(canvasLook(canvasId));
+  const pickCanvas = (id: CanvasId) => {
+    setPicked({ work: started?.id ?? '', id });
+    if (started) void setWorkCanvas(started.id, id).then(() => cat?.reload());
+  };
 
   // превью: начатая — полным цветом там, где вышито; вышитая — целиком; иначе приглушённым цветом
-  const key = `${pic.id}@${pic.v} ${started?.id ?? ''} ${started?.done ?? 0} ${done ? 1 : 0}`;
+  const key = `${pic.id}@${pic.v} ${started?.id ?? ''} ${started?.done ?? 0} ${done ? 1 : 0} ${cloth}`;
   const [shown, setShown] = useState<{ key: string; uri: string | null } | null>(null);
   useEffect(() => {
     if (!cat) return;
     let alive = true;
     void (async () => {
       const stitched = started && started.done > 0 ? await workStitched(pattern, started.id) : null;
-      const uri = previewUri(pattern, done && !started ? 'done' : 'muted', 600, stitched ?? undefined);
+      const uri = previewUri(pattern, done && !started ? 'done' : 'muted', 600, stitched ?? undefined, false, cloth);
       if (alive) setShown({ key, uri });
     })();
     return () => {
       alive = false;
     };
-  }, [cat, pattern, started, done, key]);
+  }, [cat, pattern, started, done, key, cloth]);
 
   // заперта — вместо «Вышивать» «Эта картинка — в „Узоры+“» и «Подробнее»; где подписки нет
   // (APK 1.0 из Releases) — где её взять (docs/specs/2026-09-plus.md, «Неудачные случаи»)
@@ -77,7 +92,10 @@ export function PictureScreen({ pic, onBack, onStitch, onPlus }: {
           </View>
         ) : null}
         {!cat ? <ActivityIndicator color={theme.accent} /> : locked ? null : (
-          <Button label={label} onPress={() => onStitch(pic, started?.id)} style={styles.go} testID="picture-stitch" />
+          <>
+            <CanvasPicker value={canvasId} onChange={pickCanvas} note={paper ? T.looks.canvasNote : undefined} testID="picture-canvas" />
+            <Button label={label} onPress={() => onStitch(pic, started?.id, started ? undefined : canvasId)} style={styles.go} testID="picture-stitch" />
+          </>
         )}
         {hasAbout(pic) ? (
           <>

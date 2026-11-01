@@ -2,7 +2,7 @@
 // например лица»). Лицо — малая доля кадра: без рамки палитра всего снимка отдаёт его чужим нитям, а
 // чистка «конфетти» стирает глаза и рот; по рамке у лица свои нити, и глаза с ртом остаются.
 import { describe, expect, test } from 'bun:test';
-import { focusMask, focusThreads, FOCUS_THREADS } from '../../src/engine/build/focus';
+import { focusMask, focusThreads, FOCUS_THREADS, MAIN_SHARE, mainThreads } from '../../src/engine/build/focus';
 import type { Raster } from '../../src/engine/build/grid';
 import { buildPattern } from '../../src/engine/build/palette';
 import { photoGrid } from '../../src/engine/build/photo';
@@ -89,6 +89,14 @@ describe('важные части снимка — лица', () => {
     expect(focusThreads(20)).toBe(4);
     expect(focusThreads(9)).toBe(1);
     expect(focused.threads.length).toBeLessThanOrEqual(opts.threads);
+  });
+
+  test('главному «Своего узора» — половина нитей (0.20.0), лицам библиотеки — как было', () => {
+    expect(MAIN_SHARE).toBe(0.5);
+    expect(mainThreads(24)).toBe(12);
+    expect(mainThreads(32)).toBe(16);
+    expect(mainThreads(3)).toBe(1);
+    expect(focusThreads(24)).toBe(4);
   });
 
   test('та же рамка — тот же узор: сборка без случайности', () => {

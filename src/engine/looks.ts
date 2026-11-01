@@ -1,12 +1,16 @@
-// Оформления (решение владельца 31.10.2026, issue 116, вариант Б; docs/08-game-design.md, «Оформления»):
-// цвет канвы и рамка на «Готово» и «Поделиться» — навсегда, по 99 ₽, «Все оформления» — 299 ₽.
-// Библиотеку и подписку они не трогают. Кремовая канва и тёмное дерево — у всех, как было до 0.18.0.
-// Цвета — sRGB 0…1, как константы шейдера (src/canvas/shader.ts): кремовая — ровно прежние CLOTH, HOLE
-// и GHOST, поэтому без покупки игра выглядит, как прежде, до точки.
+// Оформления (решение владельца 31.10.2026, issue 116, вариант Б; docs/08-game-design.md, «Оформления»).
+// С 0.20.0 (владелец 01.11.2026: «делай канву фоном узора») канва — часть работы, а не товар: пять цветов
+// бесплатно, у каждой работы свой (src/state/works.ts), по умолчанию — подходящий узору (`suitedCanvas`):
+// невышитый фон орнамента, «Детям», старинной схемы и «Своего узора» с фоном «не вышивать» — это ткань
+// канвы. Навсегда продаются рамки на «Готово» и «Поделиться», по 99 ₽, «Все оформления» — 299 ₽; тёмное
+// дерево — у всех. Библиотеку и подписку оформления не трогают. Цвета — sRGB 0…1, как константы шейдера
+// (src/canvas/shader.ts): кремовая — ровно прежние CLOTH, HOLE и GHOST, поэтому у узора без невышитого
+// фона игра выглядит, как прежде, до точки.
+import { deltaOK, rgbToLab } from './color';
+import { CANVAS, type Pattern } from './pattern';
 
 export type CanvasId = 'cream' | 'white' | 'linen' | 'black' | 'blue';
 export type FrameId = 'walnut' | 'baguette' | 'birch' | 'hoop';
-export type LookId = CanvasId | FrameId;
 
 export type Rgb = readonly [number, number, number];
 
@@ -52,7 +56,7 @@ const canvas = (id: CanvasId, color: string): CanvasLook => {
   return { id, cloth, hole: holeOf(cloth), ghost: ghostOf(cloth) };
 };
 
-/** Канвы: первая — у всех. Аида настоящих цветов: белая, небелёный лён, чёрная, голубая. */
+/** Канвы — бесплатно; первая, кремовая, — по умолчанию. Аида настоящих цветов: белая, небелёный лён, чёрная, голубая. */
 export const CANVASES: readonly CanvasLook[] = [
   // прежние константы шейдера, до точки
   { id: 'cream', cloth: [0.953, 0.941, 0.902], hole: [0.6, 0.576, 0.518], ghost: [0.965, 0.965, 0.949] },
@@ -72,19 +76,17 @@ export const FRAMES: readonly FrameLook[] = [
 
 export const FREE_CANVAS: CanvasId = 'cream';
 export const FREE_FRAME: FrameId = 'walnut';
-const FREE: readonly LookId[] = [FREE_CANVAS, FREE_FRAME];
 
-/** Товары навсегда в консоли RuStore: по одному на оформление и «Все оформления». */
+/** Товары навсегда в консоли RuStore: по одному на платную рамку и «Все оформления». */
 export const ALL_LOOKS = 'uzory_looks_all';
-export const productOf = (id: LookId) => `uzory_look_${id}`;
-/** Все товары оформлений — для вопроса магазину о ценах и покупках. */
+export const productOf = (id: FrameId) => `uzory_look_${id}`;
+/** Все товары оформлений — для вопроса магазину о ценах и покупках. С 0.20.0 канв среди них нет. */
 export const LOOK_PRODUCTS: readonly string[] = [
-  ...CANVASES.filter((c) => !FREE.includes(c.id)).map((c) => productOf(c.id)),
-  ...FRAMES.filter((f) => !FREE.includes(f.id)).map((f) => productOf(f.id)),
+  ...FRAMES.filter((f) => f.id !== FREE_FRAME).map((f) => productOf(f.id)),
   ALL_LOOKS,
 ];
 
-export const isFree = (id: LookId) => FREE.includes(id);
+export const isFree = (id: FrameId) => id === FREE_FRAME;
 
 /** Сохранённое и ответ магазина → купленные товары: только наши, без повторов, в порядке каталога; чужое — пусто. */
 export function ownedOf(raw: unknown): string[] {
@@ -93,17 +95,20 @@ export function ownedOf(raw: unknown): string[] {
 }
 
 /**
- * Есть ли у игрока оформление: бесплатное — у всех; `open` — сборка не запирает (0.x для проверки);
- * иначе — купленное отдельно или «Все оформления». `owned` — товары из последнего ответа магазина.
+ * Есть ли у игрока рамка: бесплатная — у всех; `open` — сборка не запирает (0.x для проверки); иначе —
+ * купленная отдельно или «Все оформления». `owned` — товары из последнего ответа магазина.
  */
-export function lookOwned(id: LookId, owned: readonly string[], open: boolean): boolean {
+export function lookOwned(id: FrameId, owned: readonly string[], open: boolean): boolean {
   return isFree(id) || open || owned.includes(ALL_LOOKS) || owned.includes(productOf(id));
 }
 
-/** Канва по id; незнакомая (из будущей версии, испорченная настройка) — бесплатная. */
+/** Канва по id; незнакомая (из будущей версии, испорченная запись) — кремовая. */
 export function canvasLook(id: unknown): CanvasLook {
   return CANVASES.find((c) => c.id === id) ?? CANVASES[0];
 }
+
+/** Знакомый id канвы — для записи работы и файла переноса. */
+export const isCanvasId = (id: unknown): id is CanvasId => CANVASES.some((c) => c.id === id);
 
 /** Рамка по id; незнакомая — бесплатная. */
 export function frameLook(id: unknown): FrameLook {
@@ -111,14 +116,82 @@ export function frameLook(id: unknown): FrameLook {
 }
 
 /**
- * Что показывать: выбранное, если оно есть у игрока, иначе бесплатное. Так покупка, которую магазин
+ * Какую рамку показывать: выбранную, если она есть у игрока, иначе бесплатную. Так покупка, которую магазин
  * больше не подтверждает (возврат денег), и выбор, сделанный в сборке для проверки, не остаются.
  */
-export function shownLooks(chosen: { canvas: unknown; frame: unknown }, owned: readonly string[], open: boolean): { canvas: CanvasLook; frame: FrameLook } {
-  const c = canvasLook(chosen.canvas);
-  const f = frameLook(chosen.frame);
-  return {
-    canvas: lookOwned(c.id, owned, open) ? c : canvasLook(FREE_CANVAS),
-    frame: lookOwned(f.id, owned, open) ? f : frameLook(FREE_FRAME),
-  };
+export function shownFrame(chosen: unknown, owned: readonly string[], open: boolean): FrameLook {
+  const f = frameLook(chosen);
+  return lookOwned(f.id, owned, open) ? f : frameLook(FREE_FRAME);
 }
+
+/**
+ * Нить видна на канве: в OKLab не ближе стольких к её ткани. Кумач, мёд и ель на кремовой — 0,2 и дальше;
+ * белая, молочная и бежевая нить на кремовой — ближе 0,1: стежки теряются в ткани.
+ */
+export const CANVAS_CONTRAST = 0.1;
+/**
+ * Кремовая остаётся, пока теряется не больше этой доли края фона. Светлая кайма в одну клетку у края цветка
+ * старинной схемы — бумага скана, и на кремовой она и должна быть едва видна; а белое кружево орнамента —
+ * весь его край: такому узору нужна канва, на которой кружево видно.
+ */
+export const CANVAS_LOST = 0.2;
+
+/** Ткань канвы — 0xRRGGBB: для превью и для сравнения с нитями. Кремовая — 0xf3f0e6, как превью до 0.20.0. */
+export const clothRgb = (c: CanvasLook) => (Math.round(c.cloth[0] * 255) << 16) | (Math.round(c.cloth[1] * 255) << 8) | Math.round(c.cloth[2] * 255);
+const clothLab = (c: CanvasLook) => rgbToLab(clothRgb(c));
+
+/**
+ * Канва, подходящая узору (владелец 01.11.2026: фон канвы — «реально фон, который не нужно вышивать и
+ * зависеть от узора»). Невышитые клетки узора — ткань канвы, и нити по краю фона должны быть на ней видны.
+ * Край фона — касания вышиваемых клеток с невышитыми; теряется та его доля, чья нить ближе CANVAS_CONTRAST
+ * к ткани. Кремовая — если теряется не больше CANVAS_LOST края; иначе светлая канва, на которой теряется
+ * меньше всего, а при равенстве — та, где хуже всех видная нить видна лучше: бежевая лисичка — на белой,
+ * белая кошка «Своего узора» с фоном «не вышивать» — на суровом льне. Узор без невышитых клеток — на
+ * кремовой, как было: ткань у него видна только до стежков и полем вокруг.
+ */
+export function suitedCanvas(p: Pattern): CanvasId {
+  const touch = new Array<number>(p.threads.length).fill(0);
+  let total = 0;
+  const add = (i: number) => {
+    const t = p.cells[i];
+    if (t === CANVAS || t >= touch.length) return;
+    touch[t]++;
+    total++;
+  };
+  for (let y = 0; y < p.h; y++) {
+    for (let x = 0; x < p.w; x++) {
+      if (p.cells[y * p.w + x] !== CANVAS) continue;
+      if (x > 0) add(y * p.w + x - 1);
+      if (x + 1 < p.w) add(y * p.w + x + 1);
+      if (y > 0) add((y - 1) * p.w + x);
+      if (y + 1 < p.h) add((y + 1) * p.w + x);
+    }
+  }
+  if (!total) return FREE_CANVAS;
+  const edge = p.threads.map((t, i) => ({ lab: rgbToLab(t.rgb), n: touch[i] })).filter((e) => e.n > 0);
+  const judge = (c: CanvasLook) => {
+    const cl = clothLab(c);
+    let lost = 0;
+    let worst = Infinity;
+    for (const e of edge) {
+      const d = deltaOK(e.lab, cl);
+      if (d < CANVAS_CONTRAST) lost += e.n;
+      worst = Math.min(worst, d);
+    }
+    return { lost: lost / total, worst };
+  };
+  if (judge(CANVASES[0]).lost <= CANVAS_LOST) return FREE_CANVAS;
+  // только светлые: картинки библиотеки нарисованы на светлой бумаге, и бледные туманы у тюльпанов Зойтера на
+  // чёрной стали бы белыми пятнами; чёрную канву игрок выбирает сам
+  let best: { id: CanvasId; lost: number; worst: number } | null = null;
+  for (const c of CANVASES) {
+    if (luminance(c.cloth) < 0.3) continue;
+    const j = { id: c.id, ...judge(c) };
+    // меньше теряется, а поровну — хуже всех видная нить видна лучше
+    if (!best || j.lost < best.lost - 1e-9 || (Math.abs(j.lost - best.lost) <= 1e-9 && j.worst > best.worst)) best = j;
+  }
+  return best ? best.id : FREE_CANVAS;
+}
+
+/** Канва работы: записанная у неё, а нет записи (работа до 0.20.0, незнакомый id) — подходящая узору. */
+export const workCanvas = (id: unknown, p: Pattern): CanvasLook => canvasLook(isCanvasId(id) ? id : suitedCanvas(p));

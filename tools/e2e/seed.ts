@@ -20,6 +20,8 @@ export interface Seed {
   finished?: number;
   /** минут со стежками (src/state/works.ts); без них «Готово» не покажет время */
   minutes?: number;
+  /** канва работы (с 0.20.0, src/engine/looks.ts); без неё — подходящая узору */
+  canvas?: string;
 }
 
 export function seed(id: string, p: Pattern, strokes: Stroke[], at: { x: number; y: number }): Seed {
@@ -78,6 +80,7 @@ export async function seedWorks(page: Page, list: Seed[], local: Record<string, 
     return {
       id: s.id, pattern: s.key, started, ...(s.finished ? { finished: s.finished } : {}), done: s.done, total: s.total, opened, at: s.at,
       ...(s.minutes !== undefined ? { minutes: s.minutes } : {}),
+      ...(s.canvas ? { canvas: s.canvas } : {}),
     };
   });
   files.push(['index.json', base64Encode(utf8Encode(JSON.stringify(index)))]);

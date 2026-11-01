@@ -88,6 +88,15 @@ describe('файл переноса', () => {
     expect(r.bad).toBe(0);
     expect(r.works.map((x) => x.entry.minutes)).toEqual([0, 486, undefined, undefined, undefined, undefined]);
   });
+
+  test('канва работы (0.20.0): знакомая переносится, незнакомая отбрасывается, а работа остаётся', () => {
+    const w = (canvas: unknown, i: number) => ({ entry: { ...entry(`w-c-000${i}`, 'rozetka@1', { done: 1 }), canvas }, log: base64Encode(log('rozetka@1', [0])) });
+    const r = readBackup(file(['linen', 'black', 'velvet', 7, null].map(w)));
+    expect(r.bad).toBe(0);
+    expect(r.works.map((x) => x.entry.canvas)).toEqual(['linen', 'black', undefined, undefined, undefined]);
+    const back = readBackup(makeBackup('2026-11-01', r.works, []));
+    expect(back.works.map((x) => x.entry.canvas)).toEqual(['linen', 'black', undefined, undefined, undefined]);
+  });
 });
 
 describe('файлы прошлых версий формата загружаются (tools/test/fixtures/works/)', () => {
