@@ -223,6 +223,8 @@ describe('сборка', () => {
       expect(lib.latest.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
       expect(pack.json.pictures.find((x) => x.id === p.picture.id)!.v).toBeGreaterThan(p.picture.v);
     }
+    // пересобранные — ровно картинки с прежними версиями: фильтр «На отборе» в «Листе узоров» (0.21.1)
+    expect([...lib.rebuilt].sort()).toEqual([...new Set(previous.map((p) => p.picture.id))].sort());
     // закреплённые дни — как были, даже если картинку дня потом скрыли («нет» владельца 24.10.2026):
     // телефон даёт такому дню запасную картинку (src/engine/calendar.ts); остальные дни — только нынешние картинки
     const fixed = new Set(readFixedDays(calendar[0].date).map((d) => d.date));

@@ -191,7 +191,12 @@ export function packError(pack: Pack): string | null {
  * дублируется; `latest` — каждая картинка в последней версии, по порядку наборов. Прежние
  * версии остаются в `byKey`: начатые по ним работы открываются (ADR 0010).
  */
-export function libraryIndex(packs: readonly Pack[]): { byKey: Map<string, { pic: PackPicture; pack: Pack }>; latest: PackPicture[] } {
+export function libraryIndex(packs: readonly Pack[]): {
+  byKey: Map<string, { pic: PackPicture; pack: Pack }>;
+  latest: PackPicture[];
+  /** пересобранные: у картинки в наборах есть версия узора старше последней (фильтр «На отборе», 0.21.1) */
+  rebuilt: Set<string>;
+} {
   const byKey = new Map<string, { pic: PackPicture; pack: Pack }>();
   const last = new Map<string, PackPicture>();
   for (const pack of packs) {
@@ -203,7 +208,9 @@ export function libraryIndex(packs: readonly Pack[]): { byKey: Map<string, { pic
       if (!cur || pic.v > cur.v) last.set(pic.id, pic);
     }
   }
-  return { byKey, latest: [...last.values()] };
+  const rebuilt = new Set<string>();
+  for (const { pic } of byKey.values()) if (pic.v < last.get(pic.id)!.v) rebuilt.add(pic.id);
+  return { byKey, latest: [...last.values()], rebuilt };
 }
 
 /** Календарь всех наборов: у одного дня — запись позднего набора; по датам. */

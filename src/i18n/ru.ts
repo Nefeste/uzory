@@ -311,7 +311,12 @@ export const ru = {
     noteLabel: (title: string) => `Комментарий к картинке «${title}»`,
     noPick: 'Без отметки, с комментарием',
     item: (title: string, id: string, note: string) => (note ? `${title} (${id}) — «${note}»` : `${title} (${id})`),
-    filter: { all: 'Все', unmarked: 'Без отметки', trial: 'Без «да»' } as Record<'all' | 'unmarked' | 'trial', string>,
+    filter: { all: 'Все', unmarked: 'Без отметки', review: 'На отборе', trial: 'Без «да»' } as Record<'all' | 'unmarked' | 'review' | 'trial', string>,
+    /** сколько картинок под фильтром или в коллекции и сколько из них отмечено — сколько осталось */
+    shown: (n: number, marked: number) => `Показано: ${n}${marked ? ` · отмечено ${marked}` : ''}`,
+    none: 'Таких картинок здесь нет.',
+    /** «На отборе» и «Без «да»» в APK: там только картинки с «да» (владелец 01.11.2026 искал отбор в APK) */
+    onlyReleased: 'В этой сборке только картинки с «да». Пересобранные и новые картинки на отборе — в закрытой веб-версии: gornitsa.games/uzory/test.',
     copy: 'Скопировать решения',
     copied: 'Скопировано — вставьте в сообщение ассистенту. Текст ниже можно выделить.',
     notCopied: 'Не скопировалось — выделите текст ниже.',

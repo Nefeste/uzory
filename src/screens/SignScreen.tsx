@@ -5,7 +5,7 @@
 import { useFont } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { fieldOf } from '../canvas/shader';
 import { type CanvasApi, StitchCanvas } from '../canvas/StitchCanvas';
 import { DIGIT_FONT_SIZE } from '../canvas/textures';
@@ -110,7 +110,8 @@ export function SignScreen({ pattern, workId, onBack, onDone }: {
   return (
     <Screen title={T.sign.title} onBack={onBack}>
       {broken ? <Txt style={styles.pad}>{T.stitch.broken}</Txt> : !session ? <ActivityIndicator style={styles.pad} color={theme.accent} /> : !sign ? (
-        <View style={styles.form} testID="sign-form">
+        // прокрутка: при открытой клавиатуре превью и «Вышивать подпись» — ниже, до них можно докрутить
+        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" testID="sign-form">
           <Txt>{T.sign.note}</Txt>
           <View style={styles.row}>
             <Txt>{T.sign.initials}</Txt>
@@ -130,7 +131,7 @@ export function SignScreen({ pattern, workId, onBack, onDone }: {
             </View>
           ) : null}
           <Button label={T.sign.stitch} onPress={start} disabled={!lines} testID="sign-start" />
-        </View>
+        </ScrollView>
       ) : (
         <View style={styles.body}>
           <View style={[styles.canvas, { backgroundColor: theme.dark ? field.dark : field.light }]} testID="sign-canvas"

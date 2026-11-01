@@ -321,7 +321,7 @@ async function frameDiff(a: Buffer, b: Buffer): Promise<string> {
   return `отличаются ${n} из ${x.data.length / ch} точек, до ${max} по каналу`;
 }
 
-const { built } = await buildAll();
+const { built, previous } = await buildAll();
 const first = built.find((b) => b.card.id === 'first-picture')!.pattern;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -953,6 +953,20 @@ try {
   await page.getByTestId('sheet-sinij-tsvetok').waitFor({ timeout: 5000 }).catch(() => {});
   check((await page.getByTestId('sheet-first-picture').count()) === 0 && (await page.getByTestId('sheet-sinij-tsvetok').count()) === 1,
     '«Без «да»» — только картинки не для выпуска');
+  // «На отборе» (0.21.1; владелец 01.11.2026) — пересобранные без «да»: у картинки в наборе есть прежняя
+  // версия узора; запаса и музейных без прежних версий нет. Список рисуется не весь сразу: все нарисованные
+  // карточки — из этих, а «Показано» — ровно столько, сколько их в наборе
+  const older = new Set(previous.map((b) => b.card.id));
+  const review = new Set(built.filter((b) => b.trial && !b.picture.hidden && older.has(b.card.id)).map((b) => b.card.id));
+  const ids = new Set(built.map((b) => b.card.id));
+  await page.getByTestId('sheet-filter-review').click();
+  await page.getByTestId('sheet-shown').waitFor({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const reviewLine = await page.getByTestId('sheet-shown').innerText().catch(() => '');
+  const onScreen = (await page.locator('[data-testid^="sheet-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? '')))
+    .map((t) => t.slice('sheet-'.length)).filter((id) => ids.has(id));
+  check(review.size > 0 && onScreen.length > 0 && onScreen.every((id) => review.has(id)) && reviewLine === `Показано: ${review.size}`,
+    `«На отборе» — только пересобранные без «да»: ${reviewLine}, в наборе таких ${review.size}, на экране ${onScreen.length} — все из них`);
   await page.getByTestId('sheet-filter-all').click();
   // коллекции — по частям (0.10.2): «Цветы» — только цветы, «Все» — снова все
   await page.getByTestId('sheet-coll-flowers').click();
