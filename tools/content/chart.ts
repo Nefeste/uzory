@@ -596,6 +596,51 @@ export function whitePaperCells(g: ChartCells, delta: number): Uint8Array {
   return out;
 }
 
+/**
+ * Заливка контура (`fill`, с 01.11.2026): внутри рамки бумага между краями рисунка — вышивается. Белые
+ * лепестки пёстрых тюльпанов Холстейна — того же тона, что бумага: их задают только красные полосы, и
+ * без заливки голова тюльпана выходит дырявой («тюльпан не дорисован»). Край рисунка — выпуклая
+ * оболочка не-бумаги в рамке: бумага внутри неё перестаёт быть бумагой. Рамки — в клетках сетки.
+ */
+export function fillHulls(paper: Uint8Array, w: number, h: number, rects: readonly [number, number, number, number][]): void {
+  for (const [x0, y0, x1, y1] of rects) {
+    const pts: [number, number][] = [];
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (!paper[y * w + x]) pts.push([x, y]);
+    const hull = convexHull(pts);
+    if (hull.length < 3) continue;
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) if (paper[y * w + x] && insideHull(hull, x, y)) paper[y * w + x] = 0;
+    }
+  }
+}
+
+/** Выпуклая оболочка точек (монотонная цепь Эндрю), против часовой стрелки. */
+function convexHull(pts: [number, number][]): [number, number][] {
+  if (pts.length < 3) return pts;
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop();
+    lower.push(q);
+  }
+  const upper: [number, number][] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p[i]) <= 0) upper.pop();
+    upper.push(p[i]);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+/** Точка внутри выпуклой оболочки или на её крае. */
+function insideHull(hull: [number, number][], x: number, y: number): boolean {
+  for (let i = 0; i < hull.length; i++) {
+    const [ax, ay] = hull[i], [bx, by] = hull[(i + 1) % hull.length];
+    if ((bx - ax) * (y - ay) - (by - ay) * (x - ax) < 0) return false;
+  }
+  return true;
+}
+
 /** Белая бумага: каждый канал — не темнее такой доли от верхнего края листа (WHITE_TOP). */
 const WHITE_SEED = 0.75;
 const WHITE_TOP = 0.95;
@@ -629,13 +674,83 @@ const SPECK = 3;
 /** Пятно на бумаге — цвет не дальше этого от бумаги рядом: рыжее, серое; краска — дальше. */
 const STAIN = 0.25;
 
+/** Бумага от края (`canvas_edge`): цвет соседних клеток бумаги меняется не больше чем на столько. */
+export const EDGE_STEP = 0.07;
+/**
+ * Порог бумаги от края по умолчанию — шире PAPER_DELTA: бумагу держит связь с краем кадра, а не один
+ * цвет, и пожелтевший к краю лист весь остаётся фоном.
+ */
+export const EDGE_DELTA = 0.06;
+/** Пятна на бумаге от края — островки до стольких клеток: рыжие точки и разводы старых листов. */
+const EDGE_SPECK = 6;
+
+/**
+ * Бумага листа на ровном фоне — ботанической гравюры и натюрморта (`canvas_edge`, с 01.11.2026): клетки
+ * цветом не дальше `delta` от бумаги из карточки, до которых от края кадра можно дойти по таким же
+ * клеткам, и цвет соседних меняется плавно (EDGE_STEP). Светлый лепесток или блик сливы внутри контура и
+ * тёмный бок плода на тёмном фоне — не бумага, хотя цветом к ней близки: до 01.11.2026 один порог цвета
+ * делал их невышитыми («тюльпан не дорисован», «часть объектов не прорисована» — отбор владельца
+ * 01.11.2026). Пятна старой бумаги — островки до EDGE_SPECK клеток цветом близко к бумаге — тоже бумага.
+ * `pockets` (`canvas_pockets`) — карманы фона между стеблями тоже бумага: связные куски цветом не дальше
+ * PAPER_DELTA от бумаги не меньше стольких клеток. По цвету карман не отличить от белого лепестка того же
+ * тона, что бумага («Адмирал Винкель»): у кого лепестки такие — без поля.
+ */
+export function edgePaper(g: Grid, canvas: number, delta: number, pockets = 0): Uint8Array {
+  const { w, h } = g;
+  const n = w * h;
+  const ref = rgbToLab(canvas);
+  const labs: Lab[] = Array.from({ length: n }, (_, i) => linearToLab(g.rgb[i * 3], g.rgb[i * 3 + 1], g.rgb[i * 3 + 2]));
+  const off = labs.map((l) => deltaOK(l, ref));
+  const paper = new Uint8Array(n);
+  const stack: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = i % w, y = (i - x) / w;
+    if ((x === 0 || y === 0 || x === w - 1 || y === h - 1) && off[i] < delta) {
+      paper[i] = 1;
+      stack.push(i);
+    }
+  }
+  while (stack.length) {
+    const i = stack.pop()!;
+    const x = i % w, y = (i - x) / w;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+      if (j >= 0 && !paper[j] && off[j] < delta && deltaOK(labs[j], labs[i]) < EDGE_STEP) {
+        paper[j] = 1;
+        stack.push(j);
+      }
+    }
+  }
+  // карманы: от края до них не дойти — стебли и листья замыкают их со всех сторон
+  const seen = new Uint8Array(n);
+  for (let i = 0; pockets > 0 && i < n; i++) {
+    if (paper[i] || seen[i] || off[i] >= PAPER_DELTA) continue;
+    const comp: number[] = [];
+    seen[i] = 1;
+    stack.push(i);
+    while (stack.length) {
+      const j = stack.pop()!;
+      comp.push(j);
+      const x = j % w, y = (j - x) / w;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) {
+        if (k >= 0 && !paper[k] && !seen[k] && off[k] < PAPER_DELTA) {
+          seen[k] = 1;
+          stack.push(k);
+        }
+      }
+    }
+    if (comp.length >= pockets) for (const j of comp) paper[j] = 1;
+  }
+  despeckle(paper, w, h, (i) => off[i] < STAIN, EDGE_SPECK);
+  return paper;
+}
+
 /**
  * Пятнышки на бумаге — фон: рыжие точки старой бумаги, следы карандаша. Пятнышко — не больше
  * SPECK клеток, со всех сторон бумага (и по диагонали — чтобы усики и стебли в клетку наискось
  * остались частью рисунка) и каждая клетка — `stain`: цветом близко к бумаге. Яркая клетка
  * посреди бумаги — замысел: звезда, точка.
  */
-function despeckle(paper: Uint8Array, w: number, h: number, stain: (i: number) => boolean = () => true): void {
+function despeckle(paper: Uint8Array, w: number, h: number, stain: (i: number) => boolean = () => true, speck = SPECK): void {
   const seen = new Uint8Array(w * h);
   const stack: number[] = [];
   for (let i = 0; i < w * h; i++) {
@@ -656,7 +771,7 @@ function despeckle(paper: Uint8Array, w: number, h: number, stain: (i: number) =
         }
       }
     }
-    if (comp.length <= SPECK && comp.every(stain)) for (const j of comp) paper[j] = 1;
+    if (comp.length <= speck && comp.every(stain)) for (const j of comp) paper[j] = 1;
   }
 }
 
