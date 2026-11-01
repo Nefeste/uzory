@@ -79,7 +79,7 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBack, onAgain, onSettings, onPlus, onLooks }: {
   pattern: Pattern;
   title: string;
   caption?: string;
@@ -96,6 +96,11 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
   onSettings: () => void;
   /** строка «Вся библиотека — в „Узоры+“» — экран подписки */
   onPlus: () => void;
+  /**
+   * «Канва и рамка» — экран «Оформление»: работа в рамке — здесь, и выбрать и купить другую — отсюда, а не
+   * искать в настройках (владелец 01.11.2026)
+   */
+  onLooks?: () => void;
 }) {
   const { settings, theme } = useSettings();
   // оформление игрока: канва и рамка (src/state/looks.ts); пяльцы — круг ткани
@@ -287,6 +292,7 @@ export function DoneScreen({ pattern, title, caption, workId, pic, onNext, onBac
               testID="share" style={stacked ? undefined : styles.half} />
           </View>
           {pic && hasAbout(pic) ? <Button kind="ghost" small label={T.done.about} onPress={() => setAbout(!about)} testID="done-about" /> : null}
+          {onLooks ? <Button kind="ghost" small label={T.done.looks} onPress={onLooks} testID="done-looks" /> : null}
           {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
           {onAgain ? <Button label={T.done.again} onPress={onAgain} testID="done-again" /> : null}
           {offer ? <Button kind="ghost" small label={T.plus.offer} onPress={onPlus} testID="done-plus" /> : null}

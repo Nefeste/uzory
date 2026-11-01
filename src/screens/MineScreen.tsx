@@ -3,9 +3,9 @@
 // снимок из галереи (src/state/photo.ts), в вебе — файл. Первый свой узор — бесплатно, дальше новые —
 // по «Узорам+» (решение владельца 31.10.2026, issue 118, вариант В; `mineAccess`); начатые дошиваются.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import type { Background } from '../engine/build/main';
-import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, type MineBuild } from '../engine/build/mine';
+import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, MINE_THREADS, type MineBuild } from '../engine/build/mine';
 import type { Simplify } from '../engine/build/simplify';
 import { estimateMinutes, type Pattern } from '../engine/pattern';
 import { mineAccess } from '../engine/plus';
@@ -21,7 +21,8 @@ import { useSettings } from '../state/settings';
 import { loadIndex, type WorkEntry } from '../state/works';
 import { INTERNAL } from '../version';
 import { Button, Card, FONT_MAX, Screen, SectionTitle, Segmented, Txt } from '../ui/components';
-import { CropBox } from '../ui/CropBox';
+import { FrameEditor } from '../ui/FrameEditor';
+import { FrameView } from '../ui/FrameView';
 import { FONTS } from '../ui/theme';
 
 type SizeKey = keyof typeof MINE_SIZES;
@@ -83,8 +84,10 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   const [shot, setShot] = useState(0);
   // снимок выбран и читается — секунды у снимка в 50 Мп: экран говорит, что занят
   const [opening, setOpening] = useState(false);
-  // рамку держат пальцем: прокрутка экрана стоит, узор собирается, когда отпустят
+  // палец на снимке в экране кадра: узор собирается, когда отпустят
   const [touching, setTouching] = useState(false);
+  // экран кадра (src/ui/FrameEditor.tsx): сразу после выбора снимка и по «Изменить кадр»
+  const [framing, setFraming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mine, setMine] = useState<{ entry: MineEntry; uri: string | null; pattern: Pattern | null; work?: WorkEntry; done?: WorkEntry }[]>([]);
   const [sure, setSure] = useState<string | null>(null);
@@ -144,6 +147,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       setBackground('keep');
       setResult(null);
       setTitle(T.mine.defaultName(new Date()));
+      // сразу — экран кадра: снимок на весь экран, рамку двигают пальцем (владелец 01.11.2026)
+      setFraming(true);
     } catch (e) {
       if (!(e instanceof PhotoError)) logError('mine', e, 'pick');
       if (alive.current) setError(Platform.OS === 'web' ? T.mine.badFile : T.mine.badPhoto);
@@ -169,11 +174,26 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     setMain([cx - ow / 2, cy - oh / 2, cx + ow / 2, cy + oh / 2]);
   };
 
+  // свой размер и нити — числом, собираются по «Применить» (владелец 01.11.2026: на каждое «+10» узор
+  // собирался заново, а до 500 клеток — «невозможно долго»); заготовки размера применяются сразу
+  const [sideText, setSideText] = useState(() => String(side));
+  const [threadsText, setThreadsText] = useState(() => String(threads));
   const setSize = (k: SizeKey) => {
     setSide(MINE_SIZES[k]);
     setThreads(defaultThreads(MINE_SIZES[k]));
+    setSideText(String(MINE_SIZES[k]));
+    setThreadsText(String(defaultThreads(MINE_SIZES[k])));
   };
-  const sizeKey = (Object.keys(MINE_SIZES) as SizeKey[]).find((k) => MINE_SIZES[k] === side);
+  const sizeKey = (Object.keys(MINE_SIZES) as SizeKey[]).find((k) => MINE_SIZES[k] === side) ?? null;
+  const typed = sideText !== String(side) || threadsText !== String(threads);
+  const apply = () => {
+    const s = Math.min(MINE_SIDE[1], Math.max(MINE_SIDE[0], Number(sideText) || side));
+    const n = Math.min(MINE_THREADS[1], Math.max(MINE_THREADS[0], Number(threadsText) || threads));
+    setSide(s);
+    setThreads(n);
+    setSideText(String(s));
+    setThreadsText(String(n));
+  };
 
   const stitch = async () => {
     if (!built || building || opening || built.verdict.level === 'bad' || access === 'locked') return;
@@ -212,14 +232,22 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   };
 
   const photoW = wide ? Math.min(640, width * 0.5 - 48) : Math.min(width - 32, 608);
-  const photoH = wide ? Math.min(560, height - 220) : 360;
+  const photoH = wide ? Math.min(560, height - 220) : 300;
   const v = built?.verdict;
   const verdictColor = !v ? theme.textDim : v.level === 'ok' ? theme.spruce : v.level === 'warn' ? theme.flax : theme.danger;
 
+  if (photo && framing && !opening) {
+    return (
+      <FrameEditor key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height}
+        crop={crop} onCrop={setCrop} main={main} onMain={setMain} onToggleMain={toggleMain} onWhole={() => setCrop([0, 0, 1, 1])}
+        preview={building ? null : preview} building={building} onActive={setTouching} onDone={() => setFraming(false)} />
+    );
+  }
+  const k = photo ? Math.min(photoW / photo.raster.width, photoH / photo.raster.height) : 1;
+
   return (
     <Screen title={T.mine.title} onBack={onBack} wide={wide}>
-      {/* в вебе — мышь, прокрутку она не задевает, а без полосы прокрутки раскладка сдвинулась бы под курсором */}
-      <ScrollView contentContainerStyle={styles.body} scrollEnabled={Platform.OS === 'web' || !touching}>
+      <ScrollView contentContainerStyle={styles.body}>
         {!photo ? (
           <Card style={styles.intro}>
             <Txt>{T.mine.intro}</Txt>
@@ -232,16 +260,16 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
               {opening ? (
                 <View style={[styles.opening, { height: photoH, backgroundColor: theme.surfaceAlt }]}><Opening /></View>
               ) : (
-                <CropBox key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height} maxW={photoW} maxH={photoH}
-                  crop={crop} onChange={setCrop} main={main} onMain={setMain} onActive={setTouching} />
+                // кадр — картинкой; касание открывает экран кадра
+                <Pressable onPress={() => setFraming(true)} accessibilityRole="button" accessibilityLabel={T.mine.frameEdit} testID="mine-frame-open">
+                  <FrameView uri={photo.uri} dw={Math.max(1, Math.round(photo.raster.width * k))} dh={Math.max(1, Math.round(photo.raster.height * k))}
+                    crop={crop} main={main} />
+                </Pressable>
               )}
               <View style={styles.row}>
-                <Button small kind="secondary" label={T.mine.whole} onPress={() => setCrop([0, 0, 1, 1])} disabled={opening} testID="mine-whole" />
+                <Button small kind="secondary" label={T.mine.frameEdit} onPress={() => setFraming(true)} disabled={opening} testID="mine-frame-edit" />
                 <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} disabled={opening} testID="mine-other" />
-                <Button small kind={main ? 'ghost' : 'secondary'} label={main ? T.mine.mainOff : T.mine.mainOn} onPress={toggleMain} disabled={opening}
-                  testID="mine-main-toggle" />
               </View>
-              <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
               {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
               {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
             </View>
@@ -265,19 +293,20 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                 </>
               ) : null}
               <SectionTitle>{T.mine.size}</SectionTitle>
-              <Segmented value={sizeKey ?? 'M'} onChange={setSize} testID="mine-size"
+              <Segmented value={sizeKey} onChange={setSize} testID="mine-size"
                 options={(Object.keys(MINE_SIZES) as SizeKey[]).map((k) => ({ id: k, label: wide ? `${T.common.sizes[k]} · ${MINE_SIZES[k]}` : T.common.sizes[k] }))} />
               <View style={styles.row}>
-                <Button small kind="secondary" label="−10" onPress={() => setSide((s) => Math.max(MINE_SIDE[0], s - 10))} testID="mine-side-minus" />
-                <Txt style={styles.grow}>{T.mine.side(side)}</Txt>
-                <Button small kind="secondary" label="+10" onPress={() => setSide((s) => Math.min(MINE_SIDE[1], s + 10))} testID="mine-side-plus" />
+                <Txt>{T.mine.cellsLabel}</Txt>
+                <TextInput value={sideText} onChangeText={(t) => setSideText(t.replace(/\D/g, ''))} onSubmitEditing={apply} keyboardType="number-pad" maxLength={3}
+                  maxFontSizeMultiplier={FONT_MAX} testID="mine-side"
+                  style={[styles.input, styles.num, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface, fontFamily: FONTS.body }]} />
+                <Txt>{T.mine.threadsLabel}</Txt>
+                <TextInput value={threadsText} onChangeText={(t) => setThreadsText(t.replace(/\D/g, ''))} onSubmitEditing={apply} keyboardType="number-pad" maxLength={2}
+                  maxFontSizeMultiplier={FONT_MAX} testID="mine-threads"
+                  style={[styles.input, styles.num, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface, fontFamily: FONTS.body }]} />
+                <Button small label={T.mine.apply} onPress={apply} disabled={!typed} testID="mine-apply" />
               </View>
-              <SectionTitle>{T.mine.threads}</SectionTitle>
-              <View style={styles.row}>
-                <Button small kind="secondary" label={T.mine.fewer} onPress={() => setThreads((n) => Math.max(3, n - 2))} testID="mine-threads-minus" />
-                <Txt style={styles.grow}>{T.mine.asked(threads)}</Txt>
-                <Button small kind="secondary" label={T.mine.more} onPress={() => setThreads((n) => Math.min(45, n + 2))} testID="mine-threads-plus" />
-              </View>
+              <Txt dim style={styles.small}>{T.mine.sizeNote(MINE_SIDE[0], MINE_SIDE[1], MINE_THREADS[0], MINE_THREADS[1])}</Txt>
               <SectionTitle>{T.mine.simplify}</SectionTitle>
               <Segmented value={String(simplify)} onChange={(id) => setSimplify(Number(id) as Simplify)} testID="mine-simplify"
                 options={SIMPLIFY.map((l) => ({ id: String(l), label: T.mine.simplifyLevels[l] }))} />
@@ -375,6 +404,7 @@ const styles = StyleSheet.create({
   building: { position: 'absolute', alignItems: 'center', gap: 6, padding: 10, borderRadius: 6, backgroundColor: 'rgba(247, 247, 242, 0.85)' },
   verdict: { borderLeftWidth: 4, paddingLeft: 10, paddingVertical: 4, gap: 2 },
   input: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  num: { width: 64, textAlign: 'center', paddingHorizontal: 6 },
   go: { marginTop: 8 },
   locked: { marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 12, gap: 6 },
   list: { gap: 10 },
