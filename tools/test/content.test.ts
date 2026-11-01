@@ -32,6 +32,7 @@ describe('карточки', () => {
     'bad-grid.yaml': /pattern\.grid «median»/,
     'bad-chroma.yaml': /pattern\.chroma 2/,
     'bad-px.yaml': /pattern\.px 4: целое 2…8, не у схемы и не со smooth: 2/,
+    'bad-main.yaml': /pattern\.main \[0\.6,0\.2,0\.4,0\.8\]: рамка овала.*pattern\.background «round»: one или none/,
     'bad-smooth.yaml': /pattern\.smooth 1: 0, 1 или 2, не у схемы и не вместе с simplify/,
     'bad-soft.yaml': /pattern\.soft 0\.5: true или false, и не у схемы/,
     'bad-tone.yaml': /pattern\.tone 1\.5: 0 или 0,1…1, и не у схемы/,
@@ -150,7 +151,7 @@ function buildSample(list: Built[]): Built[] {
     const source = b.card.drawn ? 'drawn' : p?.chart ? `chart${p.canvas ? (p.white_paper ? ':white' : ':paper') : ''}` : `photo:${p?.grid ?? 'mean'}`;
     const kind = [
       b.card.collection, source, p?.smooth ? `smooth${p.smooth}` : `simplify${p?.simplify ?? 0}`, p?.soft ? 'soft' : '', p?.exact ? 'exact' : '',
-      p?.chroma !== undefined ? 'chroma' : '', p?.px !== undefined ? 'px' : '', p?.tone !== undefined ? 'tone' : '', p?.focus?.length ? 'focus' : '',
+      p?.chroma !== undefined ? 'chroma' : '', p?.px !== undefined ? 'px' : '', p?.main ? `main:${p.background ?? 'keep'}` : '', p?.tone !== undefined ? 'tone' : '', p?.focus?.length ? 'focus' : '',
       p?.eyes?.length || p?.lines?.length ? 'eyes' : '', p?.min_delta !== undefined ? 'delta' : '', v === b.card.v ? '' : 'was',
     ].join('|');
     const cur = pick.get(kind);

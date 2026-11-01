@@ -5,7 +5,8 @@ import type { Pattern } from '../pattern';
 import { type Checked, checkPatternWith, DARK_L, DARK_SHARE } from './checks';
 import type { Raster } from './grid';
 import { type BuildLog, buildPattern } from './palette';
-import { photoGrid } from './photo';
+import type { Background } from './main';
+import { mainMask, photoGrid } from './photo';
 import { type Simplify, SIMPLIFY_CLEAN } from './simplify';
 
 /** Размер по длинной стороне, клеток: малая, средняя, большая, огромная. */
@@ -58,12 +59,32 @@ export type Crop = [number, number, number, number];
  */
 export const MINE_SEED = 'mine';
 
-/** Узор из кадра `crop` (доли снимка): длинная сторона — `side` клеток; `simplify` — упрощение. */
-export function buildMine(r: Raster, o: { crop: Crop; side: number; threads: number; simplify?: Simplify }): MineBuild {
+/** Что выбрано в «Своём узоре»: кадр, размер, нити, упрощение, главное и фон (src/screens/MineScreen.tsx). */
+export interface MineOptions {
+  crop: Crop;
+  side: number;
+  threads: number;
+  simplify?: Simplify;
+  /** главное — овал, вписанный в рамку (доли снимка, как кадр; ./main.ts) */
+  main?: Crop;
+  /** фон вне главного: одной нитью или не вышивать; без поля — как есть */
+  background?: Background;
+}
+
+/**
+ * Узор из кадра `crop` (доли снимка): длинная сторона — `side` клеток; `simplify` — упрощение. Главное
+ * (с 0.19.0) — как лица на снимках библиотеки: своя маленькая палитра и бережная чистка (./focus.ts),
+ * а упрощения в нём нет (./main.ts).
+ */
+export function buildMine(r: Raster, o: MineOptions): MineBuild {
   const level = o.simplify ?? 0;
-  const grid = photoGrid(r, { crop: o.crop, size: o.side, ...MINE_GRID, simplify: level });
-  const { pattern, log } = buildPattern(grid, { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[level] });
-  const checked = checkPatternWith(pattern);
+  const spec = { crop: o.crop, size: o.side, ...MINE_GRID, simplify: level, ...(o.main ? { main: o.main, ...(o.background ? { background: o.background } : {}) } : {}) };
+  const grid = photoGrid(r, spec);
+  const focus = mainMask(spec, grid);
+  const { pattern, log } = buildPattern(grid, { id: MINE_SEED, v: 1, threads: o.threads, clean: SIMPLIFY_CLEAN[level], ...(focus ? { focus } : {}) });
+  // главное: одиночки и мелкие пятна в нём — замысел (глаза, блики, ноздри), в приговор не идут
+  // (советы вышивальщиц и справка WinStitch, разбор статей 31.10.2026: «не стирать значимые одиночки»)
+  const checked = checkPatternWith(pattern, focus ? { focus, skip: focus } : {});
   const pxPerCell = Math.min(((o.crop[2] - o.crop[0]) * r.width) / grid.w, ((o.crop[3] - o.crop[1]) * r.height) / grid.h);
   return { pattern, log, checked, verdict: verdictOf(pattern, checked, pxPerCell), pxPerCell };
 }
@@ -109,7 +130,7 @@ const round = (x: number) => Number(x.toFixed(4));
  * Карточка библиотеки для своего снимка владельца (docs/09-content.md, §2, «Свои снимки»):
  * кадр, размер и нити — из инструмента; коллекция, место и дата съёмки — дописать руками.
  */
-export function libraryCard(o: { title: string; crop: Crop; side: number; threads: number; simplify?: Simplify; now: Date }): { id: string; yaml: string } {
+export function libraryCard(o: { title: string; crop: Crop; side: number; threads: number; simplify?: Simplify; main?: Crop; background?: Background; now: Date }): { id: string; yaml: string } {
   const id = slugOf(o.title);
   const day = `${dd(o.now.getDate())}.${dd(o.now.getMonth() + 1)}.${o.now.getFullYear()}`;
   const yaml = [
@@ -133,6 +154,8 @@ export function libraryCard(o: { title: string; crop: Crop; side: number; thread
     `  chroma: ${MINE_GRID.chroma}            # насыщенность`,
     `  px: ${MINE_GRID.px}                 # точек на клетку: кадр до сетки усредняется, как в «Своём узоре»`,
     ...(o.simplify ? [`  simplify: ${o.simplify}       # упрощение: 1 — немного, 2 — сильно`] : []),
+    ...(o.main ? [`  main: [${o.main.map(round).join(', ')}]   # главное — овал в этой рамке, доли снимка`] : []),
+    ...(o.main && o.background ? [`  background: ${o.background}    # фон вне главного: one — одной нитью, none — не вышивать`] : []),
     '',
   ].join('\n');
   return { id, yaml };

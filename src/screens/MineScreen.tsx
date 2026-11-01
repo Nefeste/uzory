@@ -4,6 +4,7 @@
 // по «Узорам+» (решение владельца 31.10.2026, issue 118, вариант В; `mineAccess`); начатые дошиваются.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import type { Background } from '../engine/build/main';
 import { buildMine, type Crop, defaultThreads, libraryCard, MINE_SIDE, MINE_SIZES, type MineBuild } from '../engine/build/mine';
 import type { Simplify } from '../engine/build/simplify';
 import { estimateMinutes, type Pattern } from '../engine/pattern';
@@ -25,12 +26,20 @@ import { FONTS } from '../ui/theme';
 
 type SizeKey = keyof typeof MINE_SIZES;
 const SIMPLIFY: Simplify[] = [0, 1, 2];
+/** Фон вне главного: как есть, одной нитью, не вышивать (src/engine/build/main.ts). */
+type BackgroundChoice = 'keep' | Background;
+const BACKGROUNDS: BackgroundChoice[] = ['keep', 'one', 'none'];
+/**
+ * Размер сразу — «большая», 120 клеток (решение владельца 01.11.2026): лицу и мелким подробностям
+ * снимка 70 клеток мало (разбор статей 31.10.2026: меньше 80 крестиков выходит «кубиками»).
+ */
+const FIRST_SIDE = MINE_SIZES.L;
 
 /**
  * Черновик на время открытой вкладки: после «Вышивать» и возврата с канвы кадр на месте.
  * Снимок — только в памяти, на диск не пишется (docs/specs/2026-09-custom.md, «Данные»).
  */
-interface Draft { photo: Photo; crop: Crop; side: number; threads: number; simplify: Simplify; title: string }
+interface Draft { photo: Photo; crop: Crop; side: number; threads: number; simplify: Simplify; title: string; main: Crop | null; background: BackgroundChoice }
 let draft: Draft | null = null;
 /** Сборка — через столько после последней правки: рамку тянут, а узор не пересобирается на каждый сдвиг. */
 const DEBOUNCE_MS = 250;
@@ -57,14 +66,18 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   const [photo, setPhoto] = useState<Photo | null>(() => draft?.photo ?? null);
   const [error, setError] = useState<string | null>(null);
   const [crop, setCrop] = useState<Crop>(() => draft?.crop ?? [0, 0, 1, 1]);
-  const [side, setSide] = useState<number>(() => draft?.side ?? MINE_SIZES.M);
-  const [threads, setThreads] = useState(() => draft?.threads ?? defaultThreads(MINE_SIZES.M));
+  const [side, setSide] = useState<number>(() => draft?.side ?? FIRST_SIDE);
+  const [threads, setThreads] = useState(() => draft?.threads ?? defaultThreads(FIRST_SIDE));
   // упрощение: снимок — не картина, «немного» почти всегда спокойнее (docs/specs/2026-09-custom.md)
   const [simplify, setSimplify] = useState<Simplify>(() => draft?.simplify ?? 1);
   const [title, setTitle] = useState(() => draft?.title ?? T.mine.defaultName(new Date()));
+  // главное — овал в рамке (доли снимка) и фон вне его (src/engine/build/main.ts, с 0.19.0)
+  const [main, setMain] = useState<Crop | null>(() => draft?.main ?? null);
+  const [background, setBackground] = useState<BackgroundChoice>(() => draft?.background ?? 'keep');
   useEffect(() => {
-    draft = photo ? { photo, crop, side, threads, simplify, title } : null;
-  }, [photo, crop, side, threads, simplify, title]);
+    draft = photo ? { photo, crop, side, threads, simplify, title, main, background } : null;
+  }, [photo, crop, side, threads, simplify, title, main, background]);
+  const bg = main && background !== 'keep' ? background : undefined;
   const [result, setResult] = useState<{ key: string; build: MineBuild } | null>(null);
   // какой по счёту снимок открыт: ключ сборки и рамки — номер, а не data: URI в мегабайт
   const [shot, setShot] = useState(0);
@@ -97,20 +110,20 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   // сборка узора — после паузы в правках и когда рамку отпустили: сборка занимает поток JS, и
   // палец на рамке ждал бы её; пока узор не для этих правок, идёт «Собираю…»
-  const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify}` : '';
+  const inputKey = photo ? `${shot} ${crop.join(',')} ${side} ${threads} ${simplify} ${main?.join(',') ?? '-'} ${bg ?? '-'}` : '';
   const building = !!photo && result?.key !== inputKey;
   useEffect(() => {
     if (!photo || touching) return;
     const t = setTimeout(() => {
       try {
-        const build = buildMine(photo.raster, { crop, side, threads, simplify });
+        const build = buildMine(photo.raster, { crop, side, threads, simplify, ...(main ? { main, ...(bg ? { background: bg } : {}) } : {}) });
         if (alive.current) setResult({ key: inputKey, build });
       } catch (e) {
         logError('mine', e, 'build');
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [photo, crop, side, threads, simplify, inputKey, touching]);
+  }, [photo, crop, side, threads, simplify, main, bg, inputKey, touching]);
 
   const built = result?.build ?? null;
   const preview = useMemo(() => (built ? previewUri(built.pattern, 'done', 520) : null), [built]);
@@ -125,6 +138,9 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
       setPhoto(p);
       setShot((n) => n + 1);
       setCrop([0, 0, 1, 1]);
+      // главное прежнего снимка новому ни к чему
+      setMain(null);
+      setBackground('keep');
       setResult(null);
       setTitle(T.mine.defaultName(new Date()));
     } catch (e) {
@@ -133,6 +149,23 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
     } finally {
       if (alive.current) setOpening(false);
     }
+  };
+
+  // овал — посередине кадра: по меньшей стороне кадра — половина в ширину и 0,6 в высоту (лицо, фигура,
+  // цветок); дальше его двигают и тянут, как рамку
+  const toggleMain = () => {
+    if (main || !photo) {
+      setMain(null);
+      return;
+    }
+    const [l, t, r, b] = crop;
+    const { width: pw, height: ph } = photo.raster;
+    const least = Math.min((r - l) * pw, (b - t) * ph);
+    const ow = (0.5 * least) / pw;
+    const oh = (0.6 * least) / ph;
+    const cx = (l + r) / 2;
+    const cy = (t + b) / 2;
+    setMain([cx - ow / 2, cy - oh / 2, cx + ow / 2, cy + oh / 2]);
   };
 
   const setSize = (k: SizeKey) => {
@@ -163,7 +196,7 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
 
   const exportCard = () => {
     if (!photo?.jpeg || !built) return;
-    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, now: new Date() });
+    const card = libraryCard({ title: title.trim() || photo.name, crop, side, threads, simplify, ...(main ? { main, ...(bg ? { background: bg } : {}) } : {}), now: new Date() });
     downloadFiles([{ name: `${card.id}.yaml`, data: textBlob(card.yaml) }, { name: `${card.id}.jpg`, data: photo.jpeg }]);
   };
 
@@ -199,13 +232,16 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
                 <View style={[styles.opening, { height: photoH, backgroundColor: theme.surfaceAlt }]}><Opening /></View>
               ) : (
                 <CropBox key={shot} uri={photo.uri} width={photo.raster.width} height={photo.raster.height} maxW={photoW} maxH={photoH}
-                  crop={crop} onChange={setCrop} onActive={setTouching} />
+                  crop={crop} onChange={setCrop} main={main} onMain={setMain} onActive={setTouching} />
               )}
               <View style={styles.row}>
                 <Button small kind="secondary" label={T.mine.whole} onPress={() => setCrop([0, 0, 1, 1])} disabled={opening} testID="mine-whole" />
                 <Button small kind="secondary" label={T.mine.other} onPress={() => void pick()} disabled={opening} testID="mine-other" />
+                <Button small kind={main ? 'ghost' : 'secondary'} label={main ? T.mine.mainOff : T.mine.mainOn} onPress={toggleMain} disabled={opening}
+                  testID="mine-main-toggle" />
               </View>
               <Txt dim style={styles.small}>{Platform.OS === 'web' ? T.mine.hint : T.mine.hintTouch}</Txt>
+              {main ? <Txt dim style={styles.small}>{T.mine.mainNote}</Txt> : null}
               {error ? <Txt style={{ color: theme.danger }} testID="mine-error">{error}</Txt> : null}
             </View>
             <View style={[styles.col, wide && styles.colWide, wide && styles.colRight]}>
@@ -245,6 +281,14 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
               <Segmented value={String(simplify)} onChange={(id) => setSimplify(Number(id) as Simplify)} testID="mine-simplify"
                 options={SIMPLIFY.map((l) => ({ id: String(l), label: T.mine.simplifyLevels[l] }))} />
               <Txt dim style={styles.small}>{T.mine.simplifyNote}</Txt>
+              {main ? (
+                <>
+                  <SectionTitle>{T.mine.background}</SectionTitle>
+                  <Segmented value={background} onChange={setBackground} testID="mine-background"
+                    options={BACKGROUNDS.map((b) => ({ id: b, label: T.mine.backgroundLevels[b] }))} />
+                  <Txt dim style={styles.small}>{T.mine.backgroundNote}</Txt>
+                </>
+              ) : null}
               <SectionTitle>{T.mine.name}</SectionTitle>
               <TextInput value={title} onChangeText={setTitle} maxLength={60} maxFontSizeMultiplier={FONT_MAX} testID="mine-name"
                 style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface, fontFamily: FONTS.body }]} />

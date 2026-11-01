@@ -93,6 +93,14 @@ export interface Card {
      */
     px?: number;
     /**
+     * главное — овал, вписанный в рамку [слева, сверху, справа, снизу] в долях снимка, как crop
+     * (src/engine/build/main.ts; «Свой узор» — с 0.19.0): своя палитра и бережная чистка, как у лиц, без
+     * упрощения резких точек; одиночки в нём проверка не считает
+     */
+    main?: [number, number, number, number];
+    /** фон вне главного: `one` — одной нитью, `none` — не вышивать; без поля — как есть; только с `main` */
+    background?: 'one' | 'none';
+    /**
      * порог различимости нитей вместо порога размера по числу клеток (MIN_DELTA): у листа с бумагой узор
      * малый по клеткам, а сетка — средняя, и порог малой сливает лепестки с листьями. Не ниже порога
      * размера по стороне сетки: до 70 клеток — 0,045 (docs/09-content.md, §6; с 16.10.2026)
@@ -171,7 +179,7 @@ export function listCards(only?: string): string[] {
   return out.sort();
 }
 
-const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'min_delta', 'eyes', 'lines', 'focus']);
+const PATTERN_FIELDS = new Set(['crop', 'size', 'threads', 'canvas', 'canvas_delta', 'chart', 'cells', 'inset', 'canvas_lines', 'canvas_seed', 'canvas_holes', 'white_paper', 'exact', 'simplify', 'smooth', 'soft', 'tone', 'grid', 'chroma', 'px', 'main', 'background', 'min_delta', 'eyes', 'lines', 'focus']);
 
 /** Ошибки полей pattern (нынешней версии или прежней — `was`). */
 function patternErrors(p: PatternSpec): string[] {
@@ -225,6 +233,10 @@ function patternErrors(p: PatternSpec): string[] {
     }
   }
   const rect = (q: unknown) => Array.isArray(q) && q.length === 4 && q.every((x) => typeof x === 'number' && x >= 0 && x <= 1) && q[0] < q[2] && q[1] < q[3];
+  if (p.main !== undefined && (!rect(p.main) || p.chart)) errors.push(`pattern.main ${JSON.stringify(p.main)}: рамка овала [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
+  if (p.background !== undefined && ((p.background !== 'one' && p.background !== 'none') || p.main === undefined)) {
+    errors.push(`pattern.background «${String(p.background)}»: one или none, и только с main — фон считается вне главного`);
+  }
   if (p.eyes !== undefined) {
     if (!Array.isArray(p.eyes) || p.eyes.length > 8 || !p.eyes.every(rect) || p.chart) errors.push(`pattern.eyes ${JSON.stringify(p.eyes)}: до восьми рамок [слева, сверху, справа, снизу] в долях снимка, и не у схемы`);
   }

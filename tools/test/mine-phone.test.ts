@@ -77,13 +77,14 @@ describe('рамка кадра на телефоне (0.18.2)', () => {
   test('захват касания отвечает true — прокрутка экрана палец не забирает', () => {
     const grant = src.slice(src.indexOf('const grant = '), src.indexOf('\n  };', src.indexOf('const grant = ')));
     expect(grant).toContain('return true;');
-    // три обработчика: снимок (два пальца мимо рамки), рамка и угол — все через grant
-    expect(src.match(/onResponderGrant=\{\(e\) => grant\('(move|resize)', e\)\}/g)?.length).toBe(3);
+    // пять обработчиков, все через grant: снимок (два пальца мимо рамки), рамка, её угол, овал главного
+    // и его уголок
+    const grants = [...src.matchAll(/onResponderGrant=\{\(e\) => grant\('(crop|main)', '(move|resize)', e\)\}/g)].map((m) => `${m[1]} ${m[2]}`);
+    expect(grants).toEqual(['crop move', 'crop move', 'crop resize', 'main move', 'main resize']);
   });
 
   test('касание отняли — рамку отпускают, и экран снова прокручивается', () => {
-    expect(src.match(/onResponderTerminate=\{onRelease\}/g)?.length).toBe(3);
-    expect(src.match(/onResponderRelease=\{onRelease\}/g)?.length).toBe(3);
+    expect(src.match(/onResponderRelease=\{onRelease\} onResponderTerminate=\{onRelease\}/g)?.length).toBe(5);
     const release = src.slice(src.indexOf('const onRelease = '), src.indexOf('\n  };', src.indexOf('const onRelease = ')));
     expect(release).toContain('onActive?.(false)');
   });

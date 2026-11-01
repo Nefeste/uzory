@@ -7,8 +7,10 @@ import { join } from 'node:path';
 import type { Raster } from '../../src/engine/build/grid';
 import { type Checked, checkPatternWith } from '../../src/engine/build/checks';
 import { buildMine, type Crop, defaultThreads, type Issue, libraryCard, MINE_GRID, MINE_SEED, mineCells, MINE_SIZES, slugOf, verdictOf } from '../../src/engine/build/mine';
+import { focusMask } from '../../src/engine/build/focus';
+import { unionMask } from '../../src/engine/build/main';
 import { buildPattern } from '../../src/engine/build/palette';
-import { photoGrid } from '../../src/engine/build/photo';
+import { mainMask, photoGrid } from '../../src/engine/build/photo';
 import { SIMPLIFY_CLEAN } from '../../src/engine/build/simplify';
 import { rgbToLab } from '../../src/engine/color';
 import type { Pattern } from '../../src/engine/pattern';
@@ -76,15 +78,27 @@ describe('свой узор', () => {
 
   test('карточка из «Своего узора» — тот же узор в сборке библиотеки: все поля сетки переходят в карточку', () => {
     const r = photo(400, 300, scene);
-    for (const simplify of [0, 1, 2] as const) {
-      const o = { crop: [0.1, 0.1, 0.9, 0.8] as Crop, side: 60, threads: 12, simplify };
+    const variants = [
+      ...([0, 1, 2] as const).map((simplify) => ({ simplify })),
+      // главное — овал вокруг дома; фон — как есть, одной нитью, не вышивать (0.19.0)
+      { simplify: 1 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop },
+      { simplify: 1 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop, background: 'one' as const },
+      { simplify: 0 as const, main: [0.15, 0.4, 0.5, 0.8] as Crop, background: 'none' as const },
+    ];
+    for (const v of variants) {
+      const o = { crop: [0.1, 0.1, 0.9, 0.8] as Crop, side: 60, threads: 12, ...v };
       const m = buildMine(r, o);
       // и тот же кадр — тот же узор при каждой сборке: приговор не гуляет
       expect(Buffer.from(buildMine(r, o).pattern.cells).equals(Buffer.from(m.pattern.cells))).toBe(true);
       // сетка снимка по карточке — как в tools/content/build.ts; зерно у карточки — её id, здесь — зерно своего узора
       const { id, yaml } = libraryCard({ title: 'Дача', ...o, now: new Date(2026, 9, 15) });
-      const spec = readCard(cardFile(id, yaml)).card!.pattern!;
-      const lib = buildPattern(photoGrid(r, spec), { id: MINE_SEED, v: 1, threads: spec.threads, clean: SIMPLIFY_CLEAN[spec.simplify ?? 0] }).pattern;
+      const read = readCard(cardFile(id, yaml));
+      expect(read.errors).toEqual([]);
+      const spec = read.card!.pattern!;
+      const grid = photoGrid(r, spec);
+      // главное — как лица: своя палитра и бережная чистка (tools/content/build.ts)
+      const focus = unionMask(spec.focus?.length ? focusMask(spec.crop ?? [0, 0, 1, 1], grid.w, grid.h, spec.focus) : undefined, mainMask(spec, grid));
+      const lib = buildPattern(grid, { id: MINE_SEED, v: 1, threads: spec.threads, clean: SIMPLIFY_CLEAN[spec.simplify ?? 0], ...(focus ? { focus } : {}) }).pattern;
       expect(Buffer.from(m.pattern.cells).equals(Buffer.from(lib.cells))).toBe(true);
       expect(m.pattern.threads).toEqual(lib.threads);
     }
@@ -183,6 +197,13 @@ describe('свой узор', () => {
     expect(read.errors).toEqual([]);
     expect(read.card?.pattern?.simplify).toBe(2);
     expect(readCard(cardFile('bad', strong.yaml.replace('simplify: 2', 'simplify: 3'))).errors.join()).toContain('pattern.simplify');
+    // главное и фон переходят в карточку; фон без главного — ошибка карточки
+    const oval = libraryCard({ title: 'Сирень', crop: [0, 0, 1, 1], side: 120, threads: 24, main: [0.3, 0.2, 0.7, 0.8], background: 'none', now: new Date(2026, 10, 1) });
+    const ovalCard = readCard(cardFile(oval.id, oval.yaml));
+    expect(ovalCard.errors).toEqual([]);
+    expect(ovalCard.card?.pattern?.main).toEqual([0.3, 0.2, 0.7, 0.8]);
+    expect(ovalCard.card?.pattern?.background).toBe('none');
+    expect(readCard(cardFile('bad', oval.yaml.replace(/^ {2}main: .*$/m, ''))).errors.join()).toContain('pattern.background');
   });
 
   test('снимок с телефона: трава в точку не пестрит узор — кадр до сетки усредняется до 4 × 4 точек на клетку (0.18.2)', () => {

@@ -985,7 +985,8 @@ try {
   await (await chooser).setFiles(join(ROOT, 'content/cities/zontiki-v-parke.jpg'));
   await page.getByTestId('mine-verdict').waitFor({ timeout: 30_000 });
   const meta0 = await page.getByTestId('mine-meta').innerText();
-  check(/^70 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
+  // размер сразу — «большая», 120 клеток (решение владельца 01.11.2026)
+  check(/^120 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
   // колёсико над снимком — рамка ближе, узор другой
   const photoBox = (await page.getByTestId('mine-photo').boundingBox())!;
   await page.mouse.move(photoBox.x + photoBox.width / 2, photoBox.y + photoBox.height / 2);
@@ -1015,6 +1016,28 @@ try {
   const zontiki = await simplify(0);
   check(!/Не подходит/.test(zontiki) && !(await page.getByTestId('mine-stitch').isDisabled()),
     `«Зонтики в парке» без упрощения: ${zontiki.split('\n')[0]} — по преобладающему цвету клетки лес не рассыпается`);
+  // главное (0.19.0): золотой овал посередине кадра; мышью его двигают; фон «не вышивать» — вышивается
+  // только овал, и узор подходит: одиночки главного приговор не считает
+  const metaAll = await page.getByTestId('mine-meta').innerText();
+  await page.getByTestId('mine-main-toggle').click();
+  const oval = (await page.getByTestId('mine-main').boundingBox())!;
+  const ovalAt = { x: oval.x + oval.width / 2, y: oval.y + oval.height / 2 };
+  await page.mouse.move(ovalAt.x, ovalAt.y);
+  await page.mouse.down();
+  await page.mouse.move(ovalAt.x + 30, ovalAt.y + 12, { steps: 6 });
+  await page.mouse.up();
+  const moved = (await page.getByTestId('mine-main').boundingBox())!;
+  check(Math.abs(moved.x - oval.x - 30) < 3 && Math.abs(moved.y - oval.y - 12) < 3,
+    `главное — овал ${Math.round(oval.width)} × ${Math.round(oval.height)}, мышью сдвинулся на ${Math.round(moved.x - oval.x)} × ${Math.round(moved.y - oval.y)}`);
+  await page.getByTestId('mine-background-none').click();
+  const alone = await rebuilt();
+  const metaAlone = await page.getByTestId('mine-meta').innerText();
+  check(!/Не подходит/.test(alone) && metaAlone !== metaAll && !(await page.getByTestId('mine-stitch').isDisabled()),
+    `фон «не вышивать»: ${metaAlone} (было ${metaAll}) — ${alone.split('\n')[0]}`);
+  await page.screenshot({ path: join(OUT, '09-mine-main.png') });
+  await page.getByTestId('mine-main-toggle').click();
+  await page.getByTestId('mine-main').waitFor({ state: 'detached' });
+  await rebuilt();
   // пёстрая листва — пятна пяти зелёных чуть крупнее клетки (как в tools/test/mine.test.ts): без
   // упрощения рассыпается на мелкие пятна — «не подходит»; «сильно» выравнивает пятна — подходит.
   // Четыре точки на клетку средней: с 0.18.2 кадр до сетки усредняется до 4 × 4 точек на клетку, и
