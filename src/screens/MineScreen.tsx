@@ -126,7 +126,8 @@ export function MineScreen({ onBack, onStitch, onDone, onPlus, owner }: {
   }, [photo, crop, side, threads, simplify, main, bg, inputKey, touching]);
 
   const built = result?.build ?? null;
-  const preview = useMemo(() => (built ? previewUri(built.pattern, 'done', 520) : null), [built]);
+  // превью — заново на каждую сборку: у несохранённого узора ключ один (`mine@1`), и из памяти превью было бы прежним
+  const preview = useMemo(() => (built ? previewUri(built.pattern, 'done', 520, undefined, true) : null), [built]);
 
   // другой снимок: пока он читается, прежнего не видно; не открылся — прежний на месте и строка, почему
   const pick = async () => {

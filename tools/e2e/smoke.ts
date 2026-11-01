@@ -987,6 +987,10 @@ try {
   const meta0 = await page.getByTestId('mine-meta').innerText();
   // размер сразу — «большая», 120 клеток (решение владельца 01.11.2026)
   check(/^120 × \d+ клеток/.test(meta0), `свой узор собрался: ${meta0}`);
+  // превью узора — картинка этой сборки (до 0.19.0 из памяти превью оставалось первым: ключ у
+  // несохранённого узора один, `mine@1`)
+  const previewSrc = async () => (await page.getByTestId('mine-preview').locator('img').first().getAttribute('src')) ?? '';
+  const preview0 = await previewSrc();
   // колёсико над снимком — рамка ближе, узор другой
   const photoBox = (await page.getByTestId('mine-photo').boundingBox())!;
   await page.mouse.move(photoBox.x + photoBox.width / 2, photoBox.y + photoBox.height / 2);
@@ -998,6 +1002,8 @@ try {
   await page.waitForFunction(() => /^40 × /.test(document.querySelector('[data-testid="mine-meta"]')?.textContent ?? ''), null, { timeout: 30_000 });
   const verdictS = await page.getByTestId('mine-verdict').innerText();
   check(/Подходит|Не подходит/.test(verdictS), `приговор малой: ${verdictS.replace(/\n/g, ' — ')}`);
+  const previewS = await previewSrc();
+  check(preview0.length > 0 && previewS.length > 0 && previewS !== preview0, `превью малой — новое, не прежней большой (${preview0.length} и ${previewS.length} знаков)`);
   // весь снимок, средняя: цвет клетки — преобладающий, и лес не рассыпается даже без упрощения
   // (по среднему цвету клетки мелких пятен было 3,3 % — «не подходит»; по умолчанию — «немного»)
   await page.getByTestId('mine-whole').click();
@@ -1057,6 +1063,7 @@ try {
   await page.getByTestId('mine-other').click();
   await (await chooser2).setFiles(leavesFile);
   const plain = await rebuilt();
+  check((await previewSrc()) !== previewS, 'другой снимок — и превью узора другое');
   check(/Не подходит/.test(plain) && await page.getByTestId('mine-stitch').isDisabled(), `пёстрая листва без упрощения: ${plain.split('\n')[0]}, «Вышивать» неактивна`);
   const verdict = await simplify(2);
   check(!/Не подходит/.test(verdict) && !(await page.getByTestId('mine-stitch').isDisabled()), `упрощение «сильно»: ${verdict.split('\n')[0]}`);
