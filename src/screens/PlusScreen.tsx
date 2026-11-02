@@ -19,8 +19,8 @@ import { useSettings } from '../state/settings';
 import { Button, Screen, ToggleRow, Txt } from '../ui/components';
 import { PRIVACY_URL } from './SettingsScreen';
 
-/** Условия подписки на сайте студии — после оферты ИП и сверки с юристом (В10); пока ссылки нет. */
-const TERMS_URL: string | null = null;
+/** Условия подписки на сайте студии — оферта ИП (store/site/terms-uzory.ru.html; на сайте с 02.11.2026). */
+const TERMS_URL: string | null = 'https://gornitsa.games/uzory/terms.html';
 
 /**
  * Цены образца — гипотезы из docs/08-game-design.md («„Узоры+“ глазами игрока»), в копейках;

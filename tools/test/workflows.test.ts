@@ -156,6 +156,11 @@ describe('общий набор студии gornitsa-kit (ADR студии 0022
     expect(contents['max-size-mb']).toBe('99');
     const allow = readFileSync(join(dir, '..', '..', contents['allow-file']), 'utf8');
     for (const p of ['android.permission.INTERNET', 'android.permission.VIBRATE', 'games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']) expect(allow).toContain(p);
+    // фоновой работы нет (store/forms.md): запуск после перезагрузки, который просит модуль метрик SDK RuStore Pay,
+    // вырезан в app.json и в белый список не входит (1.0.1; тег v1.0.0 на нём остановился)
+    const blocked: string[] = JSON.parse(readFileSync(join(dir, '..', '..', 'app.json'), 'utf8')).expo.android.blockedPermissions;
+    for (const p of ['android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.WAKE_LOCK', 'com.google.android.gms.permission.AD_ID']) expect(blocked).toContain(p);
+    expect(allow).not.toContain('RECEIVE_BOOT_COMPLETED');
     // ровно две архитектуры и RuStore Pay в манифесте набор не проверяет — это шаг игры после него
     const names = build.steps.map((s: any) => s.name ?? s.id);
     const own = build.steps.find((s: any) => s.name === 'Содержимое — архитектуры и RuStore Pay');

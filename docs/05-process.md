@@ -165,13 +165,18 @@ ADR [0019](https://github.com/Nefeste/gornitsa/blob/main/adr/0019-ci-on-pr.md); 
 `tools/test/workflows.test.ts`.
 
 **Белый список разрешений APK**: `INTERNET` (каталог и наборы), `ACCESS_NETWORK_STATE`,
-`VIBRATE`, `MODIFY_AUDIO_SETTINGS` (`expo-audio`, как у «Анамнеза») и служебные разрешения,
-которые приносят RuStore Pay и Review SDK (список фиксируется после первой сборки с ними: RuStore
-Pay входит в сборку, когда задан `RUSTORE_APP_ID`; в «Нардах» с RuStore Pay и рекламой появилось
-`RECEIVE_BOOT_COMPLETED` — чьё, неизвестно).
+`VIBRATE`, `MODIFY_AUDIO_SETTINGS` (`expo-audio`, как у «Анамнеза») и служебное
+`games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. RuStore Pay (входит в сборку, когда задан
+`RUSTORE_APP_ID`) приносит `INTERNET` и `ACCESS_NETWORK_STATE` — они уже в списке — и `RECEIVE_BOOT_COMPLETED`.
+Его просит модуль метрик SDK (`ru.rustore.sdk:metrics` 10.5.1): задача отправки метрик RuStore в
+JobScheduler с `setPersisted` переживает перезагрузку телефона. На нём остановилась сборка тега `v1.0.0`
+(02.11.2026); в «Нардах» с RuStore Pay оно тоже появилось.
 **Запрещены** и вырезаются в `app.json`: `AD_ID` (рекламы нет — ADR [0008](adr/0008-no-ads.md)),
-`WAKE_LOCK` (его приносит плеер `expo-audio`, а игре он не нужен), доступ к файлам,
-камере, контактам, показ поверх окон. Новое разрешение сборка не пропустит: нужное
+`WAKE_LOCK` (его приносит плеер `expo-audio`, а игре он не нужен), `RECEIVE_BOOT_COMPLETED` (с 1.0.1:
+фоновой работы у игры нет — [`store/forms.md`](../store/forms.md)), доступ к файлам, камере, контактам,
+показ поверх окон. Без `RECEIVE_BOOT_COMPLETED` SDK отправляет метрики сразу, как и с ним, а отказ
+планировщика гасит сам: обе отправки в SDK оплаты — с `onErrorReturn` (сверено по байт-коду 11.1.0).
+Оплата от этой задачи не зависит. Новое разрешение сборка не пропустит: нужное
 добавляется в список [`.github/apk-permissions.txt`](../.github/apk-permissions.txt), сюда и в политику конфиденциальности.
 
 ## Секреты и переменные репозитория
