@@ -20,8 +20,8 @@ import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../..
 import { cacheOn, type CardBuild, cardKey, pruneCache, readCached, writeCached } from './cache';
 import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt, ROOT, type Season, SEASONS } from './cards';
 import { type Checked, checkPattern } from './checks';
-import { detectChart, EDGE_DELTA, edgePaper, fillHulls, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
-import { decode, type Grid } from './image';
+import { clearRects, detectChart, EDGE_DELTA, edgePaper, fillHulls, PAPER_DELTA, PAPER_LINES, PAPER_SEED, paperCells, sampleChart, whitePaperCells, whiten } from './chart';
+import { decode, type Grid, paintRaster, patchRaster } from './image';
 import { fromGrid, generate } from './ornaments';
 import { musicModule, readTracks } from '../audio/tracks';
 import { type BuildLog, buildPattern } from '../../src/engine/build/palette';
@@ -79,8 +79,11 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
   }
   const file = join(card.dir, card.source.file!);
   if (!existsSync(file)) throw new Error(`исходника ${card.source.file} нет рядом с карточкой`);
-  const raster = await decode(file);
   const p = patternSpec(card, v);
+  // заплатка и окраска (с 0.24.2): полосы исходника — цветом их краёв, клюв — своим цветом; до кадра и сетки
+  let raster = await decode(file);
+  if (p.patch?.length) raster = patchRaster(raster, p.patch);
+  if (p.paint?.length) raster = paintRaster(raster, p.paint.map((x) => ({ color: parseHex(x.color)!, points: x.points })));
   const canvas = p.canvas ? parseHex(p.canvas)! : undefined;
   let grid: Grid;
   if (p.chart) {
@@ -101,12 +104,12 @@ export async function buildCard(card: Card, v = card.v): Promise<{ pattern: Patt
     // бумага листа — от края кадра (canvas_edge, с 01.11.2026): светлое и тёмное внутри рисунка вышивается
     if (canvas !== undefined && p.canvas_edge) {
       const paper = edgePaper(grid, canvas, p.canvas_delta ?? EDGE_DELTA, p.canvas_pockets ?? 0);
-      // заливка контура: рамки в долях снимка → клетки сетки кадра
-      if (p.fill?.length) {
-        const [cx0, cy0, cx1, cy1] = p.crop ?? [0, 0, 1, 1];
-        const cell = (v: number, a: number, b: number, n: number) => Math.max(0, Math.min(n, Math.round(((v - a) / (b - a)) * n)));
-        fillHulls(paper, grid.w, grid.h, p.fill.map(([x0, y0, x1, y1]) => [cell(x0, cx0, cx1, grid.w), cell(y0, cy0, cy1, grid.h), cell(x1, cx0, cx1, grid.w), cell(y1, cy0, cy1, grid.h)]));
-      }
+      // заливка контура и чистая бумага: рамки в долях снимка → клетки сетки кадра
+      const [cx0, cy0, cx1, cy1] = p.crop ?? [0, 0, 1, 1];
+      const cell = (v: number, a: number, b: number, n: number) => Math.max(0, Math.min(n, Math.round(((v - a) / (b - a)) * n)));
+      const cells = (rs: [number, number, number, number][]) => rs.map(([x0, y0, x1, y1]): [number, number, number, number] => [cell(x0, cx0, cx1, grid.w), cell(y0, cy0, cy1, grid.h), cell(x1, cx0, cx1, grid.w), cell(y1, cy0, cy1, grid.h)]);
+      if (p.fill?.length) fillHulls(paper, grid.w, grid.h, cells(p.fill));
+      if (p.clear?.length) clearRects(paper, grid.w, grid.h, cells(p.clear));
       grid = { ...grid, paper };
     }
   }
