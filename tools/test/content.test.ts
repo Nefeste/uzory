@@ -237,6 +237,9 @@ describe('ворота 1.0: календарь со дня выхода (docs/sp
   // каталог»): все малые и средние картинки с «да», кроме «Детям», раскладываются с него
   test('выход в ноябре, январе или марте — картинок дня не меньше чем на 120 дней', async () => {
     const r = await buildAll({ release: true });
+    // и календарь самого выпуска: с 1.0.0 calendar_from — день выхода (5 ноября 2026 года), с него не меньше 120 дней
+    expect(r.calendar[0]?.date).toBe(r.meta.calendar_from ?? 'нет calendar_from');
+    expect(r.calendar.length).toBeGreaterThanOrEqual(LAUNCH_DAYS);
     for (const from of ['2026-11-16', '2027-01-15', '2027-03-01']) {
       const days = launchCalendar(r.built, r.previous, from);
       expect(days[0]?.date).toBe(from);

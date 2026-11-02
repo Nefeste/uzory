@@ -4,7 +4,7 @@
 // по дате: у всех с одинаковой библиотекой — одна и та же. Так же и день расписания, чью картинку
 // потом скрыли («нет» владельца после «да», ADR 0010): пустых дней в календаре нет.
 import { addDays, daysBetween } from './dates';
-import type { CalendarDay, Picture } from './library';
+import { type CalendarDay, FIRST_PICTURE, type Picture } from './library';
 import { dailySize } from './pattern';
 import { hash32 } from './seed';
 
@@ -60,7 +60,7 @@ export class Daily {
     for (const [date, id] of this.planned) if (this.pinned[date] === undefined) this.mark(id, date);
     for (const id of this.planned.values()) this.used.add(id);
     this.pool = src.pictures
-      .filter((p) => !p.hidden && dailySize(p.size) && p.collection !== 'kids')
+      .filter((p) => !p.hidden && dailySize(p.size) && p.collection !== 'kids' && p.id !== FIRST_PICTURE)
       .map((p) => p.id)
       .sort();
     for (const date of [...this.gaps].sort()) if (this.pinned[date] === undefined) this.pick(date);

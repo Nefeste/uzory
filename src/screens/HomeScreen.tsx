@@ -20,7 +20,7 @@ import { loadIndex, type WorkEntry, workStitched } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
 import { APP_BUILD, APP_VERSION, INTERNAL } from '../version';
 
-/** Проверки для владельца — только во внутренних сборках 0.x (docs/05-process.md, «Версии»). */
+/** Проверки для владельца — в сборках для проверки: 0.x и закрытая веб-версия (docs/05-process.md, «Версии»). */
 export const CHECKS = INTERNAL;
 
 const keyOf = (p: PackPicture) => `${p.id}@${p.v}`;
@@ -37,7 +37,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   /** «Замер прокрутки» библиотеки — в разделе «Для проверки» */
   onScrollBench: () => void;
   onFile: () => void;
-  /** «Свой узор» — пока только в веб-версии (docs/specs/2026-09-custom.md) */
+  /** «Свой узор» (docs/specs/2026-09-custom.md) */
   onMine: () => void;
   /** образец экрана «Узоры+» — в разделе «Для проверки» */
   onPlusSample: () => void;
