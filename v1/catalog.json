@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "minApp": "1.0.1",
+  "packs": [
+    {
+      "id": "base-1.0",
+      "file": "packs/base-1.0.be62e18b.pack",
+      "sha256": "be62e18b2c4bbc24ebb526a9d100185ba56144f4740798434d9fdf49c97d99fb",
+      "bytes": 10711994,
+      "builtin": true
+    }
+  ],
+  "calendar": {
+    "pack": "base-1.0",
+    "until": "2027-03-08"
+  },
+  "notice": null
+}
