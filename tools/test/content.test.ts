@@ -9,7 +9,7 @@ import { access, type AccessContext } from '../../src/engine/access';
 import { COLLECTIONS, FREE_FIRST, patternKey } from '../../src/engine/library';
 import { libraryIndex, openPack } from '../../src/engine/pack';
 import type { SizeClass } from '../../src/engine/pattern';
-import { buildAll, type Built, buildCard, buildLimitMs, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
+import { buildAll, type Built, buildCard, buildLimitMs, LAUNCH_DAYS, launchCalendar, notInRelease, packVersions, readFixedDays, slowPictures, toPicture } from '../content/build';
 import { type Card, CONTENT, listCards, patternSpec, readCard, releasable, releasableAt } from '../content/cards';
 import type { Checked } from '../content/checks';
 import { patternDigest } from '../content/week';
@@ -229,5 +229,18 @@ describe('сборка', () => {
     // телефон даёт такому дню запасную картинку (src/engine/calendar.ts); остальные дни — только нынешние картинки
     const fixed = new Set(readFixedDays(calendar[0].date).map((d) => d.date));
     expect(calendar.filter((d) => !fixed.has(d.date) && !built.some((b) => b.picture.id === d.picture && !b.picture.hidden))).toEqual([]);
+  }, 900_000);
+});
+
+describe('ворота 1.0: календарь со дня выхода (docs/specs/2026-09-v1.md, ворота 4)', () => {
+  // в PR выпуска calendar_from — день выхода, закреплённые дни — заново (docs/05-process.md, «Первый
+  // каталог»): все малые и средние картинки с «да», кроме «Детям», раскладываются с него
+  test('выход в ноябре, январе или марте — картинок дня не меньше чем на 120 дней', async () => {
+    const r = await buildAll({ release: true });
+    for (const from of ['2026-11-16', '2027-01-15', '2027-03-01']) {
+      const days = launchCalendar(r.built, r.previous, from);
+      expect(days[0]?.date).toBe(from);
+      expect(days.length).toBeGreaterThanOrEqual(LAUNCH_DAYS);
+    }
   }, 900_000);
 });
