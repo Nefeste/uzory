@@ -352,6 +352,32 @@ const first = built.find((b) => b.card.id === 'first-picture')!.pattern;
 // без UTF-8 в окружении (LANG не задан) Chromium называет скачанный файл с русским именем «download» —
 // у игроков и в CI UTF-8 есть («Тайна — Маша.uzory», 0.23.0)
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, env: { ...process.env, LANG: process.env.LANG || 'C.UTF-8' } });
+// С 1.0.0 календарь картинок дня начинается в день выхода (`calendar_from` набора), а до него картинки дня нет.
+// Сценарий, запущенный раньше (PR выпуска 1.0.0 — 2 ноября 2026 года, выход — 5-го), сдвигает часы страниц:
+// `Date` в каждом новом контексте показывает полдень первого дня календаря и дальше идёт как обычно. Таймеры
+// и кадры анимаций не трогаются (у подделки часов Playwright они идут иначе, и анимации канвы не успевали).
+// Где сценарий сам ставит часы (`clock`), сдвига нет. С дня выхода — ничего не меняется.
+const firstDay = mergedCalendar([openPack(basePack)])[0]?.date;
+const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const shiftMs = firstDay && localDay(new Date()) < firstDay ? new Date(`${firstDay}T12:00:00`).getTime() - Date.now() : 0;
+if (shiftMs) {
+  const shift = `(() => {
+    if (!/\\[native code\\]/.test(Function.prototype.toString.call(Date.now))) return;
+    const D = Date, by = ${shiftMs};
+    globalThis.Date = new Proxy(D, {
+      construct: (t, a, nt) => Reflect.construct(t, a.length ? a : [D.now() + by], nt),
+      apply: () => new D(D.now() + by).toString(),
+      get: (t, k, r) => (k === 'now' ? () => D.now() + by : Reflect.get(t, k, r)),
+    });
+  })();`;
+  const plain = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const ctx = await plain(options);
+    await ctx.addInitScript({ content: shift });
+    return ctx;
+  };
+  console.log(`часы страниц — с ${firstDay}: календарь картинок дня начинается позже сегодняшнего дня`);
+}
 const page = await browser.newPage({ viewport: { width: 400, height: 860 }, deviceScaleFactor: 2 });
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));

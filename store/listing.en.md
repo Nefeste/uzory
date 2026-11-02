@@ -24,6 +24,7 @@ WHAT TO STITCH
 • Paintings — an early 20th-century river sunset from the Metropolitan Museum of Art, in the public domain, with a short story. Plus flowers from paintings and botanical plates, photos of nature and towns, and simple pictures for kids.
 • A new picture every day — free, forever. Missed a week? Past daily pictures wait in the calendar.
 • The larger the pattern, the finer the detail: the largest have more than a hundred thousand stitches, with faces and fabric patterns you can make out.
+• My Pattern — a cross-stitch chart from your own photo: you choose the frame, the main subject and the background. The photo never leaves your phone.
 
 CALM
 • No timers, no energy, no streaks.
@@ -39,8 +40,9 @@ EASY ON THE EYES
 
 HONEST
 • No ads at all. No sign-up. The whole library works offline.
-• Free: every tool, today's picture and every past daily picture since you installed, the kids' collection and the first five pictures of every collection.
-• The Uzory+ subscription, monthly or yearly, unlocks the full library and new pictures every week. No trial that silently turns paid; works you started can be finished after it ends.
+• Free: every tool, today's picture and every past daily picture since you installed, the kids' collection, the first five pictures of every collection and your first own pattern.
+• The Uzory+ subscription, monthly or yearly, unlocks the full library, new pictures every week and new patterns from your photos. No trial that silently turns paid; works you started can be finished after it ends.
+• Frames and walls for finished works are a one-time purchase, yours forever. A dark wooden frame, a plain background, a mat and your signature are free for everyone.
 
 Only real pictures: public-domain works, the studio's own photos and ornaments. No AI-generated images.
 

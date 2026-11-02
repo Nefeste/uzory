@@ -18,6 +18,12 @@ export const SIZE_CLASSES: readonly SizeClass[] = ['S', 'M', 'L', 'XL'];
 /** Сколько первых картинок каждой коллекции бесплатны (docs/08-game-design.md). */
 export const FREE_FIRST = 5;
 
+/**
+ * Первая картинка (docs/specs/2026-09-first-picture.md) — её вышивают при первом запуске, поэтому картинкой
+ * дня она не бывает (с 1.0.0): иначе в день выхода у новичка после первой картинки не было бы картинки дня.
+ */
+export const FIRST_PICTURE = 'first-picture';
+
 export interface Picture {
   /** «shishkin-utro-v-sosnovom-lesu» — вечный, латиницей */
   id: string;

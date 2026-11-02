@@ -195,8 +195,10 @@ describe('закреплённые дни', () => {
 
   test('content/calendar.yaml: дни подряд с calendar_from, у каждой картинки — карточка с «да» (на повторном отборе — у прежней версии)', () => {
     const meta = parse(readFileSync(join(CONTENT, 'pack.yaml'), 'utf8')) as { calendar_from: string };
+    // с 1.0.0 файл начат заново с дня выхода (docs/05-process.md, «Первый каталог»): пока день выхода не
+    // наступил, закреплённых дней нет; потом они дописываются подряд с него
     const days = readFixedDays(meta.calendar_from);
-    expect(days.length).toBeGreaterThan(0);
+    expect(days.every((d) => d.date >= meta.calendar_from)).toBe(true);
     const cards = new Map(listCards().map((f) => readCard(f).card).filter((c) => !!c).map((c) => [c!.id, c!]));
     const bad = days.filter((d) => !cards.has(d.picture) || releasableAt(cards.get(d.picture)!, cards.get(d.picture)!.approved_v ?? cards.get(d.picture)!.v) !== null);
     expect(bad).toEqual([]);

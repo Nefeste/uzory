@@ -133,8 +133,8 @@ export function useLibrary(): PackPicture[] {
   }, pictures);
 }
 
-/** Первая картинка (docs/specs/2026-09-first-picture.md). */
-export const FIRST_PICTURE = 'first-picture';
+/** Первая картинка (docs/specs/2026-09-first-picture.md) — src/engine/library.ts. */
+export { FIRST_PICTURE } from '../engine/library';
 
 /**
  * Календарь картинок дня (docs/09-content.md, §9): встроенного набора, продлённый скачанными —

@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { APP_BUILD, APP_VERSION } from '../../src/version';
+import { APP_BUILD, APP_VERSION, INTERNAL } from '../../src/version';
 
 const root = join(import.meta.dir, '..', '..');
 const read = (f: string) => JSON.parse(readFileSync(join(root, f), 'utf8'));
@@ -26,6 +26,11 @@ describe('версия', () => {
     const status = readFileSync(join(root, 'STATUS.md'), 'utf8');
     expect(status.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
     expect(status.match(/\*\*Версия:\*\*\s*(\d+\.\d+\.\d+)/)?.[1]).toBe(read('package.json').version);
+  });
+
+  test('сборка для телефона: средства проверки — только в 0.x (в вебе — закрытая веб-версия, src/closedWeb.web.ts)', () => {
+    // тесты читают src/closedWeb.ts, как сборка для телефона: в 1.x на телефоне нет «Для проверки» и открытой библиотеки
+    expect(INTERNAL).toBe(APP_VERSION.startsWith('0.'));
   });
 
   test('идентификатор приложения — постоянный (ADR 0014)', () => {

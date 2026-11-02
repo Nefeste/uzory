@@ -123,7 +123,9 @@ async function save(page: Page, name: string) {
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const shot = async (f: (page: Page, ctx: BrowserContext) => Promise<void>) => {
-  const ctx = await browser.newContext({ viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, locale: 'ru-RU', timezoneId: 'Europe/Moscow' });
+  // 1080 × 1920, как просит магазин: окно 432 × 768 точек при плотности 2,5. На 360 × 640 (плотность 3) с 1.0
+  // «Готово» не помещается: под кнопками канвы, подписи и рамки работе остаётся меньше сотни точек
+  const ctx = await browser.newContext({ viewport: { width: 432, height: 768 }, deviceScaleFactor: 2.5, locale: 'ru-RU', timezoneId: 'Europe/Moscow' });
   const page = await ctx.newPage();
   try {
     await f(page, ctx);
@@ -133,13 +135,16 @@ const shot = async (f: (page: Page, ctx: BrowserContext) => Promise<void>) => {
 };
 const base0 = { hints: false, haptics: false, sound: false, music: false };
 
-// Игрок четвёртой недели — для библиотеки и календаря: поставил игру 1 октября, вышил первую
-// картинку и почти каждую картинку дня (трёх дней нет, одна начата), большую картину и снимок,
-// вторую картину вышивает. Сегодня 24 октября, картинка дня ещё не начата.
-const INSTALLED = '2026-10-01';
-const TODAY = '2026-10-24';
-const SKIPPED = ['2026-10-10', '2026-10-14', '2026-10-18'];
-const STARTED = '2026-10-22';
+// Игрок четвёртой недели — для библиотеки и календаря: поставил игру в день выхода (первый день календаря
+// набора выпуска, с 1.0.0 — `calendar_from`), вышил первую картинку и почти каждую картинку дня (трёх дней
+// нет, одна начата), большую картину и снимок, вторую картину вышивает. Сегодня — 24-й день, картинка дня
+// ещё не начата.
+const INSTALLED = mergedCalendar([pack])[0]?.date;
+if (!INSTALLED) throw new Error('в наборе выпуска нет календаря картинок дня');
+const dayN = (n: number) => addDays(INSTALLED, n);
+const TODAY = dayN(23);
+const SKIPPED = [dayN(9), dayN(13), dayN(17)];
+const STARTED = dayN(21);
 const at = (day: string, hm: string) => Date.parse(`${day}T${hm}:00+03:00`);
 function fourthWeek(): Seed[] {
   const daily = new Daily({ calendar: mergedCalendar([pack]), pictures: pack.json.pictures });
@@ -153,10 +158,10 @@ function fourthWeek(): Seed[] {
       ? { ...seed(`w-shot-${d}`, p, progress(p, 0.6), { x: p.w / 2, y: p.h / 2 }), started: at(d, '19:00') }
       : seedDone(`w-shot-${d}`, p, at(d, '19:00'), at(d, '19:35')));
   }
-  out.push(seedDone('w-shot-girls', get('pg-krestyanskie-devushki'), at('2026-10-03', '20:00'), at('2026-10-12', '21:10')));
-  out.push(seedDone('w-shot-ship', get('ayvazovsky-korabl-v-lunnuyu-noch'), at('2026-10-12', '21:30'), at('2026-10-20', '20:40')));
+  out.push(seedDone('w-shot-girls', get('pg-krestyanskie-devushki'), at(dayN(2), '20:00'), at(dayN(11), '21:10')));
+  out.push(seedDone('w-shot-ship', get('ayvazovsky-korabl-v-lunnuyu-noch'), at(dayN(11), '21:30'), at(dayN(19), '20:40')));
   const sunset = get('kuindzhi-krasnyy-zakat');
-  out.push({ ...seed('w-shot-sunset', sunset, progress(sunset, 0.23), { x: sunset.w / 2, y: sunset.h * 0.2 }), started: at('2026-10-20', '21:00') });
+  out.push({ ...seed('w-shot-sunset', sunset, progress(sunset, 0.23), { x: sunset.w / 2, y: sunset.h * 0.2 }), started: at(dayN(19), '21:00') });
   return out;
 }
 

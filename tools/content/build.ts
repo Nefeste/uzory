@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { base64Encode } from '../../src/engine/base64';
 import { addDays, daysBetween } from '../../src/engine/dates';
-import { COLLECTIONS, type CalendarDay, type CollectionId, type Picture } from '../../src/engine/library';
+import { COLLECTIONS, type CalendarDay, type CollectionId, FIRST_PICTURE, type Picture } from '../../src/engine/library';
 import { writePack } from '../../src/engine/pack';
 import { CANVAS, dailySize, type Pattern, parseHex, type SizeClass } from '../../src/engine/pattern';
 import { cacheOn, type CardBuild, cardKey, pruneCache, readCached, writeCached } from './cache';
@@ -200,7 +200,8 @@ export interface CalendarRun {
 
 /**
  * Календарь сборки: с `from` по дню на картинку — малые и средние (docs/09-content.md, §8–9),
- * кроме «Детям»: они бесплатны всегда, и их день ничего не дарит (решение владельца 17.10.2026).
+ * кроме «Детям»: они бесплатны всегда, и их день ничего не дарит (решение владельца 17.10.2026), — и
+ * кроме первой картинки: её вышивают при первом запуске (1.0.0, день выхода).
  * - Картинка с днём (`day`) встаёт ровно в свой день — ближайший с `from`, если календарь
  *   до него дотянется; иначе в календарь не идёт.
  * - Картинка со временем года (`season`) встаёт только в свой сезон — первый с `from` — и не
@@ -228,7 +229,8 @@ export function autoCalendar(pictures: Picture[], from: string, rules: CalendarR
     if (p) pinned.set(d.date, p);
   }
   const fixed = new Set([...pinned.values()].map((p) => p.id));
-  const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden && p.collection !== 'kids');
+  // первую картинку вышивают при первом запуске — картинкой дня она не бывает (с 1.0.0)
+  const daily = pictures.filter((p) => dailySize(p.size) && !p.hidden && p.collection !== 'kids' && p.id !== FIRST_PICTURE);
   // очереди коллекций — без праздников и дней недели; закреплённые картинки уже вышли из них
   const all = COLLECTIONS.map((c) => daily.filter((p) => p.collection === c && !day.has(p.id) && !byDate.has(p.id)));
   const queues = all.map((q) => q.filter((p) => !fixed.has(p.id)));
