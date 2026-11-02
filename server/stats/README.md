@@ -7,47 +7,41 @@
 
 ## nginx (репозиторий сайта)
 
+Строки живут в репозитории сайта — `deploy/uzory/nginx.sh` в
+[`Nefeste/gornitsagames`](https://github.com/Nefeste/gornitsagames) (команда `uzory-nginx` на сервере):
+
 ```nginx
+# /etc/nginx/conf.d/uzory-stats.conf — формат живёт только на уровне http
 log_format uzory_stats '$time_iso8601 "$request_uri" $status';
 
 location = /uzory/v1/catalog.json {
-    root /srv/gornitsa;
-    access_log /var/log/nginx/uzory-catalog.log uzory_stats;   # без $remote_addr
+    alias /srv/gornitsa/uzory/v1/catalog.json;
+    access_log /var/log/uzory/catalog.log uzory_stats;   # без $remote_addr
     add_header Cache-Control "no-cache" always;
 }
 ```
 
-Остальные строки `/uzory/v1/` — [`docs/specs/2026-09-packs.md`](../../docs/specs/2026-09-packs.md), «Протокол».
+Журнал — не в `/var/log/nginx`: ту папку ротирует logrotate, а строки старше семи дней удаляет
+сама свёртка. Остальные строки `/uzory/v1/` — [`docs/specs/2026-09-packs.md`](../../docs/specs/2026-09-packs.md),
+«Протокол».
 
 ## Таймер
 
 Время журнала и «сегодня» у свёртки — московские: сервер студии живёт по Москве.
 
-```ini
-# /etc/systemd/system/uzory-stats.service
-[Unit]
-Description=Узоры: свёртка журнала каталога в суммы
+Таймер ставит сайт (`deploy/uzory/setup.sh` в `Nefeste/gornitsagames`): `uzory-stats.timer` раз в сутки,
+в 00:20 по Москве (`Persistent=true`), запускает `uzory-stats` (`deploy/uzory/stats.sh`):
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/bun /srv/gornitsa/uzory/stats/fold.ts --log /var/log/nginx/uzory-catalog.log --csv /srv/gornitsa/uzory/stats/stats.csv
-# журнал переписан — nginx открывает файл заново
-ExecStartPost=/usr/sbin/nginx -s reopen
-
-# /etc/systemd/system/uzory-stats.timer
-[Unit]
-Description=Узоры: свёртка журнала раз в сутки
-
-[Timer]
-OnCalendar=*-*-* 00:20:00 Europe/Moscow
-Persistent=true
-
-[Install]
-WantedBy=timers.target
+```bash
+bun /srv/gornitsa/uzory/stats/fold.ts --log /var/log/uzory/catalog.log --csv /srv/gornitsa/uzory/stats/stats.csv
+nginx -s reopen   # журнал переписан — nginx открывает файл заново
 ```
 
-`systemctl enable --now uzory-stats.timer`. Пропущенный день не теряется: сырые строки
-живут семь дней, и следующий запуск свернёт всё законченное, чего ещё нет в таблице.
+`bun` — тот же, что у «Нард» (`/opt/bun/<версия>/bun`). Сам `fold.ts` приходит в ветке `packs`:
+её кладёт `content.yml`, а `uzory-packs` на сервере копирует скрипт в `/srv/gornitsa/uzory/stats/`
+(В9, [`docs/05-process.md`](../../docs/05-process.md), «Выкладывание наборов»). Пропущенный день не
+теряется: сырые строки живут семь дней, и следующий запуск свернёт всё законченное, чего ещё нет в
+таблице. Журнал на сервере: `journalctl -u uzory-stats -n 20`.
 
 ## Проверка
 

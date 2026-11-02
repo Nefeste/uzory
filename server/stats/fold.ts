@@ -9,7 +9,7 @@
 // Значения проверяются строго: в таблицу не попадает ничего, кроме известных корзин, —
 // чужая строка запроса не пронесёт в неё ни текста, ни адреса.
 //
-//   bun server/stats/fold.ts --log /var/log/nginx/uzory-catalog.log --csv /srv/gornitsa/uzory/stats/stats.csv
+//   bun server/stats/fold.ts --log /var/log/uzory/catalog.log --csv /srv/gornitsa/uzory/stats/stats.csv
 //
 // После перезаписи журнала nginx должен открыть файл заново: `nginx -s reopen` в том же
 // таймере (server/stats/README.md).

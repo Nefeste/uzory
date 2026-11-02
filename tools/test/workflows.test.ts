@@ -62,6 +62,75 @@ describe('релиз на тег версии', () => {
   });
 });
 
+describe('наборы по сети: ветка packs (docs/05-process.md, «Выкладывание наборов»; В9 без SSH, 02.11.2026)', () => {
+  // шаг content.yml как есть, только вместо GitHub — голый репозиторий в папке: сервер сайта забирает
+  // ветку сам (deploy/uzory в Nefeste/gornitsagames), а выложенный набор не меняется никогда
+  const content = wf('content.yml').jobs.packs.steps as { name: string; if?: string; run: string }[];
+  const at = content.findIndex((s) => s.name === 'Выкладка — ветка packs');
+  const git = (...args: string[]) => spawnSync('git', args, { encoding: 'utf8' });
+
+  function packs_() {
+    const root = mkdtempSync(join(tmpdir(), 'uzory-packs-'));
+    const origin = join(root, 'origin.git');
+    git('init', '-q', '--bare', origin);
+    const work = join(root, 'work');
+    mkdirSync(join(work, 'server', 'stats'), { recursive: true });
+    writeFileSync(join(work, 'server', 'stats', 'fold.ts'), '// свёртка');
+    const env = { ...process.env, GH_TOKEN: 'x', GITHUB_SHA: 'a'.repeat(40), GITHUB_STEP_SUMMARY: join(root, 'summary.md') };
+    const local = (s: string) => s.replaceAll('https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git', `file://${origin}`);
+    // dist/v1 — как его оставляет tools/content/week.ts: только новые наборы, каталог и подпись
+    const dist = (packs: Record<string, string>, catalog: string) => {
+      rmSync(join(work, 'dist'), { recursive: true, force: true });
+      mkdirSync(join(work, 'dist', 'v1', 'packs'), { recursive: true });
+      for (const [name, body] of Object.entries(packs)) writeFileSync(join(work, 'dist', 'v1', 'packs', name), body);
+      writeFileSync(join(work, 'dist', 'v1', 'catalog.json'), catalog);
+      writeFileSync(join(work, 'dist', 'v1', 'catalog.sig'), `подпись ${catalog}`);
+    };
+    const push = () => spawnSync('bash', ['-c', local(content[at].run)], { cwd: work, env, encoding: 'utf8' }).status;
+    const files = () => git('--git-dir', origin, 'ls-tree', '-r', '--name-only', 'packs').stdout.split('\n').filter(Boolean).sort();
+    const show = (path: string) => git('--git-dir', origin, 'show', `packs:${path}`).stdout;
+    return { root, origin, dist, push, files, show };
+  }
+
+  test('первый каталог, потом набор недели: в ветке все наборы, каталог — новый, коммит — один', () => {
+    expect(at).toBeGreaterThan(0);
+    const p = packs_();
+    try {
+      p.dist({ 'base-1.0.aaaa.pack': 'встроенный' }, '{"n":1}');
+      expect(p.push()).toBe(0);
+      expect(p.files()).toEqual(['stats/fold.ts', 'v1/catalog.json', 'v1/catalog.sig', 'v1/packs/base-1.0.aaaa.pack']);
+      p.dist({ 'w2026-46.bbbb.pack': 'неделя' }, '{"n":2}');
+      expect(p.push()).toBe(0);
+      expect(p.files()).toEqual(['stats/fold.ts', 'v1/catalog.json', 'v1/catalog.sig', 'v1/packs/base-1.0.aaaa.pack', 'v1/packs/w2026-46.bbbb.pack']);
+      expect(p.show('v1/catalog.json')).toBe('{"n":2}');
+      expect(p.show('v1/packs/base-1.0.aaaa.pack')).toBe('встроенный');
+      // без истории, как ветка vps: прежние каталоги — в артефактах запусков
+      expect(git('--git-dir', p.origin, 'rev-list', '--count', 'packs').stdout.trim()).toBe('1');
+    } finally {
+      rmSync(p.root, { recursive: true, force: true });
+    }
+  });
+
+  test('выложенный набор с другими байтами — ошибка, ветка не меняется', () => {
+    const p = packs_();
+    try {
+      p.dist({ 'base-1.0.aaaa.pack': 'встроенный' }, '{"n":1}');
+      expect(p.push()).toBe(0);
+      p.dist({ 'base-1.0.aaaa.pack': 'другой' }, '{"n":2}');
+      expect(p.push()).not.toBe(0);
+      expect(p.show('v1/catalog.json')).toBe('{"n":1}');
+      expect(p.show('v1/packs/base-1.0.aaaa.pack')).toBe('встроенный');
+    } finally {
+      rmSync(p.root, { recursive: true, force: true });
+    }
+  });
+
+  test('входа на сервер у CI нет: ни SSH, ни rsync, ни секретов DEPLOY_*', () => {
+    const text = readFileSync(join(dir, 'content.yml'), 'utf8');
+    expect(text).not.toMatch(/DEPLOY_|rsync|ssh /);
+  });
+});
+
 describe('общий набор студии gornitsa-kit (ADR студии 0022)', () => {
   test('RuStore — workflow набора, только руками, пакет и APK игры, как прежде и с пре-релизами', () => {
     const rs = wf('rustore.yml');
@@ -87,6 +156,11 @@ describe('общий набор студии gornitsa-kit (ADR студии 0022
     expect(contents['max-size-mb']).toBe('99');
     const allow = readFileSync(join(dir, '..', '..', contents['allow-file']), 'utf8');
     for (const p of ['android.permission.INTERNET', 'android.permission.VIBRATE', 'games.gornitsa.uzory.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']) expect(allow).toContain(p);
+    // фоновой работы нет (store/forms.md): запуск после перезагрузки, который просит модуль метрик SDK RuStore Pay,
+    // вырезан в app.json и в белый список не входит (1.0.1; тег v1.0.0 на нём остановился)
+    const blocked: string[] = JSON.parse(readFileSync(join(dir, '..', '..', 'app.json'), 'utf8')).expo.android.blockedPermissions;
+    for (const p of ['android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.WAKE_LOCK', 'com.google.android.gms.permission.AD_ID']) expect(blocked).toContain(p);
+    expect(allow).not.toContain('RECEIVE_BOOT_COMPLETED');
     // ровно две архитектуры и RuStore Pay в манифесте набор не проверяет — это шаг игры после него
     const names = build.steps.map((s: any) => s.name ?? s.id);
     const own = build.steps.find((s: any) => s.name === 'Содержимое — архитектуры и RuStore Pay');

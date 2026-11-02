@@ -7,17 +7,18 @@
 #   поднять v в карточке); пока на сервере каталога нет, сверять не с чем — запуск это пишет
 #   и заканчивается, ничего не собирая;
 # - если в content/week.yaml ещё не выпущенный id — набор недели и новый каталог, подписанный
-#   CATALOG_SIGNING_KEY, и выкладка: сначала наборы (выложенные не трогаются), потом подпись
-#   и каталог — rsync по SSH пользователем deploy в /srv/gornitsa/uzory/v1/ (вне папки сайта);
-#   затем всё скачивается обратно с сайта и сверяется;
-# - свёртка журнала каталога (server/stats/fold.ts) — туда же, в /srv/gornitsa/uzory/stats/.
+#   CATALOG_SIGNING_KEY, и выкладка — в ветку packs этого репозитория: все выложенные наборы
+#   (выложенный набор не меняется никогда), подпись и каталог — одним коммитом без истории, как
+#   ветка vps веб-версии. Сервер сайта забирает её сам раз в 5 минут (deploy/uzory в репозитории
+#   Nefeste/gornitsagames): сверяет подпись и наборы, кладёт сначала наборы, потом подпись и каталог
+#   в /srv/gornitsa/uzory/v1/; затем всё скачивается обратно с сайта и сверяется;
+# - скрипт свёртки журнала каталога (server/stats/fold.ts) — в ту же ветку (stats/fold.ts).
 # Руками (Actions → Content → Run workflow, только main): «base» — первый каталог со встроенным
 # набором этой версии, один раз к выпуску 1.0.
 #
-# Нужны секреты CATALOG_SIGNING_KEY, DEPLOY_SSH_KEY, DEPLOY_HOST (В9, В18) и, лучше, переменная
-# DEPLOY_KNOWN_HOSTS — строка `ssh-keyscan` сервера. Нет секретов — выкладка останавливается с
-# ошибкой до того, как что-то тронуть на сервере. Откат — прежний каталог из артефактов запуска
-# (наборы не удаляются никогда).
+# Нужен секрет CATALOG_SIGNING_KEY (В18). Входа на сервер у CI нет и не нужно (В9, 02.11.2026):
+# сервер сам забирает ветку, как веб-версию. Откат — прежний каталог из артефактов запуска в ветку
+# packs (наборы не удаляются никогда).
 name: Content
 
 on:
@@ -31,7 +32,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write   # ветка packs
   actions: read
 
 # выкладки идут по одной и не прерывают друг друга
@@ -97,60 +98,56 @@ jobs:
           # shellcheck disable=SC2086
           bun tools/content/week.ts --released "$V1" $BASE --out dist/v1
           if [ -f dist/v1/week.md ]; then cat dist/v1/week.md >> "$GITHUB_STEP_SUMMARY"; fi
-      - name: SSH к серверу
-        id: ssh
-        if: steps.what.outputs.run == 'yes'
-        env:
-          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          HOST: ${{ secrets.DEPLOY_HOST }}
-          KNOWN: ${{ vars.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          if [ -z "$KEY" ] || [ -z "$HOST" ]; then
-            echo "ready=no" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
-          if [ -n "$KNOWN" ]; then
-            printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
-            CHECK=yes
-          else
-            echo "::warning::Нет переменной DEPLOY_KNOWN_HOSTS: ключ сервера принят без сверки. Выложенное всё равно сверяется скачиванием с сайта."
-            CHECK=accept-new
-          fi
-          {
-            echo "ready=yes"
-            echo "ssh=ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=$CHECK"
-          } >> "$GITHUB_OUTPUT"
-      - name: Выкладка — наборы, затем подпись и каталог
+      # всё, что выложено, — одним коммитом без истории (как ветка vps): прежние наборы из ветки, новые
+      # из dist/v1/packs (только добавляются: выложенный набор с другими байтами — ошибка), подпись,
+      # каталог и скрипт свёртки счётчиков
+      - name: Выкладка — ветка packs
         if: steps.what.outputs.run == 'yes' && hashFiles('dist/v1/catalog.json') != ''
         env:
-          READY: ${{ steps.ssh.outputs.ready }}
-          SSH: ${{ steps.ssh.outputs.ssh }}
-          HOST: ${{ secrets.DEPLOY_HOST }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$READY" != "yes" ]; then
-            echo "::error::Нет секретов DEPLOY_SSH_KEY и DEPLOY_HOST (В9): набор собран, но не выложен — на сервере ничего не менялось."
-            exit 1
+          REPO="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf packs-branch
+          if git ls-remote --exit-code --heads "$REPO" packs >/dev/null 2>&1; then
+            git clone -q --depth 1 --single-branch --branch packs "$REPO" packs-branch
+            rm -rf packs-branch/.git
           fi
-          DEST="deploy@$HOST:/srv/gornitsa/uzory"
-          # наборы первыми: телефон не увидит каталога со ссылкой на невыложенный набор;
-          # выложенные наборы не переписываются никогда
-          rsync -rv --ignore-existing --chmod=D755,F644 -e "$SSH" dist/v1/packs/ "$DEST/v1/packs/"
-          rsync -v --chmod=F644 -e "$SSH" dist/v1/catalog.sig "$DEST/v1/"
-          rsync -v --chmod=F644 -e "$SSH" dist/v1/catalog.json "$DEST/v1/"
+          mkdir -p packs-branch/v1/packs packs-branch/stats
+          shopt -s nullglob
+          for f in dist/v1/packs/*; do
+            t="packs-branch/v1/packs/$(basename "$f")"
+            if [ -e "$t" ]; then
+              cmp -s "$f" "$t" || { echo "::error::набор $(basename "$f") уже выложен с другими байтами — выложенное не меняется"; exit 1; }
+            else
+              cp "$f" "$t"
+            fi
+          done
+          cp dist/v1/catalog.json dist/v1/catalog.sig packs-branch/v1/
+          cp server/stats/fold.ts packs-branch/stats/fold.ts
+          cd packs-branch
+          git init -q -b packs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Наборы: каталог из main ${GITHUB_SHA:0:7}"
+          git push -q --force "$REPO" HEAD:refs/heads/packs
+          echo "Ветка \`packs\`: $(ls v1/packs | wc -l) наборов, каталог из ${GITHUB_SHA:0:7}. Сервер заберёт её за 5 минут." >> "$GITHUB_STEP_SUMMARY"
+      # сервер забирает ветку раз в 5 минут: сверка ждёт до 15 минут
       - name: Сверка с сайтом
         if: steps.what.outputs.run == 'yes' && hashFiles('dist/v1/catalog.json') != ''
-        run: bun tools/content/week.ts --verify "$V1" --out dist/v1
-      # свёртку журнала запускает таймер на сервере (server/stats/README.md); сам скрипт — отсюда
-      - name: Свёртка счётчиков на сервере
-        if: steps.what.outputs.run == 'yes' && steps.ssh.outputs.ready == 'yes'
-        env:
-          SSH: ${{ steps.ssh.outputs.ssh }}
-          HOST: ${{ secrets.DEPLOY_HOST }}
-        run: rsync -v --chmod=F644 -e "$SSH" server/stats/fold.ts "deploy@$HOST:/srv/gornitsa/uzory/stats/"
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 30); do
+            if bun tools/content/week.ts --verify "$V1" --out dist/v1 > verify.log 2>&1; then
+              cat verify.log
+              exit 0
+            fi
+            sleep 30
+          done
+          cat verify.log
+          echo "::error::Сайт за 15 минут не отдал выложенное (${V1}): сервер забирает ветку packs — deploy/uzory в Nefeste/gornitsagames (sudo uzory-packs, журнал journalctl -u uzory-packs)."
+          exit 1
       # прежний каталог — для отката: вернуть его и его подпись на место. Выкладка к этому шагу
       # уже прошла, поэтому без места под артефакты (docs/05-process.md, «Место под артефакты»)
       # запуск не краснеет: шаг помечается, копии у этого запуска нет.
