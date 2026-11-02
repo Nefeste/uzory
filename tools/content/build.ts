@@ -334,6 +334,26 @@ export function calendarPictures(built: readonly { picture: Picture }[], previou
   return [...built.map((b) => b.picture), ...previous.map((p) => p.picture).filter((p) => !current.has(p.id))];
 }
 
+/** Правила календаря из карточек: время года (`season`) и праздник (`day`). */
+function calendarRules(built: readonly { card: Card }[]) {
+  const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
+  const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
+  return { season, day };
+}
+
+/** Ворота 4 (docs/specs/2026-09-v1.md): календарь на столько дней со дня выхода. */
+export const LAUNCH_DAYS = 120;
+
+/**
+ * Календарь выпуска 1.0, если выход — день `from` (docs/05-process.md, «Первый каталог»): `calendar_from`
+ * переходит на день выхода, закреплённые дни начинаются заново — и все малые и средние картинки с «да»,
+ * кроме «Детям», раскладываются с него. Дни закрытого теста при выходе не тратятся (02.11.2026: до этого
+ * счёт шёл от календаря теста, с 28.09.2026, — «98 дней вперёд» вместо 125).
+ */
+export function launchCalendar(built: readonly { card: Card; picture: Picture }[], previous: readonly { picture: Picture }[], from: string): CalendarDay[] {
+  return autoCalendar(calendarPictures(built, previous), from, calendarRules(built));
+}
+
 /** Узор карточки через кэш (tools/content/cache.ts): тот же ключ — тот же узор, без сборки заново. */
 async function cachedCard(card: Card, v: number, on: boolean, stats: { hits: number }): Promise<CardBuild> {
   if (!on) return buildCard(card, v);
@@ -408,10 +428,8 @@ export async function buildAll(opts: { only?: string; release?: boolean; stock?:
   }
   const col = (c: string) => COLLECTIONS.indexOf(c as Picture['collection']);
   built.sort((a, b) => col(a.card.collection) - col(b.card.collection) || a.card.order - b.card.order || a.card.id.localeCompare(b.card.id));
-  const season = new Map(built.flatMap((b) => (b.card.season ? [[b.card.id, b.card.season] as const] : [])));
-  const day = new Map(built.flatMap((b) => (b.card.day ? [[b.card.id, b.card.day] as const] : [])));
   const from = meta.calendar_from ?? meta.created;
-  const calendar = autoCalendar(calendarPictures(built, previous), from, { season, day, fixed: readFixedDays(from) });
+  const calendar = autoCalendar(calendarPictures(built, previous), from, { ...calendarRules(built), fixed: readFixedDays(from) });
   // прежние версии — после всех картинок: поиск картинки по id в наборе находит нынешнюю
   const bytes = writePack({ id: meta.id, created: meta.created, pictures: [...built, ...previous].map((b) => ({ picture: b.picture, pattern: b.pattern })), calendar });
   if (cache) pruneCache();
