@@ -1,4 +1,4 @@
-# из anamnez: .github/workflows/android.yml @ 3d76cf5
+# из anamnez: .github/workflows/android.yml @ 3d76cf5; позже в «Анамнезе» — из votchina @ 1cd15dc, а шаги ключа, подписи и состава APK здесь — из gornitsa-kit (ADR студии 0022)
 # Проверки, веб-сценарий, сборка APK, подписанного постоянным ключом (ADR 0014), и
 # публикация в Releases (docs/05-process.md, «Автоматика»).
 #
