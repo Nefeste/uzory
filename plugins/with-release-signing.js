@@ -1,4 +1,4 @@
-// из anamnez: plugins/with-release-signing.js @ 3d76cf5
+// из anamnez: plugins/with-release-signing.js @ 3d76cf5 (в «Анамнезе» — из votchina @ 76dc5c9; в источниках с тех пор менялись только пояснения)
 // Постоянный ключ подписи релизной сборки (ADR 0014) — перенос из «Анамнеза» и «Вотчины».
 //
 // Папки android/ в репозитории нет — её создаёт `expo prebuild`, поэтому подпись
