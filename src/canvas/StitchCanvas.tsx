@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { PixelRatio, Platform, View } from 'react-native';
 import { Gesture, GestureDetector, MouseButton } from 'react-native-gesture-handler';
 import {
-  cancelAnimation, useDerivedValue, useFrameCallback, useSharedValue, withDecay, withTiming,
+  cancelAnimation, ReduceMotion, useDerivedValue, useFrameCallback, useSharedValue, withDecay, withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import type { Pattern } from '../engine/pattern';
@@ -141,6 +141,11 @@ const HOLD_DP = 6;
 const TWO_FINGER_MS = 100;
 const DOUBLE_TAP_MS = 250;
 const FLUSH_MS = 1000;
+/**
+ * Взмах по инерции — продолжение пальца игрока, а не украшение: «Меньше движения» (src/state/motion.ts) его не
+ * останавливает; без этого Reanimated при меньшем движении бросает канву там, где отпустили палец.
+ */
+const FLING = ReduceMotion.Never;
 /** звук и вибрация стежка — не чаще 20 раз в секунду */
 const TICK_MS = 50;
 
@@ -687,8 +692,8 @@ export function StitchCanvas(props: Props) {
           tx.set(withTiming(clampX(vw / 2 - cx * target, target, w, vw), { duration: 250 }));
           ty.set(withTiming(clampY(vh / 2 - cy * target, target, h, vh), { duration: 250 }));
         } else {
-          tx.set(withDecay({ velocity: e.velocityX, clamp: [vw / 2 - w * k, vw / 2] }));
-          ty.set(withDecay({ velocity: e.velocityY, clamp: [vh / 2 - h * k, vh / 2] }));
+          tx.set(withDecay({ velocity: e.velocityX, clamp: [vw / 2 - w * k, vw / 2], reduceMotion: FLING }));
+          ty.set(withDecay({ velocity: e.velocityY, clamp: [vh / 2 - h * k, vh / 2], reduceMotion: FLING }));
         }
         if (onCamera) scheduleOnRN(onCamera, { s: s.get(), tx: tx.get(), ty: ty.get() });
         return;
@@ -762,8 +767,8 @@ export function StitchCanvas(props: Props) {
       'worklet';
       // канва катится по инерции и останавливается сама, как при сдвиге одним пальцем издалека (5.1)
       const k = s.get();
-      tx.set(withDecay({ velocity: e.velocityX, clamp: [vw / 2 - w * k, vw / 2] }));
-      ty.set(withDecay({ velocity: e.velocityY, clamp: [vh / 2 - h * k, vh / 2] }));
+      tx.set(withDecay({ velocity: e.velocityX, clamp: [vw / 2 - w * k, vw / 2], reduceMotion: FLING }));
+      ty.set(withDecay({ velocity: e.velocityY, clamp: [vh / 2 - h * k, vh / 2], reduceMotion: FLING }));
       if (onCamera) scheduleOnRN(onCamera, { s: s.get(), tx: tx.get(), ty: ty.get() });
     });
 
@@ -1048,14 +1053,18 @@ export function StitchCanvas(props: Props) {
   );
 }
 
-/** Сводка замера: медиана, 95-й процентиль, доля кадров дольше 33 мс, худший. */
-export function frameSummary(a: number[]): { n: number; p50: number; p95: number; slow: number; worst: number } {
-  if (!a.length) return { n: 0, p50: 0, p95: 0, slow: 0, worst: 0 };
+/**
+ * Сводка замера: медиана, 95-й процентиль, доли кадров дольше 25 мс (цель кадра устава, ADR 0023) и дольше 33 мс
+ * (пороги П2), худший.
+ */
+export function frameSummary(a: number[]): { n: number; p50: number; p95: number; long: number; slow: number; worst: number } {
+  if (!a.length) return { n: 0, p50: 0, p95: 0, long: 0, slow: 0, worst: 0 };
   const s = [...a].sort((x, y) => x - y);
   return {
     n: s.length,
     p50: median(s),
     p95: s[Math.min(s.length - 1, Math.floor(s.length * 0.95))],
+    long: (s.filter((x) => x > 25).length * 100) / s.length,
     slow: (s.filter((x) => x > 33).length * 100) / s.length,
     worst: s[s.length - 1],
   };

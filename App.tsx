@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { BackHandler, Image, Linking, Platform, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { warmCanvas } from './src/canvas/effect';
@@ -25,6 +25,7 @@ import { useLooksRefresh } from './src/state/looks';
 import { PlusProvider } from './src/state/plus';
 import { installSessions } from './src/state/sessions';
 import { keepSplash } from './src/state/splash';
+import { motionMode } from './src/state/motion';
 import { DEFAULT_SETTINGS, SettingsProvider, useSettings } from './src/state/settings';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { BenchScreen } from './src/screens/BenchScreen';
@@ -318,6 +319,18 @@ function Splash() {
   );
 }
 
+const MOTION = { system: ReduceMotion.System, always: ReduceMotion.Always, never: ReduceMotion.Never } as const;
+
+/**
+ * «Меньше движения» из настроек — на всё движение Reanimated разом (ADR 0023 устава, правило 6;
+ * docs/02-architecture.md, «Графика»): переходы и проявления заканчиваются сразу, а пока игрок не выбрал —
+ * как в системе.
+ */
+function Motion() {
+  const { settings } = useSettings();
+  return <ReducedMotionConfig mode={MOTION[motionMode(settings.lessMotion)]} />;
+}
+
 const SPLASH_LIGHT = require('./assets/splash-icon.png');
 const SPLASH_DARK = require('./assets/splash-icon-dark.png');
 
@@ -327,6 +340,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SettingsProvider>
+          <Motion />
           <PlayerProvider>
             <PlusProvider>
               {fonts ? <Gate /> : <Splash />}

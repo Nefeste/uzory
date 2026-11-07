@@ -2,9 +2,11 @@
 // Настройки игрока (docs/08-game-design.md, «Настройки»; перенос механики из «Вотчины»).
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { type FrameId, FREE_FRAME, FREE_WALL, type WallId } from '../engine/looks';
 import { DARK, LIGHT, type Theme } from '../ui/theme';
 import type { Ambience } from './ambience';
+import { type LessMotion, lessMotion } from './motion';
 import { KEYS, loadJson, saveJson } from './storage';
 
 export type StitchStyle = 'cross' | 'mosaic';
@@ -23,6 +25,11 @@ export interface Settings {
   shareStitches: boolean;
   hints: boolean;
   haptics: boolean;
+  /**
+   * «Меньше движения» (ADR 0023 устава, правило 6; src/state/motion.ts): `null` — как «Уменьшить движение» в
+   * системе, пока игрок не выбрал сам
+   */
+  lessMotion: LessMotion;
   sound: boolean;
   music: boolean;
   /** фон вышивания — дождь за окном или печь (src/state/ambience.ts); сразу после установки выключен */
@@ -43,7 +50,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   style: 'cross', bigNumbers: false, highlight: 'tint', fill: true, autoNext: true, shareStitches: false,
-  hints: true, haptics: true, sound: true, music: true, ambience: 'off', previewLock: false,
+  hints: true, haptics: true, lessMotion: null, sound: true, music: true, ambience: 'off', previewLock: false,
   frame: FREE_FRAME, wall: FREE_WALL, mat: true,
 };
 
@@ -84,4 +91,10 @@ export function useSettings(): Ctx {
   const c = useContext(SettingsContext);
   if (!c) throw new Error('SettingsProvider missing');
   return c;
+}
+
+/** Убирать ли украшающее движение сейчас: выбор игрока или, пока его нет, система телефона. */
+export function useLessMotion(): boolean {
+  const { settings } = useSettings();
+  return lessMotion(settings.lessMotion, useReducedMotion());
 }

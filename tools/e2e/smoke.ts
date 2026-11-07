@@ -508,6 +508,20 @@ try {
   check(stored.includes('"shareStitches":false') && withStitches.includes('"shareStitches":true'),
     'настройки: «Стежки на картинке „Поделиться“» сразу выключены, включаются и запоминаются');
   check((await page.getByTestId('set-music').count()) === 1, 'настройки: переключатель «Музыка»');
+  // «Меньше движения» (ADR 0023 устава): сразу — как в системе (у безголового Chromium движение не убрано),
+  // выбор игрока запоминается
+  const motionAt = async () => String(await page.getByTestId('set-less-motion').locator('input').first().isChecked().catch(() => ''));
+  const motionFirst = await motionAt();
+  await page.getByTestId('set-less-motion').click();
+  await page.waitForTimeout(200);
+  const motionOn = await motionAt();
+  const motionStored = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+  await page.getByTestId('set-less-motion').click();
+  await page.waitForTimeout(200);
+  const motionBack = await page.evaluate(() => localStorage.getItem('uzory.settings.v1') ?? '');
+  check(stored.includes('"lessMotion":null') && motionFirst === 'false' && motionOn === 'true'
+    && motionStored.includes('"lessMotion":true') && motionBack.includes('"lessMotion":false'),
+  `настройки: «Меньше движения» сразу как в системе (${motionFirst}), включается (${motionOn}) и запоминается`);
   await page.getByTestId('set-about').click();
   check((await page.getByTestId('about-version').innerText().catch(() => '')).includes('Узоры'), '«О программе»: версия и источники картинок');
   check((await page.getByTestId('about-faces-license').innerText().catch(() => '')).includes('Copyright (c) 2013 Nenad Markus'), '«О программе»: детектор лиц pico и текст его лицензии MIT');
