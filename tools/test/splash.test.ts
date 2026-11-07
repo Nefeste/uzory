@@ -44,4 +44,23 @@ describe('заставка', () => {
       expect(outside, file).toBe(0);
     }
   });
+
+  test('второй фон: у темы заставки фон окна — цвет заставки (правило устава), плагин — перед expo-splash-screen', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { transforms: t } = require('../../plugins/with-splash-window.js') as {
+      transforms: { styles: (x: Styles) => Styles; THEME: string; ITEM: string; VALUE: string };
+    };
+    type Styles = { resources: { style: { $: { name: string }; item?: { $: { name: string }; _: string }[] }[] } };
+    const xml: Styles = { resources: { style: [
+      { $: { name: 'AppTheme' }, item: [{ $: { name: 'android:windowBackground' }, _: '@color/activityBackground' }] },
+      { $: { name: t.THEME }, item: [{ $: { name: 'windowSplashScreenBackground' }, _: '@color/splashscreen_background' }] },
+    ] } };
+    const out = t.styles(xml).resources.style;
+    expect(out.find((s) => s.$.name === t.THEME)!.item!.filter((i) => i.$.name === t.ITEM).map((i) => i._)).toEqual(['@color/splashscreen_background']);
+    expect(out.find((s) => s.$.name === 'AppTheme')!.item![0]._).toBe('@color/activityBackground');
+    // моды Expo — в обратном порядке: плагин раньше в списке — его правка ложится поверх темы expo-splash-screen
+    const names = (app.expo.plugins as unknown[]).map((p) => (Array.isArray(p) ? p[0] : p));
+    expect(names.indexOf('./plugins/with-splash-window')).toBeGreaterThanOrEqual(0);
+    expect(names.indexOf('./plugins/with-splash-window')).toBeLessThan(names.indexOf('expo-splash-screen'));
+  });
 });
