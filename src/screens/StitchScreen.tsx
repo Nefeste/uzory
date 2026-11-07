@@ -19,7 +19,7 @@ import { fillRegion, nearestGroup, nextThread } from '../engine/regions';
 import { T } from '../i18n';
 import { hasMusic, musicEnabled, musicEnter, musicLeave, musicNext, musicStart, musicStitch } from '../state/music';
 import { usePlayer } from '../state/player';
-import { type StitchStyle, useSettings } from '../state/settings';
+import { type StitchStyle, useLessMotion, useSettings } from '../state/settings';
 import { play, soundsReady } from '../state/sound';
 import { type Ambience, ambienceEnter, ambienceLeave, ambienceSet } from '../state/ambience';
 import { openWork, startWork, type WorkSession } from '../state/works';
@@ -60,6 +60,7 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
   onLooks?: () => void;
 }) {
   const { settings, update, theme } = useSettings();
+  const less = useLessMotion();
   // канва работы (с 0.20.0 — у работы, src/state/works.ts): до открытия работы — выбранная на карточке или
   // подходящая узору; фон до первого кадра — её же поле
   const [canvasId, setCanvasId] = useState<CanvasId>(() => newCanvas ?? suitedCanvas(pattern));
@@ -181,8 +182,9 @@ export function StitchScreen({ pattern, title, workId, pic, mystery: newMystery,
     if (s.state.finished) {
       setFinishing(true);
       hud.set(withTiming(0, { duration: 300 }));
-      api.current?.fit(800);
-      void s.flush(true).then(() => setTimeout(() => onDone(s.id), 1200));
+      // «Меньше движения»: без отдаления канвы и с короткой паузой — последний стежок виден, и сразу «Готово»
+      api.current?.fit(less ? 0 : 800);
+      void s.flush(true).then(() => setTimeout(() => onDone(s.id), less ? 400 : 1200));
       return;
     }
     if (s.state.left[thread] === 0 && settings.autoNext) {
