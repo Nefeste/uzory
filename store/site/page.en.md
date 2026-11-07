@@ -3,7 +3,10 @@ name: Uzory
 title: Uzory — cross-stitch by numbers on your phone
 description: "Color by number as cross-stitch for Android: folk ornaments, paintings and old photographs, with a free picture every day. Works offline, no ads."
 kind: Color by number
-status: dev
+status: live
+links:
+  - text: Get it on RuStore
+    url: https://www.rustore.ru/catalog/app/games.gornitsa.uzory
 lead: "Cross-stitch by numbers: pick a thread and stitch — tap a cell or brush your finger across the canvas."
 icon: graphics/icon-512.png
 feature: graphics/feature-en.png
@@ -34,9 +37,12 @@ card:
     - A free picture of the day — every day, forever
     - Offline, no sign-up and no ads
     - Uzory+ subscription — no trial week that auto-renews
+  links:
+    - text: Get it on RuStore
+      url: https://www.rustore.ru/catalog/app/games.gornitsa.uzory
 facts:
   platform: Android
-  price: free, optional Uzory+ subscription
+  price: free, with in-app purchases
   age: 0+
   players: one
   internet: not needed
@@ -45,7 +51,7 @@ facts:
 
 Uzory is color by number made to feel like cross-stitch. Every picture is a chart on linen canvas
 with numbered cells. From afar your work looks like real embroidery, and when it is finished the
-game replays how it was stitched.
+game replays how it was stitched. Uzory came out on RuStore on 7 November 2026.
 
 ## What to stitch
 
@@ -68,8 +74,9 @@ left. No ads, no sign-up, the whole library works offline. The Uzory+ subscripti
 library and new pictures every week; there is no trial that silently turns paid, and works you
 started can be finished after it ends.
 
-## When
+## Where to get it
 
-The game is in development; the screenshots are from a test build, which is in Russian, with
-pictures that will be in the release. Uzory is being prepared for release in RuStore for Android;
-when pre-orders open, a button will appear here. Questions: hello@gornitsa.games.
+The game came out on 7 November 2026 on [RuStore for Android](https://www.rustore.ru/catalog/app/games.gornitsa.uzory); it is in Russian. Free: the
+picture of the day, a new one every day, and your first own pattern made from a photo. Paid: Uzory+
+for a month or a year — the whole library and new pictures every week; frames and walls for finished
+works — forever. Questions: support@gornitsa.games.
