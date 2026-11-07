@@ -54,6 +54,7 @@
     },
     "plugins": [
       "expo-font",
+      "./plugins/with-splash-window",
       [
         "expo-splash-screen",
         {
