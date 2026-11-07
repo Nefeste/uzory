@@ -51,7 +51,7 @@ export function BenchScreen({ onBack }: { onBack: () => void }) {
     const B = T.bench;
     const line = (name: string, a: number[]) => {
       const f = frameSummary(a);
-      return `${name}: ${f.n} ${B.frames}, ${B.p50} ${f.p50.toFixed(1)}, ${B.p95} ${f.p95.toFixed(1)}, ${B.slow} ${f.slow.toFixed(1)} %, ${B.worst} ${f.worst.toFixed(0)}`;
+      return `${name}: ${f.n} ${B.frames}, ${B.p50} ${f.p50.toFixed(1)}, ${B.p95} ${f.p95.toFixed(1)}, ${B.long} ${f.long.toFixed(1)} %, ${B.slow} ${f.slow.toFixed(1)} %, ${B.worst} ${f.worst.toFixed(0)}`;
     };
     const p95 = (a: number[]) => frameSummary(a).p95.toFixed(2);
     setResult([

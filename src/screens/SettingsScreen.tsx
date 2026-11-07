@@ -10,7 +10,7 @@ import { logError } from '../state/crashlog';
 import { hasMusic } from '../state/music';
 import { pickFile, PickTooBig } from '../state/pick';
 import { usePlayer } from '../state/player';
-import { type StitchStyle, useSettings } from '../state/settings';
+import { type StitchStyle, useLessMotion, useSettings } from '../state/settings';
 import { shareFile } from '../state/share';
 import { Button, Screen, SectionTitle, Segmented, ToggleRow, Txt } from '../ui/components';
 
@@ -23,6 +23,7 @@ export function SettingsScreen({ onBack, onReport, onAbout, onPlus, onLooks }: {
   onLooks: () => void;
 }) {
   const { settings, update, theme } = useSettings();
+  const less = useLessMotion();
   const player = usePlayer();
   const [busy, setBusy] = useState<'save' | 'load' | null>(null);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -119,6 +120,9 @@ export function SettingsScreen({ onBack, onReport, onAbout, onPlus, onLooks }: {
           <ToggleRow label={T.settings.haptics} note={T.settings.hapticsNote} value={settings.haptics}
             onChange={(v) => update({ haptics: v })} testID="set-haptics" />
         ) : null}
+        {/* правило 6 ADR 0023 устава; пока игрок не выбрал — как в системе (src/state/motion.ts) */}
+        <ToggleRow label={T.settings.lessMotion} note={T.settings.lessMotionNote} value={less}
+          onChange={(v) => update({ lessMotion: v })} testID="set-less-motion" />
         <SectionTitle>{T.settings.transfer}</SectionTitle>
         <Txt dim style={[styles.note, styles.lead]}>{T.settings.transferNote}</Txt>
         <View style={styles.buttons}>
