@@ -3,7 +3,7 @@
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Alert, BackHandler, Image, Linking, Platform, View } from 'react-native';
+import { BackHandler, Image, Linking, Platform, View } from 'react-native';
 import Animated, { FadeIn, ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -46,6 +46,7 @@ import { SheetScreen } from './src/screens/SheetScreen';
 import { SignScreen } from './src/screens/SignScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
 import { WorksScreen, type WorksTab } from './src/screens/WorksScreen';
+import { Dialog, type Notice } from './src/ui/dialog';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
 import { FONT_FILES } from './src/ui/fonts';
 import { whoMade } from './src/ui/PicAbout';
@@ -101,6 +102,8 @@ function Root() {
   const { theme, update } = useSettings();
   const player = usePlayer();
   const [stack, setStack] = useState<Entry[]>(() => [entry({ name: 'home' })]);
+  // сообщение поверх экрана — своим окном, не системным Alert (устав, «Код»)
+  const [notice, setNotice] = useState<Notice | null>(null);
   const route = stack[stack.length - 1];
   const go = (r: Route) => setStack((s) => [...s, entry(r)]);
   const back = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
@@ -133,7 +136,7 @@ function Root() {
         if (alive) go({ name: 'stitchMine', pattern: g.pattern, title: g.title, workId: g.workId, gift: g.gift, mystery: g.secret });
       } catch (e) {
         if (!(e instanceof GiftError)) logError('gift', e, 'incoming');
-        if (alive) Alert.alert(T.gift.open, T.gift.problem[e instanceof GiftError ? e.problem : 'broken']);
+        if (alive) setNotice({ title: T.gift.open, text: T.gift.problem[e instanceof GiftError ? e.problem : 'broken'] });
       }
     };
     void Linking.getInitialURL().then(open, () => undefined);
@@ -293,6 +296,7 @@ function Root() {
         {/* экран проявляется, а не сменяется рывком (3.8); канва — без перехода: её первые кадры — работе */}
         <Animated.View key={route.k} entering={NO_ENTERING || CANVAS_ROUTES.has(route.name) ? undefined : FadeIn.duration(160)} style={{ flex: 1 }}>{screen}</Animated.View>
       </ErrorBoundary>
+      <Dialog notice={notice} onClose={() => setNotice(null)} />
     </View>
   );
 }
