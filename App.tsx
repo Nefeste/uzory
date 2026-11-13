@@ -45,6 +45,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SheetScreen } from './src/screens/SheetScreen';
 import { SignScreen } from './src/screens/SignScreen';
 import { StitchScreen } from './src/screens/StitchScreen';
+import { SvetlitsaScreen } from './src/screens/SvetlitsaScreen';
 import { WorksScreen, type WorksTab } from './src/screens/WorksScreen';
 import { Dialog, type Notice } from './src/ui/dialog';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
@@ -80,7 +81,9 @@ type Route =
   | { name: 'calendar' }
   | { name: 'plus'; sample: boolean }
   | { name: 'report'; from: string }
-  | { name: 'looks' };
+  | { name: 'looks' }
+  /** «Светлица» (1.1.0): focus — только что вышитая работа, она вешается на стену у вас на глазах */
+  | { name: 'svetlitsa'; focus?: string };
 
 /** Экран в стеке: `k` — свой ключ, чтобы два одинаковых экрана подряд не делили состояние. */
 type Entry = Route & { k: number };
@@ -171,6 +174,7 @@ function Root() {
           onScrollBench={() => go({ name: 'scrollBench' })}
           onFile={() => go({ name: 'file' })}
           onMine={() => go({ name: 'mine' })}
+          onSvetlitsa={() => go({ name: 'svetlitsa' })}
           onPlusSample={() => go({ name: 'plus', sample: true })}
         />
       );
@@ -224,6 +228,7 @@ function Root() {
       ) : (
         <DoneScreen pattern={route.pattern} title={route.title} caption={route.caption} workId={route.workId} pic={pic} gift={route.gift}
           onNext={(next) => (next ? setStack([entry({ name: 'home' }), entry({ name: 'picture', pic: next })]) : home())}
+          onHang={() => go({ name: 'svetlitsa', focus: route.workId })}
           onSettings={() => go({ name: 'settings' })} onPlus={plus} onLooks={() => go({ name: 'looks' })}
           onSign={() => go({ name: 'sign', pattern: route.pattern, workId: route.workId })} />
       );
@@ -269,6 +274,13 @@ function Root() {
         <WorksScreen tab={route.tab ?? 'started'} onTab={(tab) => patch(route.k, { tab })} onBack={back}
           onOpen={(pic, workId) => go({ name: 'stitch', pic, workId })}
           onDone={(pic, pattern, workId) => go({ name: 'done', pattern, title: pic.title, caption: caption(pic), workId, pic, listed: true })} />
+      );
+      break;
+    case 'svetlitsa':
+      screen = (
+        <SvetlitsaScreen focus={route.focus} onBack={back} onLooks={() => go({ name: 'looks' })}
+          onOpen={(w) => go({ name: 'done', pattern: w.pattern, title: w.title, caption: w.pic ? caption(w.pic) : w.gift?.from ? T.gift.fromLine(w.gift.from) : undefined,
+            workId: w.id, pic: w.pic, gift: w.gift, listed: true })} />
       );
       break;
     case 'calendar':

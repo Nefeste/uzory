@@ -18,6 +18,7 @@ import { useSettings } from '../state/settings';
 import { hideSplash } from '../state/splash';
 import { loadIndex, type WorkEntry, workStitched } from '../state/works';
 import { Button, Card, Screen, Txt } from '../ui/components';
+import { SvetlitsaCard } from '../ui/SvetlitsaCard';
 import { APP_BUILD, APP_VERSION, INTERNAL } from '../version';
 
 /** Проверки для владельца — в сборках для проверки: 0.x и закрытая веб-версия (docs/05-process.md, «Версии»). */
@@ -26,7 +27,7 @@ export const CHECKS = INTERNAL;
 const keyOf = (p: PackPicture) => `${p.id}@${p.v}`;
 const percentOf = (w: WorkEntry) => Math.floor((w.done * 100) / Math.max(1, w.total));
 
-export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onScrollBench, onFile, onMine, onPlusSample }: {
+export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalendar, onSheet, onBench, onScrollBench, onFile, onMine, onSvetlitsa, onPlusSample }: {
   onStitch: (pic: PackPicture, workId?: string) => void;
   onSettings: () => void;
   onLibrary: () => void;
@@ -39,6 +40,8 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
   onFile: () => void;
   /** «Свой узор» (docs/specs/2026-09-custom.md) */
   onMine: () => void;
+  /** «Светлица» (1.1.0) — готовые работы на стенах */
+  onSvetlitsa: () => void;
   /** образец экрана «Узоры+» — в разделе «Для проверки» */
   onPlusSample: () => void;
 }) {
@@ -139,6 +142,7 @@ export function HomeScreen({ onStitch, onSettings, onLibrary, onWorks, onCalenda
               <Button kind="secondary" label={T.home.last(last.mystery ? T.mystery.title : lastPic.title, percentOf(last))} lines={2}
                 onPress={() => onStitch(lastPic, last.id)} testID="continue" />
             ) : null}
+            <SvetlitsaCard works={works} onOpen={onSvetlitsa} />
             <View style={styles.nav}>
               <Button kind="secondary" label={T.home.library} onPress={onLibrary} testID="home-library" />
               <Button kind="secondary" label={T.home.works} onPress={onWorks} testID="home-works" />
