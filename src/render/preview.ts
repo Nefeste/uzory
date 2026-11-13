@@ -1,7 +1,7 @@
 // Превью узора картинкой PNG (docs/specs/2026-09-library.md, «Библиотека»): не канва на
 // каждую карточку, а изображение. Малый узор увеличивается без сглаживания — клетки остаются
 // клетками; большой уменьшается усреднением клеток, как видит его глаз издалека.
-import { ImageFormat } from '@shopify/react-native-skia';
+import { ImageFormat, type SkImage } from '@shopify/react-native-skia';
 import { rgbaImage } from '../canvas/textures';
 import { mix, muted } from '../engine/color';
 import { CANVASES, clothRgb } from '../engine/looks';
@@ -43,6 +43,25 @@ export function previewUri(p: Pattern, mode: 'done' | 'muted', side = 360, stitc
 }
 
 function render(p: Pattern, mode: 'done' | 'muted', side: number, stitched: Uint8Array | undefined, cloth: number): string | null {
+  const img = pixels(p, mode, side, stitched, cloth);
+  return img ? `data:image/png;base64,${img.encodeToBase64(ImageFormat.PNG, 100)}` : null;
+}
+
+/** Готовые работы на стенах «Светлицы» — картинками Skia, без PNG: стена рисуется из них сразу. */
+const images = new Map<string, SkImage | null>();
+const IMAGES_MAX = 300;
+
+/** Готовая работа картинкой Skia (src/render/gallery.ts): как превью «done», без кодирования в PNG. */
+export function previewImage(p: Pattern, side: number, cloth = CLOTH): SkImage | null {
+  const key = `${p.key}|${side}|${cloth}`;
+  if (images.has(key)) return images.get(key)!;
+  const img = pixels(p, 'done', side, undefined, cloth);
+  if (images.size >= IMAGES_MAX) images.delete(images.keys().next().value!);
+  images.set(key, img);
+  return img;
+}
+
+function pixels(p: Pattern, mode: 'done' | 'muted', side: number, stitched: Uint8Array | undefined, cloth: number): SkImage | null {
   const colors = p.threads.map((t) => (mode === 'done' ? t.rgb : muted(t.rgb)));
   const color = (i: number) => {
     const t = p.cells[i];
@@ -109,7 +128,5 @@ function render(p: Pattern, mode: 'done' | 'muted', side: number, stitched: Uint
       }
     }
   }
-  const img = rgbaImage(out, W, H);
-  if (!img) return null;
-  return `data:image/png;base64,${img.encodeToBase64(ImageFormat.PNG, 100)}`;
+  return rgbaImage(out, W, H);
 }

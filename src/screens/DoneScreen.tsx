@@ -79,7 +79,7 @@ function playStitches(api: { current: CanvasApi | null }, cells: number[], onEnd
   return timer;
 }
 
-export function DoneScreen({ pattern, title, caption, workId, pic, gift, onNext, onBack, onAgain, onSettings, onPlus, onLooks, onSign }: {
+export function DoneScreen({ pattern, title, caption, workId, pic, gift, onNext, onHang, onBack, onAgain, onSettings, onPlus, onLooks, onSign }: {
   pattern: Pattern;
   title: string;
   caption?: string;
@@ -90,6 +90,8 @@ export function DoneScreen({ pattern, title, caption, workId, pic, gift, onNext,
   pic?: PackPicture;
   /** «Дальше» у только что вышитой работы: карточка следующей картинки или главная */
   onNext?: (next: PackPicture | null) => void;
+  /** «Повесить на стену» у только что вышитой работы (1.1.0): «Светлица», работа вешается на гвоздь у вас на глазах */
+  onHang?: () => void;
   /** готовая работа открыта из списка: «назад» — к нему; «Дальше» и строки «Узоры+» нет */
   onBack?: () => void;
   /** там же «Вышить ещё раз» — карточка картинки, где новая работа начинается */
@@ -311,7 +313,13 @@ export function DoneScreen({ pattern, title, caption, workId, pic, gift, onNext,
             <Button kind="ghost" small label={sign ? T.done.signMore : T.done.sign} onPress={onSign} testID="done-sign" />
           ) : null}
           {onLooks ? <Button kind="ghost" small label={T.done.looks} onPress={onLooks} testID="done-looks" /> : null}
-          {onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
+          {onHang && onNext && !playing ? (
+            // «Повесить на стену» — рядом с «Дальше», в одну строку: сцена на низком экране не теряет высоты
+            <View style={styles.row}>
+              <Button kind="secondary" label={stacked ? T.svetlitsa.hangShort : T.svetlitsa.hang} onPress={onHang} testID="done-hang" style={styles.half} />
+              <Button label={T.done.next} onPress={() => onNext(next())} testID="next" style={styles.half} />
+            </View>
+          ) : onNext ? <Button label={T.done.next} onPress={() => onNext(next())} testID="next" /> : null}
           {onAgain ? <Button label={T.done.again} onPress={onAgain} testID="done-again" /> : null}
           {offer ? <Button kind="ghost" small label={T.plus.offer} onPress={onPlus} testID="done-plus" /> : null}
         </Animated.View>

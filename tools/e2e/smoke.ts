@@ -852,8 +852,25 @@ try {
   check(new RegExp(`^\\d+ из ${firstStitches}$`).test(counting) && await page.getByTestId('replay-bar').isVisible(),
     `«Как вышивалось»: под рамкой полоса и счётчик стежков («${counting}»)`);
   await page.getByTestId('skip').click().catch(() => {});
+  // «Светлица» (1.1.0, docs/specs/2026-11-svetlitsa.md): «Повесить на стену» — стена с этой работой, она опускается
+  // на гвоздь отдельной картинкой; касание работы — её «Готово»; «назад» — снова сюда
+  await page.getByTestId('done-hang').click();
+  const hungNew = await page.getByTestId('svetlitsa-new').waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: join(OUT, '04-svetlitsa.png') });
+  const wallCount = (await page.getByTestId('svetlitsa-count').innerText().catch(() => '')).replace(/\u00a0/g, ' ');
+  check(hungNew && await page.getByTestId('svetlitsa-wall-image').first().isVisible() && wallCount === '1 работа на стене · Стена 1 из 1',
+    `«Повесить на стену»: «Светлица», первая картинка садится на гвоздь, «${wallCount}»`);
+  await page.locator('[data-testid^="svetlitsa-work-"]').first().click();
+  const fromWall = await page.getByTestId('done-again').waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  check(fromWall && (await page.getByTestId('next').count()) === 0, 'касание работы на стене — её «Готово», как из «Моих работ»');
+  await page.getByTestId('back').click();
+  await page.getByTestId('back').click();
+  await page.getByTestId('next').waitFor({ timeout: 10_000 });
   await page.getByTestId('next').click();
   await page.getByTestId('daily-stitch').waitFor({ timeout: 10_000 }).catch(() => {});
+  const homeWall = await page.getByTestId('home-svetlitsa-count').innerText().catch(() => '');
+  check(homeWall.replace(/\u00a0/g, ' ') === '1 работа на стене', `на главной — «Светлица»: «${homeWall}»`);
   // сегодняшняя картинка дня — по календарю встроенного набора; если это «Розетка», начатая выше,
   // на её кнопке «Продолжить» (так и вышло 4 октября 2026 года)
   const todayStr = await page.evaluate(() => {
